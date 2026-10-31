@@ -78,4 +78,19 @@ if (noUbicadas.length) {
   for (const l of noUbicadas) console.log(`  ${String(l.filas).padStart(5)}  ${l.localidad}${l.departamento ? ` (${l.departamento})` : ''}`);
 }
 console.log(`\nLocalidades de Bogotá reconocidas: ${new Set(lugares.filter((l) => !l.no_ubicada).map((l) => l.localidad)).size}`);
+// Puestos por revisar: cuántos nombres distintos y cuántos tienen sugerencia
+const [rev] = await base.sistema(`
+  with g as (
+    select localidad_id, app.normalizar(puesto_reportado) nombre, min(puesto_reportado) original, count(*) filas
+    from importacion_filas
+    where importacion_id = $1 and puesto_id is null and puesto_reportado is not null and localidad_id is not null
+    group by 1, 2)
+  select count(*)::int grupos, coalesce(sum(filas), 0)::int filas,
+         count(*) filter (where exists (select 1 from app.sugerir_puesto($2, g.localidad_id, g.original, null)))::int con_sugerencia
+  from g`, [imp, org]);
+const [ubic] = await base.sistema(`
+  select count(*) filter (where puesto_id is not null)::int con_puesto, count(*) filter (where mesa_id is not null)::int con_mesa
+  from importacion_filas where importacion_id = $1 and estado = 'valida'`, [imp]);
+console.log(`\nUbicación automática: ${ubic.con_puesto} con puesto oficial, ${ubic.con_mesa} con mesa`);
+console.log(`Por revisar: ${rev.filas} personas en ${rev.grupos} nombres de puesto distintos (${rev.con_sugerencia} con sugerencia automática)`);
 console.log('\n(No se guardó nada. Base temporal en memoria.)\n');

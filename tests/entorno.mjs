@@ -67,7 +67,10 @@ class Base {
 //   Usaquén: Pepe Sierra (mesas 1-4)   Kennedy: Colegio Kennedy (mesa 5)
 export async function cargarCatalogo(base) {
   await base.db.exec('reset role;');
+  // Las pruebas de reglas usan un catálogo pequeño y conocido; el oficial
+  // se prueba aparte en catalogo.test.mjs
   await base.db.exec(`
+    delete from mesas; delete from puestos;
     insert into puestos(id, localidad_id, zona, codigo, nombre, direccion, latitud, longitud) values
       (1, (select id from localidades where codigo = '01'), '01', '01', 'Pepe Sierra', 'Cl 116 # 15-30', 4.6935, -74.0480),
       (2, (select id from localidades where codigo = '08'), '08', '01', 'Colegio Kennedy', 'Kr 78 # 41-20 Sur', 4.6280, -74.1530);

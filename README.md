@@ -27,12 +27,16 @@ supabase/migrations/
   …1000_importacion_v2.sql  errores vs advertencias, formato real de los Excel
   …1100_ubicacion_reportada  puesto "Otro", direcciones, alias aprendidos; sexo y edad obligatorios
   …1200_importacion_v3.sql  la importación conserva lo reportado y ubica automáticamente
+  …1300_catalogo_bogota_puestos  1.083 puestos y 18.156 mesas oficiales (generada)
+datos/divipole/             CSV de Bogotá extraído del Divipole + fuente y huella
+scripts/datos/              extracción del PDF y generación de la migración
 src/importacion/mapeo.mjs   reconocimiento de columnas de Excel (Node y navegador)
 scripts/prueba-importacion.mjs  prueba en seco de un Excel
 tests/
   entorno.mjs               Postgres embebido que imita Supabase
   esquema.test.mjs          pruebas de reglas, E14, permisos, importación y catálogo
   mapeo.test.mjs            pruebas del reconocimiento de columnas
+  catalogo.test.mjs         catálogo oficial: totales, localidades, mesas, coordenadas
 .github/workflows/
   base-de-datos.yml         pruebas + despliegue por rama
 ```
@@ -151,7 +155,7 @@ Hay que cargar el catálogo territorial (municipio, localidades, puestos y mesas
 ## Pendientes
 
 - [x] Localidades de Bogotá
-- [ ] Puestos y mesas de Bogotá (Divipole de la Registraduría)
+- [x] Puestos y mesas de Bogotá: Divipole Congreso 2026 (ver `datos/divipole/FUENTE.md`)
 - [ ] Script de migración de los datos del piloto (MongoDB → Postgres)
 - [ ] Panel web: login, registro de personas, importador de Excel, digitación E14
 - [ ] Tablero del candidato (PWA): mapa, pirámide de edad y sexo, avance y E14
