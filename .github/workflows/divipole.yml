@@ -13,9 +13,6 @@ on:
 permissions:
   contents: write
 
-env:
-  DIVIPOLE_URL: https://registraduria.gov.co/IMG/pdf/Divipole_definitiva_%20Elecciones_Congreso_2026_GEO_CITREP_Exterior_L_V_v5.pdf
-
 jobs:
   extraer:
     runs-on: ubuntu-latest
@@ -29,11 +26,21 @@ jobs:
 
       - name: Descargar PDF oficial
         run: |
-          curl -fL --retry 3 --retry-delay 5 -A "Mozilla/5.0 (X11; Linux x86_64)" \
-               -o divipole.pdf "$DIVIPOLE_URL"
-          file divipole.pdf
-          ls -la divipole.pdf
-          head -c 5 divipole.pdf | grep -q '%PDF' || { echo "::error::La descarga no es un PDF"; exit 1; }
+          RUTA="IMG/pdf/Divipole_definitiva_%20Elecciones_Congreso_2026_GEO_CITREP_Exterior_L_V_v5.pdf"
+          for url in "https://registraduria.gov.co/$RUTA" "https://www.registraduria.gov.co/$RUTA" "http://www.registraduria.gov.co/$RUTA"; do
+            codigo=$(curl -sS -L --retry 2 --retry-delay 5 --max-time 600 -o divipole.pdf -w '%{http_code}' \
+              -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36" \
+              -H "Accept: application/pdf,text/html;q=0.9,*/*;q=0.8" -H "Accept-Language: es-CO,es;q=0.9" \
+              -e "https://www.registraduria.gov.co/" "$url" || echo "curl-error")
+            tipo=$(file -b divipole.pdf 2>/dev/null | cut -c1-60)
+            echo "::warning::$url -> HTTP $codigo, $(stat -c %s divipole.pdf 2>/dev/null || echo 0) bytes, $tipo"
+            if head -c 5 divipole.pdf 2>/dev/null | grep -q '%PDF'; then
+              echo "DIVIPOLE_URL=$url" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          done
+          echo "::error::No se pudo descargar el PDF desde ninguna variante"
+          exit 1
 
       - name: Extraer tablas
         run: python scripts/datos/extraer_divipole.py divipole.pdf datos/divipole
