@@ -49,7 +49,32 @@ jobs:
       - uses: supabase/setup-cli@v1
         with:
           version: latest
-      - run: supabase link --project-ref "${{ secrets.SUPABASE_PROJECT_REF }}"
+      - name: Verificar configuración
+        env:
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          faltan=0
+          [ -z "$SUPABASE_ACCESS_TOKEN" ] && { echo "::error::Falta el secreto del repositorio SUPABASE_ACCESS_TOKEN"; faltan=1; }
+          [ -z "$PROJECT_REF" ]           && { echo "::error::Falta SUPABASE_PROJECT_REF en el entorno ${{ github.ref_name == 'main' && 'produccion' || 'pruebas' }}"; faltan=1; }
+          [ -z "$SUPABASE_DB_PASSWORD" ]  && { echo "::error::Falta SUPABASE_DB_PASSWORD en el entorno ${{ github.ref_name == 'main' && 'produccion' || 'pruebas' }}"; faltan=1; }
+          if [ -n "$PROJECT_REF" ] && ! [[ "$PROJECT_REF" =~ ^[a-z]{20}$ ]]; then
+            echo "::error::SUPABASE_PROJECT_REF no tiene el formato esperado (20 letras minúsculas, sin URL ni espacios). Tiene ${#PROJECT_REF} caracteres."
+            faltan=1
+          fi
+          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && ! [[ "$SUPABASE_ACCESS_TOKEN" =~ ^sbp_ ]]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN no empieza por sbp_. Debe ser un Access Token de cuenta (supabase.com/dashboard/account/tokens), no la anon key ni la service_role key."
+            faltan=1
+          fi
+          exit $faltan
+      - name: Conectar con el proyecto
+        env:
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          if ! supabase link --project-ref "$PROJECT_REF" > link.log 2>&1; then
+            mensaje=$(grep -v '^\s*$' link.log | tail -5 | tr '\n' ' ' | cut -c1-600)
+            echo "::error::supabase link falló: $mensaje"
+            exit 1
+          fi
       - name: Migraciones pendientes
         run: supabase migration list
       - name: Aplicar
