@@ -203,7 +203,7 @@ describe('Permisos por rol', () => {
 
   test('el líder no puede registrar personas a nombre de otro líder', async () => {
     await assert.rejects(
-      base.como(u.liderA, `insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en) values ($1,$2,'88888','X','otro',30,current_date)`, [org, l.B]),
+      base.como(u.liderA, `insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en, consentimiento_version, consentimiento_en, consentimiento_canal) values ($1,$2,'88888','X','otro',30,current_date,'v1',now(),'presencial')`, [org, l.B]),
       /row-level security/);
   });
 
@@ -357,8 +357,8 @@ describe('Puesto "Otro"', () => {
   let usaquen;
   const registrar = (cedula, extra) => base.como(u.liderA,
     `insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, fecha_nacimiento, origen,
-                          localidad_votacion_id, puesto_reportado, direccion_reportada, mesa_reportada)
-     values ($1,$2,$3,'Votante','femenino','1985-03-03','formulario',$4,$5,$6,$7)
+                          localidad_votacion_id, puesto_reportado, direccion_reportada, mesa_reportada, consentimiento_version, consentimiento_en, consentimiento_canal)
+     values ($1,$2,$3,'Votante','femenino','1985-03-03','formulario',$4,$5,$6,$7,'v1',now(),'formulario')
      returning ubicacion_estado, ubicacion_metodo, puesto_id, mesa_id`,
     [org, l.A, cedula, extra.localidad ?? usaquen, extra.puesto ?? null, extra.direccion ?? null, extra.mesa ?? null]);
 
@@ -368,10 +368,10 @@ describe('Puesto "Otro"', () => {
 
   test('sexo y edad son obligatorios en registros nuevos', async () => {
     await assert.rejects(
-      base.como(u.liderA, `insert into personas(organizacion_id, lider_id, cedula, nombres, origen) values ($1,$2,'31313131','Sin datos','formulario')`, [org, l.A]),
+      base.como(u.liderA, `insert into personas(organizacion_id, lider_id, cedula, nombres, origen, consentimiento_version, consentimiento_en, consentimiento_canal) values ($1,$2,'31313131','Sin datos','formulario','v1',now(),'formulario')`, [org, l.A]),
       /personas_sexo_edad_obligatorios/);
     await assert.rejects(
-      base.como(u.liderA, `insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, origen) values ($1,$2,'31313132','Sin edad','femenino','formulario')`, [org, l.A]),
+      base.como(u.liderA, `insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, origen, consentimiento_version, consentimiento_en, consentimiento_canal) values ($1,$2,'31313132','Sin edad','femenino','formulario','v1',now(),'formulario')`, [org, l.A]),
       /personas_sexo_edad_obligatorios/);
   });
 

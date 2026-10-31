@@ -3,3 +3,5 @@ node_modules/
 .env.*
 supabase/.temp/
 supabase/.branches/
+!.env.example
+!web/.env.demo

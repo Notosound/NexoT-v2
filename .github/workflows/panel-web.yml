@@ -1,0 +1,55 @@
+# Panel web: verificación de tipos, build y prueba de punta a punta en modo
+# demostración (navegador real, sin Supabase). La publicación la hace
+# Cloudflare Pages directamente desde GitHub (ver README).
+
+name: Panel web
+
+on:
+  push:
+    branches: [develop, main]
+    paths: ['web/**', 'src/**', '.github/workflows/panel-web.yml']
+  pull_request:
+    branches: [develop, main]
+    paths: ['web/**', 'src/**', '.github/workflows/panel-web.yml']
+
+jobs:
+  panel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            web/package-lock.json
+      - name: Dependencias
+        run: |
+          npm ci --prefix ..
+          npm ci
+      - name: Tipos y build de producción
+        env:
+          # Valores ficticios: solo para comprobar que compila
+          VITE_SUPABASE_URL: https://ejemplo.supabase.co
+          VITE_SUPABASE_ANON_KEY: ficticia
+        run: |
+          npm run build
+          if grep -rl "Campaña de demostración" dist/; then echo "::error::El modo demo se coló en el build de producción"; exit 1; fi
+      - name: Navegador para la prueba
+        run: |
+          npm i --no-save playwright@1.49.1
+          npx playwright install --with-deps chromium
+      - name: Prueba de punta a punta (modo demo)
+        run: npm run test:e2e
+      - name: Capturas
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capturas-panel
+          path: web/pruebas/capturas/*.png
+          retention-days: 7

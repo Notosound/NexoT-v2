@@ -12,7 +12,7 @@ const SUPABASE_MINIMO = `
   create role anon nologin;
   create role authenticated nologin;
   create schema auth;
-  create table auth.users (id uuid primary key);
+  create table auth.users (id uuid primary key, email text unique);
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
   grant usage on schema auth to anon, authenticated;
@@ -55,9 +55,16 @@ class Base {
 
   async crearUsuario(organizacionId, nombre, rol) {
     const id = randomUUID();
-    await this.sistema('insert into auth.users(id) values ($1)', [id]);
+    await this.sistema('insert into auth.users(id, email) values ($1, $2)', [id, `${id}@prueba.co`]);
     await this.sistema('insert into perfiles(id, organizacion_id, nombre, rol) values ($1,$2,$3,$4)',
       [id, organizacionId, nombre, rol]);
+    return id;
+  }
+
+  // Usuario invitado en Supabase Auth, todavía sin perfil
+  async invitar(email) {
+    const id = randomUUID();
+    await this.sistema('insert into auth.users(id, email) values ($1, $2)', [id, email]);
     return id;
   }
 }

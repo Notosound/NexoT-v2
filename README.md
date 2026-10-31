@@ -28,6 +28,8 @@ supabase/migrations/
   …1100_ubicacion_reportada  puesto "Otro", direcciones, alias aprendidos; sexo y edad obligatorios
   …1200_importacion_v3.sql  la importación conserva lo reportado y ubica automáticamente
   …1300_catalogo_bogota_puestos  1.083 puestos y 18.156 mesas oficiales (generada)
+  …1400_api_panel.sql       funciones para el panel, vincular usuarios, consentimiento obligatorio
+web/                        panel web (React + Vite + TypeScript)
 datos/divipole/             CSV de Bogotá extraído del Divipole + fuente y huella
 scripts/datos/              extracción del PDF y generación de la migración
 src/importacion/mapeo.mjs   reconocimiento de columnas de Excel (Node y navegador)
@@ -106,6 +108,71 @@ npm run importar:prueba -- ruta/al/archivo.xlsx
 
 Valida el archivo contra una base temporal en memoria y muestra **solo conteos y tipos de problema**, sin nombres, cédulas ni teléfonos. No guarda nada.
 
+## Panel web
+
+Está en `web/`. Es un solo panel para todos los roles: cada persona ve solo las secciones de su rol, y la base de datos impide el resto aunque alguien manipule el navegador.
+
+| Rol | Secciones |
+|---|---|
+| Administrador | Inicio, Registrar, Personas, Puestos por revisar, Importar Excel, Líderes, Equipo |
+| Coordinador | Inicio, Registrar, Personas (de sus líderes), Líderes |
+| Líder | Inicio, Registrar, Mis registrados |
+| Candidato | Inicio con cifras agregadas (sexo, edad, localidades) |
+| Digitador | Inicio (la digitación E14 llega en la siguiente fase) |
+
+### Verlo sin Supabase (modo demostración)
+
+```bash
+cd web
+npm install
+npm run demo          # abre http://localhost:5173
+```
+
+Se entra con cualquier correo y contraseña, eligiendo el rol. Los datos son inventados y nada se guarda. El catálogo de puestos sí es el oficial.
+
+### Conectarlo a Supabase en tu computador
+
+```bash
+cd web
+cp .env.example .env.local   # pon la URL y la anon key del proyecto de PRUEBAS
+npm run dev
+```
+
+### Publicarlo (Cloudflare Pages)
+
+Cloudflare Pages es gratis, permite uso comercial y publica cada rama por separado:
+
+1. En [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages → Create → Pages → Connect to Git**, y elige `NexoT-v2`.
+2. Configuración de build:
+   - **Production branch:** `main`
+   - **Root directory:** `web`
+   - **Build command:** `npm run build`
+   - **Build output directory:** `dist`
+3. En **Settings → Variables and Secrets**, agrega `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`:
+   - en **Production**, con los datos del proyecto de **producción**;
+   - en **Preview**, con los del proyecto de **pruebas**.
+4. Resultado: `develop` queda publicado en una dirección de vista previa conectada a pruebas, y `main` en la dirección principal conectada a producción.
+
+### Configurar Supabase Auth (en cada proyecto)
+
+- **Authentication → Sign In / Providers:** desactiva **Allow new users to sign up**. Nadie se registra solo: el administrador invita.
+- **Authentication → URL Configuration:** pon la dirección del panel en **Site URL** y agrégala en **Redirect URLs** (por ejemplo `https://nexot.pages.dev/**`). Así funcionan los enlaces de invitación y de "olvidé mi contraseña".
+
+### Primer administrador
+
+1. En Supabase, **Authentication → Users → Invite user** con tu correo, y acepta la invitación.
+2. Edita y ejecuta `scripts/sql/primer_admin.sql` en el **SQL Editor**. Crea la organización y te deja como administrador.
+3. Desde ahí, el resto del equipo se agrega en el panel → **Equipo**: primero se invita el correo en Supabase y luego se le asigna el rol en el panel.
+
+### Pruebas del panel
+
+```bash
+cd web
+npm run test:e2e
+```
+
+Compila el modo demo y recorre los flujos principales con un navegador real: registro con validaciones, opción "Otro", duplicados, menores de edad, bandeja de revisión, importación, líderes, equipo y permisos por rol. Las capturas quedan en `web/pruebas/capturas/`. GitHub lo ejecuta en cada cambio del panel.
+
 ## Ejecutar las pruebas
 
 ```bash
@@ -157,7 +224,8 @@ Hay que cargar el catálogo territorial (municipio, localidades, puestos y mesas
 - [x] Localidades de Bogotá
 - [x] Puestos y mesas de Bogotá: Divipole Congreso 2026 (ver `datos/divipole/FUENTE.md`)
 - [ ] Script de migración de los datos del piloto (MongoDB → Postgres)
-- [ ] Panel web: login, registro de personas, importador de Excel, digitación E14
+- [x] Panel web: login, registro de personas, puestos por revisar, importador de Excel, líderes y equipo
+- [ ] Digitación E14 en el panel
 - [ ] Tablero del candidato (PWA): mapa, pirámide de edad y sexo, avance y E14
 - [ ] Simulación de campaña
 - [ ] Eventos y asistencias (existían en el piloto)
