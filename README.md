@@ -138,25 +138,28 @@ cp .env.example .env.local   # pon la URL y la anon key del proyecto de PRUEBAS
 npm run dev
 ```
 
-### Publicarlo (Cloudflare Pages)
+### Publicarlo (Cloudflare Workers)
 
-Cloudflare Pages es gratis, permite uso comercial y publica cada rama por separado:
+Se usan **dos Workers**, uno por entorno, porque las variables de build de un Worker son las mismas para todas sus ramas:
 
-1. En [dash.cloudflare.com](https://dash.cloudflare.com) → **Workers & Pages → Create → Pages → Connect to Git**, y elige `NexoT-v2`.
-2. Configuración de build:
-   - **Production branch:** `main`
-   - **Root directory:** `web`
-   - **Build command:** `npm run build`
-   - **Build output directory:** `dist`
-3. En **Settings → Variables and Secrets**, agrega `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`:
-   - en **Production**, con los datos del proyecto de **producción**;
-   - en **Preview**, con los del proyecto de **pruebas**.
-4. Resultado: `develop` queda publicado en una dirección de vista previa conectada a pruebas, y `main` en la dirección principal conectada a producción.
+| Worker | Rama de producción | Variables (Supabase) |
+|---|---|---|
+| `nexot-v2` | `develop` | proyecto de **pruebas** |
+| `nexot-v2-produccion` (más adelante) | `main` | proyecto de **producción** |
+
+Configuración de cada uno (Settings → Build):
+- **Root directory:** `web`
+- **Build command:** `npm run build`
+- **Deploy command:** `npx wrangler deploy` (en producción: `npx wrangler deploy --name nexot-v2-produccion`)
+- **Variables and secrets** (de build): `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY` del proyecto correspondiente.
+- **Branch control:** la rama de producción indicada en la tabla.
+
+La publicación la define `web/wrangler.jsonc`: archivos estáticos de `dist/`, y cualquier ruta devuelve el panel. El `name` de ese archivo debe coincidir con el nombre del Worker de pruebas.
 
 ### Configurar Supabase Auth (en cada proyecto)
 
 - **Authentication → Sign In / Providers:** desactiva **Allow new users to sign up**. Nadie se registra solo: el administrador invita.
-- **Authentication → URL Configuration:** pon la dirección del panel en **Site URL** y agrégala en **Redirect URLs** (por ejemplo `https://nexot.pages.dev/**`). Así funcionan los enlaces de invitación y de "olvidé mi contraseña".
+- **Authentication → URL Configuration:** pon la dirección del panel en **Site URL** y agrégala en **Redirect URLs** (por ejemplo `https://nexot-v2.TU-CUENTA.workers.dev/**`). Así funcionan los enlaces de invitación y de "olvidé mi contraseña".
 
 ### Primer administrador
 
