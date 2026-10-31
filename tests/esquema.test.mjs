@@ -60,14 +60,14 @@ before(async () => {
 describe('Integridad de datos', () => {
   test('la misma cédula no puede registrarse dos veces', async () => {
     await assert.rejects(
-      base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres) values ($1,$2,'10000001','Repetida')`, [org, l.A]),
+      base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en) values ($1,$2,'10000001','Repetida','otro',30,current_date)`, [org, l.A]),
       /personas_cedula_uq/);
   });
 
   test('no acepta menores de edad', async () => {
     await assert.rejects(
-      base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, fecha_nacimiento)
-                    values ($1,$2,'55555','Menor', current_date - interval '15 years')`, [org, l.A]),
+      base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, fecha_nacimiento)
+                    values ($1,$2,'55555','Menor','femenino', current_date - interval '15 years')`, [org, l.A]),
       /mayor de edad/);
   });
 
@@ -75,8 +75,8 @@ describe('Integridad de datos', () => {
     const [p] = await base.sistema(`select puesto_id from personas where mesa_id = 5 limit 1`);
     assert.equal(p.puesto_id, 2);
     await assert.rejects(
-      base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, puesto_id, mesa_id)
-                    values ($1,$2,'66666','Contradicha', 2, 1)`, [org, l.A]),
+      base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en, puesto_id, mesa_id)
+                    values ($1,$2,'66666','Contradicha','otro',30,current_date, 2, 1)`, [org, l.A]),
       /no pertenece al puesto/);
   });
 
@@ -84,7 +84,7 @@ describe('Integridad de datos', () => {
     const [{ id: liderAjeno }] = await base.sistema(
       `insert into lideres(organizacion_id, nombre) values ($1, 'Ajeno') returning id`, [otraOrg]);
     await assert.rejects(
-      base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres) values ($1,$2,'77777','Cruzada')`, [org, liderAjeno]),
+      base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en) values ($1,$2,'77777','Cruzada','otro',30,current_date)`, [org, liderAjeno]),
       /foreign key/);
   });
 
@@ -203,7 +203,7 @@ describe('Permisos por rol', () => {
 
   test('el líder no puede registrar personas a nombre de otro líder', async () => {
     await assert.rejects(
-      base.como(u.liderA, `insert into personas(organizacion_id, lider_id, cedula, nombres) values ($1,$2,'88888','X')`, [org, l.B]),
+      base.como(u.liderA, `insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en) values ($1,$2,'88888','X','otro',30,current_date)`, [org, l.B]),
       /row-level security/);
   });
 
@@ -270,7 +270,7 @@ describe('Importación de Excel', () => {
     assert.equal(mala.estado, 'con_errores');
     assert.ok(mala.errores.some((e) => e.startsWith('cédula inválida')));
     assert.ok(mala.advertencias.some((e) => e.startsWith('sexo no reconocido')));
-    assert.ok(mala.advertencias.some((e) => e.startsWith('puesto no encontrado')));
+    assert.ok(mala.advertencias.some((e) => e.startsWith('puesto por revisar')));
 
     // "12345+6-" NO se convierte en "123456"
     const simbolos = await fila(8);
@@ -325,5 +325,106 @@ describe('Catálogo de Bogotá', () => {
     assert.equal(await buscar('Martires'), 'Los Mártires');
     assert.equal(await buscar('Antonio Narino'), 'Antonio Nariño');
     assert.equal(await buscar('Meta'), undefined);
+  });
+});
+
+describe('Direcciones', () => {
+  const clave = async (t, placa = true) => (await base.sistema(`select app.clave_direccion($1, $2) c`, [t, placa]))[0].c;
+
+  test('distintas formas de escribir la misma dirección dan la misma clave', async () => {
+    const iguales = [
+      ['Cl 46 Sur # 27-12', 'Calle 46 sur No. 27 - 12', 'CALLE 46 SUR #27-12 barrio Quiroga', 'cll 46 # 27 - 12 sur'],
+      ['Kr 7 # 12D-45', 'Carrera 7 No 12 D 45', 'KRA 7 N° 12d-45 local 3'],
+      ['Av Calle 26 # 69-76', 'AC 26 69 76', 'avenida calle 26 no. 69-76'],
+      ['Kr 78 # 41-20 Sur', 'carrera 78 #41-20 sur'],
+    ];
+    for (const grupo of iguales) {
+      const claves = await Promise.all(grupo.map((d) => clave(d)));
+      assert.equal(new Set(claves).size, 1, `${grupo.join(' | ')} → ${claves.join(' | ')}`);
+      assert.ok(claves[0]);
+    }
+  });
+
+  test('sur importa y la placa distingue direcciones de la misma cuadra', async () => {
+    assert.notEqual(await clave('Cl 46 Sur # 27-12'), await clave('Cl 46 # 27-12'));
+    assert.notEqual(await clave('Cl 46 # 27-12'), await clave('Cl 46 # 27-80'));
+    assert.equal(await clave('Cl 46 # 27-12', false), await clave('Cl 46 # 27-80', false));
+    assert.equal(await clave('Centro Poblado Santa Rosa'), null);
+  });
+});
+
+describe('Puesto "Otro"', () => {
+  let usaquen;
+  const registrar = (cedula, extra) => base.como(u.liderA,
+    `insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, fecha_nacimiento, origen,
+                          localidad_votacion_id, puesto_reportado, direccion_reportada, mesa_reportada)
+     values ($1,$2,$3,'Votante','femenino','1985-03-03','formulario',$4,$5,$6,$7)
+     returning ubicacion_estado, ubicacion_metodo, puesto_id, mesa_id`,
+    [org, l.A, cedula, extra.localidad ?? usaquen, extra.puesto ?? null, extra.direccion ?? null, extra.mesa ?? null]);
+
+  before(async () => {
+    [{ id: usaquen }] = await base.sistema(`select id from localidades where codigo = '01'`);
+  });
+
+  test('sexo y edad son obligatorios en registros nuevos', async () => {
+    await assert.rejects(
+      base.como(u.liderA, `insert into personas(organizacion_id, lider_id, cedula, nombres, origen) values ($1,$2,'31313131','Sin datos','formulario')`, [org, l.A]),
+      /personas_sexo_edad_obligatorios/);
+    await assert.rejects(
+      base.como(u.liderA, `insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, origen) values ($1,$2,'31313132','Sin edad','femenino','formulario')`, [org, l.A]),
+      /personas_sexo_edad_obligatorios/);
+  });
+
+  test('si escribe el nombre oficial, queda ubicado aunque elija "Otro"', async () => {
+    const [p] = await registrar('40000001', { puesto: 'pepe  SIERRA', mesa: 3 });
+    assert.deepEqual(p, { ubicacion_estado: 'completa', ubicacion_metodo: 'nombre_oficial', puesto_id: 1, mesa_id: 3 });
+  });
+
+  test('por dirección del puesto, escrita de otra forma', async () => {
+    const [p] = await registrar('40000002', { puesto: 'Colegio de la 116', direccion: 'Calle 116 No. 15 - 30', mesa: 2 });
+    assert.deepEqual(p, { ubicacion_estado: 'completa', ubicacion_metodo: 'direccion', puesto_id: 1, mesa_id: 2 });
+  });
+
+  test('nombre alternativo desconocido: queda por revisar, con sugerencia', async () => {
+    for (const [c, m] of [['40000003', 1], ['40000004', 4], ['40000005', 2]]) {
+      const [p] = await registrar(c, { puesto: 'IED Pepe Sierra Sede A', mesa: m });
+      assert.equal(p.ubicacion_estado, 'por_revisar');
+      assert.equal(p.puesto_id, null);
+    }
+    const bandeja = await base.como(u.admin, `select * from v_ubicaciones_por_revisar`);
+    assert.equal(bandeja.length, 1, 'se agrupan por lo que escribieron');
+    assert.equal(bandeja[0].personas, 3);
+    assert.equal(bandeja[0].sugerencia_puesto, 'Pepe Sierra');
+    assert.equal(bandeja[0].sugerencia_metodo, 'nombre_parecido');
+    assert.equal((await base.como(u.candidato, `select * from v_ubicaciones_por_revisar`)).length, 0);
+  });
+
+  test('el admin resuelve una vez, se aprende el alias y se aplica a todos', async () => {
+    const [b] = await base.como(u.admin, `select persona_ejemplo from v_ubicaciones_por_revisar`);
+    await assert.rejects(base.como(u.liderA, `select app.resolver_ubicacion($1, 1)`, [b.persona_ejemplo]), /administrador/);
+    const [{ n }] = await base.como(u.admin, `select app.resolver_ubicacion($1, 1) n`, [b.persona_ejemplo]);
+    assert.equal(n, 3);
+    const resueltas = await base.sistema(
+      `select cedula, ubicacion_estado, (select numero from mesas where id = mesa_id) mesa from personas
+       where cedula in ('40000003','40000004','40000005') order by cedula`);
+    assert.deepEqual(resueltas.map((r) => [r.ubicacion_estado, r.mesa]), [['completa', 1], ['completa', 4], ['completa', 2]],
+      'cada uno conserva su mesa reportada');
+    assert.equal((await base.como(u.admin, `select * from v_ubicaciones_por_revisar`)).length, 0);
+
+    // El siguiente votante con ese nombre se ubica solo
+    const [p] = await registrar('40000006', { puesto: 'ied pepe sierra sede a', mesa: 1 });
+    assert.deepEqual(p, { ubicacion_estado: 'completa', ubicacion_metodo: 'alias', puesto_id: 1, mesa_id: 1 });
+    const [aud] = await base.sistema(`select count(*)::int n from auditoria where tabla = 'puestos_alias'`);
+    assert.equal(aud.n, 1, 'el alias queda auditado');
+  });
+
+  test('mesa que no existe en el puesto: ubicado pero sin mesa', async () => {
+    const [p] = await registrar('40000007', { puesto: 'Pepe Sierra', mesa: 99 });
+    assert.deepEqual([p.ubicacion_estado, p.puesto_id, p.mesa_id], ['sin_mesa', 1, null]);
+  });
+
+  test('los alias de una campaña no afectan a otra', async () => {
+    const r = await base.sistema(`select * from app.sugerir_puesto($1, $2, 'IED Pepe Sierra Sede A', null)`, [otraOrg, usaquen]);
+    assert.notEqual(r[0]?.metodo, 'alias');
   });
 });

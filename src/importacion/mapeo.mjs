@@ -19,6 +19,7 @@ export const CAMPOS = {
   departamento:     { obligatorio: false, alias: ['departamento', 'depto'] },
   localidad:        { obligatorio: false, alias: ['localidad', 'comuna'] },
   puesto:           { obligatorio: false, alias: ['puesto', 'puesto de votacion', 'lugar de votacion'] },
+  direccion_puesto: { obligatorio: false, alias: ['direccion del puesto', 'direccion puesto', 'direccion de votacion', 'direccion lugar de votacion'] },
   mesa:             { obligatorio: false, alias: ['mesa', 'numero de mesa', 'no mesa', 'nro mesa'] },
   lider_cedula:     { obligatorio: false, alias: ['cedula lider', 'cedula del lider', 'documento lider'] },
   fecha_registro:   { obligatorio: false, alias: ['fecha', 'fecha de registro', 'fecha registro'] },

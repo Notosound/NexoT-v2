@@ -68,9 +68,9 @@ class Base {
 export async function cargarCatalogo(base) {
   await base.db.exec('reset role;');
   await base.db.exec(`
-    insert into puestos(id, localidad_id, zona, codigo, nombre, latitud, longitud) values
-      (1, (select id from localidades where codigo = '01'), '01', '01', 'Pepe Sierra', 4.6935, -74.0480),
-      (2, (select id from localidades where codigo = '08'), '08', '01', 'Colegio Kennedy', 4.6280, -74.1530);
+    insert into puestos(id, localidad_id, zona, codigo, nombre, direccion, latitud, longitud) values
+      (1, (select id from localidades where codigo = '01'), '01', '01', 'Pepe Sierra', 'Cl 116 # 15-30', 4.6935, -74.0480),
+      (2, (select id from localidades where codigo = '08'), '08', '01', 'Colegio Kennedy', 'Kr 78 # 41-20 Sur', 4.6280, -74.1530);
     insert into mesas(id, puesto_id, numero) values (1,1,1),(2,1,2),(3,1,3),(4,1,4),(5,2,1);
   `);
 }

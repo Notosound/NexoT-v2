@@ -25,6 +25,8 @@ supabase/migrations/
   …0800_permisos.sql        permisos por fila (RLS)
   …0900_catalogo_bogota…    Bogotá y sus 20 localidades (+ alias)
   …1000_importacion_v2.sql  errores vs advertencias, formato real de los Excel
+  …1100_ubicacion_reportada  puesto "Otro", direcciones, alias aprendidos; sexo y edad obligatorios
+  …1200_importacion_v3.sql  la importación conserva lo reportado y ubica automáticamente
 src/importacion/mapeo.mjs   reconocimiento de columnas de Excel (Node y navegador)
 scripts/prueba-importacion.mjs  prueba en seco de un Excel
 tests/
@@ -59,6 +61,24 @@ Todo se calcula **por mesa** y luego se suma hacia arriba:
 Si varios líderes comparten una mesa, los confirmados se reparten en proporción a lo esperado, por **residuo mayor**. La suma siempre es exacta y ningún líder recibe más de lo que esperaba.
 
 **Digitación doble** (por defecto): dos digitadores transcriben la misma mesa. Si coinciden, la mesa queda verificada. Si no, pasa a revisión y el admin la resuelve con `app.resolver_e14(eleccion, mesa, votos)`. Para usar una sola digitación, cambia la elección a `modo_digitacion = 'simple'`.
+
+## Lugar de votación y la opción "Otro"
+
+La consulta de la Registraduría a veces muestra el puesto con un nombre distinto al del listado oficial. Por eso el registro funciona así:
+
+1. El votante elige localidad y busca su puesto en el **listado oficial**.
+2. Si no lo encuentra, elige **"Otro"** y escribe el nombre tal como le aparece, la **dirección del puesto** (opcional) y su mesa.
+3. El sistema intenta ubicarlo solo, en este orden:
+   - nombre oficial exacto (sin importar tildes ni mayúsculas);
+   - **alias aprendido** (ver punto 4);
+   - **dirección** del puesto oficial. `Cl 46 Sur # 27-12`, `Calle 46 sur No. 27 - 12` y `cll 46 #27-12 sur` se reconocen como la misma.
+
+   Si ninguna coincide con seguridad, la persona queda `por_revisar` y aparece en `v_ubicaciones_por_revisar`, agrupada por lo que escribieron y con una sugerencia (misma cuadra o nombre parecido).
+4. El admin resuelve con `app.resolver_ubicacion(persona, puesto)`. El nombre escrito se guarda como **alias** de ese puesto y se aplica a **todas** las personas pendientes que escribieron lo mismo. Cada una conserva su mesa. La lista de nombres alternativos se construye sola con el uso.
+
+Estado de ubicación de cada persona (`ubicacion_estado`): `completa` (puesto y mesa), `sin_mesa`, `por_revisar` o `sin_dato`. El método queda en `ubicacion_metodo`: `lista_oficial`, `nombre_oficial`, `alias`, `direccion` o `revision_admin`.
+
+**Sexo y edad** (fecha de nacimiento o edad) son obligatorios en todo registro nuevo, y la base de datos lo exige. Solo las listas importadas pueden venir sin ellos.
 
 ## Edad
 
