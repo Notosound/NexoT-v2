@@ -247,6 +247,10 @@ describe('Importación de Excel', () => {
       { cedula: '80111222', nombres: 'Juan repetido', lider_cedula: '900002' },
       { cedula: '10000001', nombres: 'Ya existe', lider_cedula: '900001' },
       { cedula: '99887766', nombres: 'Joven', edad: '16', lider_cedula: '900001' },
+      { cedula: '12345+6-', nombres: 'Cédula con símbolos', lider_cedula: '900001' },
+      { cedula: '70707070', nombres: 'Vota en el Meta', departamento: 'Meta', localidad: 'Meta', puesto: 'Villavicencio',
+        fecha_registro: 'Invalid Date', lider_cedula: '900001' },
+      { cedula: '71717171', nombres: 'Teléfono malo', telefono: '123', fecha_registro: '25/2/2026', lider_cedula: '900001' },
     ];
     for (const [i, d] of filas.entries()) {
       await base.como(u.admin,
@@ -255,18 +259,37 @@ describe('Importación de Excel', () => {
     }
     const antes = (await base.sistema(`select count(*)::int n from personas`))[0].n;
     const [r] = await base.como(u.admin, `select * from app.validar_importacion($1)`, [imp]);
-    assert.deepEqual([r.total_filas, r.filas_validas, r.filas_con_errores, r.filas_duplicadas], [6, 2, 2, 2]);
+    assert.deepEqual([r.total_filas, r.filas_validas, r.filas_con_errores, r.filas_duplicadas], [9, 4, 3, 2]);
     assert.equal((await base.sistema(`select count(*)::int n from personas`))[0].n, antes);
 
-    const mala = (await base.como(u.admin, `select errores from importacion_filas where importacion_id=$1 and fila=4`, [imp]))[0];
+    const fila = async (n) => (await base.como(u.admin,
+      `select estado, errores, advertencias, cedula from importacion_filas where importacion_id=$1 and fila=$2`, [imp, n]))[0];
+
+    // Errores bloquean; sexo y lugar solo advierten
+    const mala = await fila(4);
+    assert.equal(mala.estado, 'con_errores');
     assert.ok(mala.errores.some((e) => e.startsWith('cédula inválida')));
-    assert.ok(mala.errores.some((e) => e.startsWith('sexo no reconocido')));
-    assert.ok(mala.errores.some((e) => e.startsWith('puesto no encontrado')));
+    assert.ok(mala.advertencias.some((e) => e.startsWith('sexo no reconocido')));
+    assert.ok(mala.advertencias.some((e) => e.startsWith('puesto no encontrado')));
+
+    // "12345+6-" NO se convierte en "123456"
+    const simbolos = await fila(8);
+    assert.equal(simbolos.estado, 'con_errores');
+    assert.equal(simbolos.cedula, null);
+
+    // Vota fuera de Bogotá: entra, pero señalada
+    const meta = await fila(9);
+    assert.equal(meta.estado, 'valida');
+    assert.deepEqual(meta.advertencias, ['vota fuera del municipio (Meta, Meta)']);
+
+    const tel = await fila(10);
+    assert.equal(tel.estado, 'valida');
+    assert.ok(tel.advertencias[0].startsWith('teléfono inválido'));
   });
 
   test('confirma solo las válidas, con origen trazable', async () => {
     const [r] = await base.como(u.admin, `select * from app.confirmar_importacion($1)`, [imp]);
-    assert.equal(r.filas_importadas, 2);
+    assert.equal(r.filas_importadas, 4);
     const [maria] = await base.sistema(`select * from personas where cedula = '1020304050'`);
     assert.equal(maria.nombres, 'María José');
     assert.equal(maria.sexo, 'femenino');
@@ -278,9 +301,29 @@ describe('Importación de Excel', () => {
     assert.equal(juan.edad_declarada, 45);
     assert.ok(juan.edad >= 45);
     await assert.rejects(base.como(u.admin, `select app.confirmar_importacion($1)`, [imp]), /Solo se puede confirmar/);
+
+    const [tel] = await base.sistema(`select telefono, fecha_registro_origen::text f from personas where cedula = '71717171'`);
+    assert.deepEqual(tel, { telefono: null, f: '2026-02-25' });
+
+    const porUbicar = await base.como(u.admin, `select cedula, advertencias from v_personas_por_ubicar where importacion_id = $1 order by cedula`, [imp]);
+    assert.deepEqual(porUbicar.map((p) => p.cedula), ['70707070', '71717171']);
+    assert.equal((await base.como(u.candidato, `select * from v_personas_por_ubicar`)).length, 0, 'el candidato no ve esta lista');
   });
 
   test('un líder no puede importar', async () => {
     assert.equal((await base.como(u.liderA, `select * from importaciones`)).length, 0);
+  });
+});
+
+describe('Catálogo de Bogotá', () => {
+  test('20 localidades oficiales y búsqueda tolerante a tildes y alias', async () => {
+    const [{ n }] = await base.sistema(`select count(*)::int n from localidades l join municipios m on m.id = l.municipio_id where m.divipola = '11001'`);
+    assert.equal(n, 20);
+    const buscar = async (t) => (await base.sistema(`select l.nombre from localidades l where l.id = app.buscar_localidad(1, $1)`, [t]))[0]?.nombre;
+    assert.equal(await buscar('CIUDAD BOLIVAR'), 'Ciudad Bolívar');
+    assert.equal(await buscar('Los Martires'), 'Los Mártires');
+    assert.equal(await buscar('Martires'), 'Los Mártires');
+    assert.equal(await buscar('Antonio Narino'), 'Antonio Nariño');
+    assert.equal(await buscar('Meta'), undefined);
   });
 });

@@ -62,15 +62,15 @@ class Base {
   }
 }
 
-// Catálogo mínimo: Bogotá con Usaquén (Pepe Sierra, mesas 1-4) y Kennedy
+// Catálogo de prueba. Bogotá y sus localidades ya vienen de la migración
+// 0009; aquí se agregan puestos y mesas inventados:
+//   Usaquén: Pepe Sierra (mesas 1-4)   Kennedy: Colegio Kennedy (mesa 5)
 export async function cargarCatalogo(base) {
   await base.db.exec('reset role;');
   await base.db.exec(`
-    insert into municipios(id, divipola, nombre, departamento) values (1, '11001', 'Bogotá D.C.', 'Bogotá D.C.');
-    insert into localidades(id, municipio_id, codigo, nombre) values (1, 1, '01', 'Usaquén'), (2, 1, '08', 'Kennedy');
     insert into puestos(id, localidad_id, zona, codigo, nombre, latitud, longitud) values
-      (1, 1, '01', '01', 'Pepe Sierra', 4.6935, -74.0480),
-      (2, 2, '08', '01', 'Colegio Kennedy', 4.6280, -74.1530);
+      (1, (select id from localidades where codigo = '01'), '01', '01', 'Pepe Sierra', 4.6935, -74.0480),
+      (2, (select id from localidades where codigo = '08'), '08', '01', 'Colegio Kennedy', 4.6280, -74.1530);
     insert into mesas(id, puesto_id, numero) values (1,1,1),(2,1,2),(3,1,3),(4,1,4),(5,2,1);
   `);
 }

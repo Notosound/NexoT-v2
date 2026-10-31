@@ -23,9 +23,14 @@ supabase/migrations/
   …0600_e14.sql             digitación E14 y cálculo de cumplimiento
   …0700_metricas.sql        vistas para tableros
   …0800_permisos.sql        permisos por fila (RLS)
+  …0900_catalogo_bogota…    Bogotá y sus 20 localidades (+ alias)
+  …1000_importacion_v2.sql  errores vs advertencias, formato real de los Excel
+src/importacion/mapeo.mjs   reconocimiento de columnas de Excel (Node y navegador)
+scripts/prueba-importacion.mjs  prueba en seco de un Excel
 tests/
   entorno.mjs               Postgres embebido que imita Supabase
-  esquema.test.mjs          23 pruebas de reglas, E14, permisos e importación
+  esquema.test.mjs          pruebas de reglas, E14, permisos, importación y catálogo
+  mapeo.test.mjs            pruebas del reconocimiento de columnas
 .github/workflows/
   base-de-datos.yml         pruebas + despliegue por rama
 ```
@@ -61,9 +66,21 @@ Se guarda la **fecha de nacimiento**. Si el dato solo trae la edad, se guarda `e
 
 ## Importar Excel
 
-1. El navegador lee el Excel, asigna cada columna a su nombre estándar (`cedula`, `nombres`, `apellidos`, `sexo`, `fecha_nacimiento`, `edad`, `telefono`, `barrio`, `localidad`, `puesto`, `mesa`, `lider_cedula`) e inserta las filas en `importacion_filas`.
-2. `app.validar_importacion(id)` normaliza los datos (tildes, mayúsculas, "F"/"mujer", "+57", fechas dd/mm/aaaa) y marca errores y duplicados. Todavía no toca la tabla de personas.
-3. El admin revisa el reporte y ejecuta `app.confirmar_importacion(id)`. Solo entran las filas válidas, y cada persona queda con el archivo y la fila de donde vino.
+1. Se lee el Excel y cada columna se asigna a su nombre estándar con `src/importacion/mapeo.mjs`. El reconocimiento es por coincidencia **exacta** (sin tildes ni mayúsculas): `Nombre`, `Cédula`, `Celular`, `Puesto de votación`, etc. Lo que no se reconoce se reporta; no se adivina.
+2. `app.validar_importacion(id)` normaliza y clasifica cada fila. Todavía no toca la tabla de personas.
+   - **Errores** (la fila no entra): cédula inválida, falta el nombre, líder no encontrado, menor de edad, duplicada.
+   - **Advertencias** (la persona entra con ese dato vacío): lugar de votación no encontrado, vota fuera del municipio, teléfono, sexo o fechas inválidas.
+3. El admin revisa el reporte y ejecuta `app.confirmar_importacion(id)`. Cada persona queda con el archivo y la fila de donde vino. Las que quedaron sin mesa aparecen en `v_personas_por_ubicar`.
+
+La cédula solo admite dígitos y separadores (puntos, espacios, comas). Un valor como `12345+6-` es un error: nunca se "limpia" a otra cédula.
+
+### Prueba en seco
+
+```bash
+npm run importar:prueba -- ruta/al/archivo.xlsx
+```
+
+Valida el archivo contra una base temporal en memoria y muestra **solo conteos y tipos de problema**, sin nombres, cédulas ni teléfonos. No guarda nada.
 
 ## Ejecutar las pruebas
 
@@ -113,7 +130,8 @@ Hay que cargar el catálogo territorial (municipio, localidades, puestos y mesas
 
 ## Pendientes
 
-- [ ] Script de carga del catálogo territorial de Bogotá
+- [x] Localidades de Bogotá
+- [ ] Puestos y mesas de Bogotá (Divipole de la Registraduría)
 - [ ] Script de migración de los datos del piloto (MongoDB → Postgres)
 - [ ] Panel web: login, registro de personas, importador de Excel, digitación E14
 - [ ] Tablero del candidato (PWA): mapa, pirámide de edad y sexo, avance y E14
