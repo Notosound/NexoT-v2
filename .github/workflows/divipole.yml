@@ -1,0 +1,54 @@
+# Descarga el Divipole oficial de la Registraduría y guarda las tablas
+# extraídas en esta misma rama (datos/divipole/), para revisarlas y
+# convertirlas en una migración. No toca develop, main ni Supabase.
+
+name: Divipole
+
+on:
+  push:
+    branches: ['datos/divipole-*']
+    paths: ['.github/workflows/divipole.yml', 'scripts/datos/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  DIVIPOLE_URL: https://registraduria.gov.co/IMG/pdf/Divipole_definitiva_%20Elecciones_Congreso_2026_GEO_CITREP_Exterior_L_V_v5.pdf
+
+jobs:
+  extraer:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pdfplumber==0.11.4
+
+      - name: Descargar PDF oficial
+        run: |
+          curl -fL --retry 3 --retry-delay 5 -A "Mozilla/5.0 (X11; Linux x86_64)" \
+               -o divipole.pdf "$DIVIPOLE_URL"
+          file divipole.pdf
+          ls -la divipole.pdf
+          head -c 5 divipole.pdf | grep -q '%PDF' || { echo "::error::La descarga no es un PDF"; exit 1; }
+
+      - name: Extraer tablas
+        run: python scripts/datos/extraer_divipole.py divipole.pdf datos/divipole
+
+      - name: Guardar resultado en la rama
+        run: |
+          {
+            echo "fuente: $DIVIPOLE_URL"
+            echo "descargado: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "tamaño_bytes: $(stat -c %s divipole.pdf)"
+          } > datos/divipole/FUENTE.txt
+          gzip -9 -k -f datos/divipole/divipole_crudo.csv
+          rm datos/divipole/divipole_crudo.csv
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add datos/divipole
+          git commit -m "Divipole Congreso 2026: tablas extraídas del PDF oficial [skip ci]" || echo "Sin cambios"
+          git push
