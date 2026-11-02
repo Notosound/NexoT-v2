@@ -110,3 +110,10 @@ test('sin sesión solo se puede usar el formulario público', async () => {
     where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute') order by 1`);
   assert.deepEqual(filas.map((f) => f.proname), ['antes_de_peticion', 'enlace_info', 'registrar_por_enlace']);
 });
+
+test('las conexiones del formulario se borran a los 2 días', async () => {
+  await base.sistema(`insert into app.enlace_intentos(token, origen, en) values ('viejo', '1.1.1.1', now() - interval '3 days')`);
+  await base.sistema(`insert into app.enlace_intentos(token, origen) values ('nuevo', '2.2.2.2')`);
+  const r = await base.sistema(`select token from app.enlace_intentos where token in ('viejo', 'nuevo')`);
+  assert.deepEqual(r.map((x) => x.token), ['nuevo']);
+});
