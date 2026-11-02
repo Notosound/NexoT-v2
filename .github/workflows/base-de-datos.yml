@@ -79,3 +79,12 @@ jobs:
         run: supabase migration list
       - name: Aplicar
         run: supabase db push
+      - name: Desplegar funciones del servidor
+        env:
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          for f in supabase/functions/*/; do
+            nombre=$(basename "$f")
+            echo "Desplegando $nombre"
+            supabase functions deploy "$nombre" --project-ref "$PROJECT_REF" --use-api
+          done
