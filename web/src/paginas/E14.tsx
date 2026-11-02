@@ -22,6 +22,7 @@ const ESTADO_MESA: Record<string, string> = {
   pendiente: 'Sin digitar', una_digitacion: 'Falta 2.ª digitación', en_revision: 'Diferencia', verificado: 'Verificada',
 };
 const pct = (a: number, b: number) => (b > 0 ? Math.round((100 * a) / b) : null);
+const nVotos = (n: number) => (n === 1 ? '1 voto' : `${formatoNumero(n)} votos`);
 
 export default function E14() {
   const { api, sesion } = useSesion();
@@ -232,7 +233,7 @@ function FilaDigitar({ mesa, hecha, onGuardar }: { mesa: MesaPendiente; hecha?: 
     } catch (err) { setError(mensajeError(err)); } finally { setEnviando(false); }
   }
 
-  if (hecha != null) return <div className="fila-e14 hecha"><span>Mesa {mesa.mesa}</span><span className="insignia completa">✓ {hecha} votos</span></div>;
+  if (hecha != null) return <div className="fila-e14 hecha"><span>Mesa {mesa.mesa}</span><span className="insignia completa">✓ {nVotos(hecha)}</span></div>;
   return (
     <form className="fila-e14" onSubmit={enviar} noValidate>
       <label htmlFor={`m-${mesa.mesa_id}`}>Mesa {mesa.mesa}</label>
@@ -302,7 +303,7 @@ function Revisar({ eleccion, onCambio }: { eleccion: Eleccion; onCambio: () => v
     setError('');
     try {
       await api.resolverE14(eleccion.id, m.mesa_id, votos);
-      setMensaje(`Mesa ${m.mesa} de ${m.puesto}: quedó con ${votos} votos.`);
+      setMensaje(`Mesa ${m.mesa} de ${m.puesto}: quedó con ${nVotos(votos)}.`);
       setMesas((ms) => ms?.filter((x) => x.mesa_id !== m.mesa_id) ?? null);
       onCambio();
     } catch (e) { setError(mensajeError(e)); }
@@ -324,7 +325,7 @@ function Revisar({ eleccion, onCambio }: { eleccion: Eleccion; onCambio: () => v
             <div className="acciones">
               {[...new Set(m.digitaciones.map((d) => d.votos))].map((v) => (
                 <button key={v} className="boton" onClick={() => resolver(m, v)}>
-                  {v} votos <small style={{ fontWeight: 400, color: 'var(--texto-3)' }}>({m.digitaciones.filter((d) => d.votos === v).map((d) => d.por).join(', ')})</small>
+                  {nVotos(v)} <small style={{ fontWeight: 400, color: 'var(--texto-3)' }}>({m.digitaciones.filter((d) => d.votos === v).map((d) => d.por).join(', ')})</small>
                 </button>
               ))}
               <form className="acciones" onSubmit={(e) => { e.preventDefault(); const v = otro[m.mesa_id]; if (/^\d{1,4}$/.test(v ?? '')) resolver(m, Number(v)); }}>
