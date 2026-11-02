@@ -371,7 +371,8 @@ console.log('E14 por Excel (digitador)');
     hoja.getRow(3).getCell(6).value = 0;
     hoja.getRow(4).getCell(6).value = 'muchos';           // error
     hoja.getRow(5).getCell(6).value = 2;
-    hoja.addRow(['Usaquén', '01', '01', 'x', 999, 4]);     // mesa inexistente (por códigos)
+    hoja.addRow(['Usaquén', '01', '01', '', 999, 4]);      // mesa inexistente (por códigos)
+    hoja.addRow(['Kennedy', '08', '01', 'COLEGIO EL FERROL LA PAZ IED', 1, 2]); // el código no es de ese puesto (El Ferrol es 08-B4)
     const ruta = join(capturas, 'e14-lleno.xlsx');
     await plantilla.xlsx.writeFile(ruta);
     await page.getByLabel('Archivo de Excel (.xlsx)').setInputFiles(ruta);
@@ -380,9 +381,10 @@ console.log('E14 por Excel (digitador)');
     await page.getByRole('heading', { name: '3. Revisa y confirma' }).waitFor();
     const cifra = async (t) => Number((await page.locator('.cifra', { hasText: t }).locator('.valor').innerText()).replace(/\D/g, ''));
     assert.equal(await cifra('mesas nuevas'), 3);
-    assert.equal(await cifra('con error'), 2);
+    assert.equal(await cifra('con error'), 3);
     await page.getByText('votos inválidos: "muchos"').waitFor();
     await page.getByText(/la mesa 999 no existe/).waitFor();
+    await page.getByText(/el código 08-01 es "COLEGIO DISTRITAL CLASS SEDE A", no "COLEGIO EL FERROL LA PAZ IED"/).waitFor();
     await page.screenshot({ path: join(capturas, '34-e14-excel-reporte.png'), fullPage: true });
     await page.getByRole('button', { name: 'Guardar 3 mesas' }).click();
     await page.getByText(/^Guardado\./).waitFor();
