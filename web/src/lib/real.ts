@@ -2,7 +2,8 @@
 // datos (permisos por fila); aquí solo se arman las consultas.
 import { createClient } from '@supabase/supabase-js';
 import type {
-  Api, Demografia, FilaImportacion, PuestoCenso, Tendencia, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
+  Api, Demografia, FilaImportacion, PuestoCenso, Tendencia,
+  AvanceE14, Eleccion, LiderE14, LocalidadE14, MesaE14, MesaEnRevision, MesaPendiente, MiDigitacion, PuestoE14, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
   PersonaFila, Puesto, Rol, Sesion, Sugerencia,
 } from './tipos';
 import { AVISO_VERSION } from './tipos';
@@ -284,6 +285,61 @@ export const api: Api = {
   },
   async cancelarImportacion(id) {
     ok(await sb.from('importaciones').update({ estado: 'cancelada' }).eq('id', id));
+  },
+
+  async elecciones(): Promise<Eleccion[]> {
+    return lista(await sb.from('elecciones').select('id, nombre, fecha, modo_digitacion').order('fecha', { ascending: false })) as Eleccion[];
+  },
+  async crearEleccion(d) {
+    const c = await contexto();
+    sinError(await sb.from('elecciones').insert({
+      organizacion_id: c.orgId, nombre: d.nombre.trim(), fecha: d.fecha, modo_digitacion: d.modo, municipio_id: await municipioBogota(),
+    }));
+  },
+  async avanceE14(id) {
+    return (ok(await sb.from('v_e14_avance').select('mesas, pendientes, una_digitacion, en_revision, verificadas').eq('eleccion_id', id).maybeSingle()) as AvanceE14 | null);
+  },
+  async pendientesE14(id) {
+    return todas((a, b) => sb.from('v_e14_pendientes').select('mesa_id, localidad, puesto, mesa, estado')
+      .eq('eleccion_id', id).order('localidad').order('puesto').order('mesa').range(a, b)) as Promise<MesaPendiente[]>;
+  },
+  async digitarE14(eleccionId, mesaId, votos) {
+    const c = await contexto();
+    sinError(await sb.from('e14_digitaciones').insert({ eleccion_id: eleccionId, organizacion_id: c.orgId, mesa_id: mesaId, votos }));
+  },
+  async misDigitaciones(id) {
+    return todas((a, b) => sb.from('v_mis_digitaciones').select('id, mesa_id, localidad, puesto, mesa, votos, en, estado')
+      .eq('eleccion_id', id).order('en', { ascending: false }).range(a, b)) as Promise<MiDigitacion[]>;
+  },
+  async corregirDigitacion(id, votos) {
+    const r = await sb.from('e14_digitaciones').update({ votos }).eq('id', id).select('id');
+    if (r.error) throw r.error;
+    if (!r.data?.length) throw new Error('No tienes permiso para hacer esto.');
+  },
+  async revisionE14(id) {
+    return todas((a, b) => sb.from('v_e14_revision').select('mesa_id, localidad, puesto, mesa, digitaciones')
+      .eq('eleccion_id', id).order('localidad').order('puesto').order('mesa').range(a, b)) as Promise<MesaEnRevision[]>;
+  },
+  async resolverE14(eleccionId, mesaId, votos) {
+    sinError(await sb.rpc('resolver_e14', { p_eleccion: eleccionId, p_mesa: mesaId, p_votos: votos }));
+  },
+  async resultadosE14(id) {
+    const campos = 'esperados, confirmados, faltantes, adicionales, votos_reales, mesas, mesas_verificadas';
+    const [localidades, puestos, lideres] = await Promise.all([
+      todas((a, b) => sb.from('v_e14_localidades').select(`localidad_id, localidad, ${campos}`).eq('eleccion_id', id).range(a, b)),
+      todas((a, b) => sb.from('v_e14_puestos').select(`puesto_id, puesto, localidad_id, localidad, ${campos}`).eq('eleccion_id', id).range(a, b)),
+      todas((a, b) => sb.from('v_e14_lideres').select('lider_id, nombre, esperados, esperados_verificados, confirmados, mesas_pendientes, cumplimiento').eq('eleccion_id', id).range(a, b)),
+    ]);
+    // Los totales vienen como enteros (::int); solo "cumplimiento" es numeric y llega como texto
+    return {
+      localidades: localidades as LocalidadE14[],
+      puestos: puestos as PuestoE14[],
+      lideres: (lideres as LiderE14[]).map((l) => ({ ...l, cumplimiento: l.cumplimiento == null ? null : Number(l.cumplimiento) })),
+    };
+  },
+  async mesasE14(eleccionId, puestoId) {
+    return lista(await sb.from('v_e14_mesas').select('mesa_id, mesa, puesto_id, estado, esperados, votos_reales, confirmados, faltantes, adicionales')
+      .eq('eleccion_id', eleccionId).eq('puesto_id', puestoId).order('mesa')) as MesaE14[];
   },
 
   async equipo(): Promise<MiembroEquipo[]> {

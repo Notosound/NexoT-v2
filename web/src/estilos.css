@@ -250,3 +250,26 @@ legend { font-weight: 700; padding: 0 0.35rem; }
   .tabla.compacta th, .tabla.compacta td { padding: 0.5rem 0.45rem; font-size: 0.88rem; }
   .tabla.compacta th { font-size: 0.72rem; }
 }
+
+/* ── E14 ─────────────────────────────────────────────────── */
+.barra-avance { display: flex; height: 14px; border-radius: 7px; overflow: hidden; background: #f3f4f6; gap: 2px; }
+.barra-avance > div { height: 100%; }
+.puesto-e14 h3 { font-size: 0.98rem; margin-bottom: 0.5rem; }
+.puesto-e14 + .puesto-e14 { margin-top: 0.75rem; }
+.fila-e14 { display: grid; grid-template-columns: 5.5rem minmax(80px, 140px) auto; gap: 0.5rem; align-items: center; padding: 0.3rem 0; border-top: 1px solid var(--borde); }
+.fila-e14:first-of-type { border-top: 0; }
+.fila-e14 label, .fila-e14 > span:first-child { font-weight: 600; font-size: 0.95rem; }
+.fila-e14 input { min-height: 40px; }
+.fila-e14 .error-campo { grid-column: 1 / -1; }
+.fila-e14.hecha { opacity: 0.75; }
+.cumplimiento { display: inline-flex; align-items: center; gap: 0.5rem; justify-content: flex-end; }
+.cumplimiento .pista { width: 70px; height: 8px; background: #eef0f3; border-radius: 4px; overflow: hidden; display: inline-block; }
+.cumplimiento .pista span { display: block; height: 100%; background: var(--serie-1); border-radius: 4px; }
+details.tarjeta summary { cursor: pointer; }
+
+.lista-puestos { display: grid; gap: 0.5rem; }
+.lista-puestos .puesto-e14 + .puesto-e14 { margin-top: 0; }
+.puesto-e14 { padding: 0.25rem 1rem; }
+.cabecera-puesto { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; background: none; border: 0; padding: 0.6rem 0; cursor: pointer; text-align: left; }
+.cabecera-puesto small { display: block; color: var(--texto-3); }
+.cabecera-puesto[aria-expanded=true] { border-bottom: 1px solid var(--borde); margin-bottom: 0.25rem; }

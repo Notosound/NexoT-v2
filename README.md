@@ -114,11 +114,11 @@ Está en `web/`. Es un solo panel para todos los roles: cada persona ve solo las
 
 | Rol | Secciones |
 |---|---|
-| Administrador | Inicio, Tablero, Registrar, Personas, Puestos por revisar, Importar Excel, Líderes, Equipo |
-| Coordinador | Inicio, Tablero, Registrar, Personas (de sus líderes), Líderes |
+| Administrador | Inicio, Tablero, Registrar, Personas, Puestos por revisar, Importar Excel, E14 (resultados, digitar, diferencias, elecciones), Líderes, Equipo |
+| Coordinador | Inicio, Tablero, Registrar, Personas (de sus líderes), E14 (resultados), Líderes |
 | Líder | Inicio, Registrar, Mis registrados |
-| Candidato | Tablero: mapa de puestos, edad y sexo, localidades, tendencia (solo agregados) |
-| Digitador | Inicio (la digitación E14 llega en la siguiente fase) |
+| Candidato | Tablero y resultados E14 (solo agregados) |
+| Digitador | E14: digitar mesas y corregir lo propio (no ve personas ni esperados) |
 
 ### Tablero y app en el celular
 
@@ -238,7 +238,7 @@ Hay que cargar el catálogo territorial (municipio, localidades, puestos y mesas
 - [x] Puestos y mesas de Bogotá: Divipole Congreso 2026 (ver `datos/divipole/FUENTE.md`)
 - [ ] Script de migración de los datos del piloto (MongoDB → Postgres)
 - [x] Panel web: login, registro de personas, puestos por revisar, importador de Excel, líderes y equipo
-- [ ] Digitación E14 en el panel
+- [x] Digitación E14 en el panel: elecciones, digitar, diferencias, resultados por líder/localidad/puesto/mesa
 - [ ] Tablero del candidato (PWA): mapa, pirámide de edad y sexo, avance y E14
 - [ ] Simulación de campaña
 - [ ] Eventos y asistencias (existían en el piloto)

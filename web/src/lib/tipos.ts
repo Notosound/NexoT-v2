@@ -180,6 +180,20 @@ export interface PuestoCenso {
 
 export interface Tendencia { dia: string; nuevos: number }
 
+// ── E14 ──
+export type ModoDigitacion = 'simple' | 'doble';
+export type EstadoMesa = 'pendiente' | 'una_digitacion' | 'en_revision' | 'verificado';
+export interface Eleccion { id: string; nombre: string; fecha: string; modo_digitacion: ModoDigitacion }
+export interface AvanceE14 { mesas: number; pendientes: number; una_digitacion: number; en_revision: number; verificadas: number }
+export interface MesaPendiente { mesa_id: number; localidad: string; puesto: string; mesa: number; estado: EstadoMesa }
+export interface MiDigitacion { id: number; mesa_id: number; localidad: string; puesto: string; mesa: number; votos: number; en: string; estado: EstadoMesa }
+export interface MesaEnRevision { mesa_id: number; localidad: string; puesto: string; mesa: number; digitaciones: { votos: number; por: string; en: string }[] }
+export interface TotalesE14 { esperados: number; confirmados: number; faltantes: number; adicionales: number; votos_reales: number; mesas: number; mesas_verificadas: number }
+export interface LocalidadE14 extends TotalesE14 { localidad_id: number; localidad: string }
+export interface PuestoE14 extends TotalesE14 { puesto_id: number; puesto: string; localidad_id: number; localidad: string }
+export interface MesaE14 { mesa_id: number; mesa: number; puesto_id: number; estado: EstadoMesa; esperados: number; votos_reales: number | null; confirmados: number | null; faltantes: number | null; adicionales: number | null }
+export interface LiderE14 { lider_id: string; nombre: string; esperados: number; esperados_verificados: number | null; confirmados: number; mesas_pendientes: number; cumplimiento: number | null }
+
 export interface Api {
   modo: 'real' | 'demo';
   // sesión
@@ -215,6 +229,18 @@ export interface Api {
   filasImportacion(id: string): Promise<FilaImportacion[]>;
   confirmarImportacion(id: string): Promise<Importacion>;
   cancelarImportacion(id: string): Promise<void>;
+  // E14
+  elecciones(): Promise<Eleccion[]>;
+  crearEleccion(d: { nombre: string; fecha: string; modo: ModoDigitacion }): Promise<void>;
+  avanceE14(eleccionId: string): Promise<AvanceE14 | null>;
+  pendientesE14(eleccionId: string): Promise<MesaPendiente[]>;
+  digitarE14(eleccionId: string, mesaId: number, votos: number): Promise<void>;
+  misDigitaciones(eleccionId: string): Promise<MiDigitacion[]>;
+  corregirDigitacion(id: number, votos: number): Promise<void>;
+  revisionE14(eleccionId: string): Promise<MesaEnRevision[]>;
+  resolverE14(eleccionId: string, mesaId: number, votos: number): Promise<void>;
+  resultadosE14(eleccionId: string): Promise<{ localidades: LocalidadE14[]; puestos: PuestoE14[]; lideres: LiderE14[] }>;
+  mesasE14(eleccionId: string, puestoId: number): Promise<MesaE14[]>;
   // equipo
   equipo(): Promise<MiembroEquipo[]>;
   vincularUsuario(email: string, nombre: string, rol: Rol, liderId: string | null): Promise<void>;

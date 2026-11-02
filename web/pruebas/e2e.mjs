@@ -300,6 +300,96 @@ console.log('Coordinador (escritorio)');
   await ctx.close();
 }
 
+console.log('E14: digitador (móvil)');
+{
+  const { ctx, page } = await sesion('digitador', movil);
+  await paso('el digitador solo ve la pestaña de digitar', async () => {
+    await page.getByRole('link', { name: 'Ir a digitar' }).click();
+    await page.getByRole('heading', { name: /^Avance:/ }).waitFor();
+    assert.equal(await page.getByRole('tablist').count(), 0, 'sin pestañas: solo digitar');
+    const menu = await page.getByRole('navigation', { name: 'Secciones' }).innerText();
+    assert.doesNotMatch(menu, /Personas|Registrar|Tablero/);
+  });
+  await paso('digita una mesa con el teclado y pasa a la siguiente', async () => {
+    // Abre el primer puesto que tenga al menos dos mesas
+    const bloque = page.locator('.puesto-e14').filter({ has: page.locator('.insignia', { hasText: /^[2-9]\d* mesas$/ }) }).first();
+    await bloque.locator('.cabecera-puesto').click();
+    const primera = bloque.locator('input').first();
+    await primera.waitFor();
+    const id = await primera.getAttribute('id');
+    await primera.fill('7');
+    await primera.press('Enter');
+    await page.locator('.fila-e14.hecha', { hasText: '✓ 7 votos' }).first().waitFor();
+    const enfocado = await page.evaluate(() => document.activeElement?.id);
+    assert.ok(enfocado && enfocado !== id && enfocado.startsWith('m-'), 'el foco pasó a la siguiente mesa del puesto');
+    await page.screenshot({ path: join(capturas, '30-e14-digitar.png'), fullPage: true });
+  });
+  await paso('no acepta valores inválidos', async () => {
+    const input = page.locator('.puesto-e14 input:not([disabled])').first();
+    await input.fill('5000');
+    await input.press('Enter');
+    await page.getByText('Escribe un número de 0 a 1000.').first().waitFor();
+    await input.fill('');
+  });
+  await paso('corrige lo que digitó', async () => {
+    await page.getByRole('button', { name: 'Ver y corregir' }).click();
+    await page.getByRole('button', { name: 'Corregir' }).first().click();
+    await page.getByLabel('Votos corregidos').fill('8');
+    await page.getByRole('button', { name: 'Guardar' }).last().click();
+    await page.getByRole('cell', { name: '8', exact: true }).first().waitFor();
+  });
+  await ctx.close();
+}
+
+console.log('E14: administrador (escritorio)');
+{
+  const { ctx, page } = await sesion('admin', escritorio);
+  await page.getByRole('link', { name: 'E14' }).click();
+  await paso('resultados: cumplimiento, líderes y detalle por mesa', async () => {
+    await page.getByText('de cumplimiento en mesas verificadas').waitFor();
+    assert.ok(await page.locator('tbody tr').count() >= 3, 'hay líderes');
+    await page.getByRole('tab', { name: 'Por puesto' }).click();
+    await page.locator('tbody .enlace').first().click();
+    await page.getByRole('columnheader', { name: 'Votos E14' }).waitFor();
+    await page.screenshot({ path: join(capturas, '31-e14-resultados.png'), fullPage: true });
+  });
+  await paso('diferencias: el admin elige el valor correcto', async () => {
+    const pestana = page.getByRole('tab', { name: /^Diferencias/ });
+    const antes = Number(((await pestana.innerText()).match(/\((\d+)\)/) ?? [0, 0])[1]);
+    assert.ok(antes > 0, 'hay mesas con diferencia en los datos de ejemplo');
+    await pestana.click();
+    await page.locator('.tarjeta h3').first().waitFor();
+    await page.screenshot({ path: join(capturas, '32-e14-diferencias.png'), fullPage: true });
+    await page.locator('.tarjeta', { has: page.locator('h3') }).first().getByRole('button', { name: /votos/ }).first().click();
+    await page.getByText(/quedó con \d+ votos/).waitFor();
+    await page.waitForTimeout(300);
+    const despues = Number(((await page.getByRole('tab', { name: /^Diferencias/ }).innerText()).match(/\((\d+)\)/) ?? [0, 0])[1]);
+    assert.equal(despues, antes - 1);
+  });
+  await paso('crear una elección nueva', async () => {
+    await page.getByRole('tab', { name: 'Elecciones' }).click();
+    await page.getByLabel('Nombre').fill('Cámara 2026 prueba');
+    await page.getByRole('button', { name: 'Simple' }).click();
+    await page.getByRole('button', { name: 'Crear elección' }).click();
+    await page.getByText('Elección “Cámara 2026 prueba” creada.').waitFor();
+    await page.getByLabel('Elección').waitFor();
+  });
+  await ctx.close();
+}
+
+console.log('E14: candidato');
+{
+  const { ctx, page } = await sesion('candidato', movil, 'Tablero');
+  await paso('el candidato ve resultados, no digitación ni diferencias', async () => {
+    await page.getByRole('link', { name: 'E14' }).click();
+    await page.getByText('de cumplimiento en mesas verificadas').waitFor();
+    assert.equal(await page.getByRole('tablist').count(), 1, 'solo las pestañas internas de resultados');
+    assert.equal(await page.getByRole('tab', { name: /Digitar|Diferencias|Elecciones/ }).count(), 0);
+    await page.screenshot({ path: join(capturas, '33-e14-candidato.png'), fullPage: true });
+  });
+  await ctx.close();
+}
+
 await paso('sin errores en la consola del navegador', async () => {
   assert.deepEqual(erroresConsola, []);
 });

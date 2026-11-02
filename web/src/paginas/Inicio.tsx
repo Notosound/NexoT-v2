@@ -66,7 +66,7 @@ export default function Inicio() {
       {error && <div className="aviso error">{error}</div>}
 
       {rol === 'digitador' && (
-        <div className="tarjeta"><h2>Digitación E14</h2><p>El módulo de digitación de resultados E14 estará disponible en la siguiente fase.</p></div>
+        <div className="tarjeta"><h2>Digitación E14</h2><p>Transcribe los votos de cada mesa a partir de las fotos de los formularios E14.</p><Link to="/e14" className="boton primario">Ir a digitar</Link></div>
       )}
 
       {rol === 'lider' && resumen && (

@@ -2,7 +2,8 @@
 // catálogo de puestos, que es el oficial y público). Sirve para ver y probar
 // el panel sin Supabase. Nunca se incluye en el build normal.
 import type {
-  Api, Demografia, FilaImportacion, PuestoCenso, Tendencia, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
+  Api, Demografia, FilaImportacion, PuestoCenso, Tendencia,
+  Eleccion, EstadoMesa, LiderE14, LocalidadE14, MesaE14, PuestoE14, TotalesE14, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
   PersonaFila, Puesto, Rol, Sesion, Sexo, Sugerencia,
 } from './tipos';
 import { edadDesde, hoyISO, normalizar } from './utilidades';
@@ -46,6 +47,7 @@ const usuarios: (MiembroEquipo & { lider?: string })[] = [
   { id: 'u-lider', nombre: 'Líder Demo', rol: 'lider', activo: true, email: 'lider@demo.co' },
   { id: 'u-cand', nombre: 'Candidato Demo', rol: 'candidato', activo: true, email: 'candidato@demo.co' },
   { id: 'u-dig', nombre: 'Digitador Demo', rol: 'digitador', activo: true, email: 'digitador@demo.co' },
+  { id: 'u-dig2', nombre: 'Segunda Digitadora', rol: 'digitador', activo: true, email: 'digitadora2@demo.co' },
 ];
 const lideres: Omit<Lider, 'registrados'>[] = [
   { id: 'l-1', nombre: 'Líder Demo', cedula: '900001', telefono: '3001112233', meta_votos: 60, coordinador_id: 'u-coord', perfil_id: 'u-lider' },
@@ -74,6 +76,79 @@ for (let i = 0; i < 600; i++) {
     creadoEn: new Date(Date.now() - i * 3600_000 * 1.2).toISOString(), eliminada: false,
   });
 }
+
+// ── E14 en memoria (misma regla que la base de datos) ──
+const elecciones: Eleccion[] = [{ id: 'e-1', nombre: 'Senado 2026 (demo)', fecha: '2026-03-08', modo_digitacion: 'doble' }];
+interface DigDemo { id: number; eleccionId: string; mesaId: number; votos: number; por: string; en: string }
+const digitaciones: DigDemo[] = [];
+const resultados = new Map<string, { votos: number | null; estado: EstadoMesa; admin: boolean }>();
+const mesaId = (puestoId: number, numero: number) => puestoId * 1000 + numero;
+const clave = (e: string, m: number) => `${e}|${m}`;
+
+function consolidar(eleccionId: string, m: number) {
+  const r = resultados.get(clave(eleccionId, m));
+  if (r?.admin) return;
+  const modo = elecciones.find((x) => x.id === eleccionId)!.modo_digitacion;
+  const ds = digitaciones.filter((d) => d.eleccionId === eleccionId && d.mesaId === m);
+  let estado: EstadoMesa, votos: number | null = null;
+  if (modo === 'simple') { estado = 'verificado'; votos = ds[ds.length - 1].votos; }
+  else if (ds.length < 2) estado = 'una_digitacion';
+  else if (new Set(ds.map((d) => d.votos)).size === 1) { estado = 'verificado'; votos = ds[0].votos; }
+  else estado = 'en_revision';
+  resultados.set(clave(eleccionId, m), { votos, estado, admin: false });
+}
+
+function mesasCalc(eleccionId: string) {
+  const esp = new Map<number, { esperados: number; porLider: Map<string, number>; puestoId: number; numero: number }>();
+  for (const p of personas) {
+    if (p.eliminada || !p.puestoId || !p.mesa) continue;
+    const m = mesaId(p.puestoId, p.mesa);
+    const e = esp.get(m) ?? { esperados: 0, porLider: new Map(), puestoId: p.puestoId, numero: p.mesa };
+    e.esperados++; e.porLider.set(p.liderId, (e.porLider.get(p.liderId) ?? 0) + 1);
+    esp.set(m, e);
+  }
+  return [...esp.entries()].map(([m, e]) => {
+    const r = resultados.get(clave(eleccionId, m));
+    const puesto = PUESTOS.find((x) => x.id === e.puestoId)!;
+    const loc = LOCALIDADES.find((l) => l.id === puesto.localidad_id)!;
+    const votos = r?.estado === 'verificado' ? r.votos : null;
+    const conf = votos == null ? null : Math.min(e.esperados, votos);
+    return {
+      mesa_id: m, mesa: e.numero, puesto_id: puesto.id, puesto: puesto.nombre, localidad_id: loc.id, localidad: loc.nombre,
+      estado: (r?.estado ?? 'pendiente') as EstadoMesa, esperados: e.esperados, votos_reales: votos, confirmados: conf,
+      faltantes: conf == null ? null : e.esperados - conf, adicionales: conf == null || votos == null ? null : votos - conf,
+      porLider: e.porLider,
+    };
+  });
+}
+
+function sumar<K extends string>(filas: ReturnType<typeof mesasCalc>, k: (f: ReturnType<typeof mesasCalc>[number]) => K) {
+  const m = new Map<K, TotalesE14 & { f: ReturnType<typeof mesasCalc>[number] }>();
+  for (const f of filas) {
+    const t = m.get(k(f)) ?? { esperados: 0, confirmados: 0, faltantes: 0, adicionales: 0, votos_reales: 0, mesas: 0, mesas_verificadas: 0, f };
+    t.esperados += f.esperados; t.confirmados += f.confirmados ?? 0; t.faltantes += f.faltantes ?? 0;
+    t.adicionales += f.adicionales ?? 0; t.votos_reales += f.votos_reales ?? 0; t.mesas++;
+    if (f.estado === 'verificado') t.mesas_verificadas++;
+    m.set(k(f), t);
+  }
+  return [...m.values()];
+}
+
+// Datos de ejemplo: parte de las mesas ya digitadas por dos personas
+{
+  let n = 0;
+  for (const f of mesasCalc('e-1')) {
+    n++;
+    if (n % 10 >= 7) continue;                                   // 30% pendientes
+    const real = Math.max(0, f.esperados + Math.floor(azar() * 5) - 2);
+    digitaciones.push({ id: digitaciones.length + 1, eleccionId: 'e-1', mesaId: f.mesa_id, votos: real, por: 'u-dig2', en: new Date().toISOString() });
+    if (n % 10 === 6) { consolidar('e-1', f.mesa_id); continue; } // una sola digitación
+    const otra = n % 17 === 0 ? real + 3 : real;                 // algunas no coinciden
+    digitaciones.push({ id: digitaciones.length + 1, eleccionId: 'e-1', mesaId: f.mesa_id, votos: otra, por: 'u-otro', en: new Date().toISOString() });
+    consolidar('e-1', f.mesa_id);
+  }
+}
+const nombreUsuario = (id: string) => usuarios.find((u) => u.id === id)?.nombre ?? 'Digitador externo';
 
 let actual: { usuario: MiembroEquipo } | null = null;
 try {
@@ -340,6 +415,103 @@ export const api: Api = {
     return i.imp;
   },
   async cancelarImportacion(id) { await espera(); importaciones.get(id)!.imp.estado = 'cancelada'; },
+
+  async elecciones() { await espera(60); return elecciones; },
+  async crearEleccion(d) {
+    await espera();
+    if (yo().rol !== 'admin') throw new Error('No tienes permiso para hacer esto.');
+    elecciones.unshift({ id: `e-${elecciones.length + 1}`, nombre: d.nombre, fecha: d.fecha, modo_digitacion: d.modo });
+  },
+  async avanceE14(id) {
+    await espera(60);
+    if (yo().rol === 'lider') return null;
+    const ms = mesasCalc(id);
+    const c = (e: EstadoMesa) => ms.filter((m) => m.estado === e).length;
+    return { mesas: ms.length, pendientes: c('pendiente'), una_digitacion: c('una_digitacion'), en_revision: c('en_revision'), verificadas: c('verificado') };
+  },
+  async pendientesE14(id) {
+    await espera();
+    if (!['admin', 'digitador'].includes(yo().rol)) return [];
+    const mias = new Set(digitaciones.filter((d) => d.eleccionId === id && d.por === yo().id).map((d) => d.mesaId));
+    return mesasCalc(id)
+      .filter((m) => (m.estado === 'pendiente' || m.estado === 'una_digitacion') && !mias.has(m.mesa_id))
+      .map(({ mesa_id, localidad, puesto, mesa, estado }) => ({ mesa_id, localidad, puesto, mesa, estado }))
+      .sort((a, b) => a.localidad.localeCompare(b.localidad) || a.puesto.localeCompare(b.puesto) || a.mesa - b.mesa);
+  },
+  async digitarE14(eleccionId, m, votos) {
+    await espera(120);
+    if (!['admin', 'digitador'].includes(yo().rol)) throw new Error('No tienes permiso para hacer esto.');
+    if (digitaciones.some((d) => d.eleccionId === eleccionId && d.mesaId === m && d.por === yo().id)) throw new Error('Ya digitaste esta mesa.');
+    digitaciones.push({ id: digitaciones.length + 1, eleccionId, mesaId: m, votos, por: yo().id, en: new Date().toISOString() });
+    consolidar(eleccionId, m);
+  },
+  async misDigitaciones(id) {
+    await espera();
+    const ms = new Map(mesasCalc(id).map((m) => [m.mesa_id, m]));
+    return digitaciones.filter((d) => d.eleccionId === id && d.por === yo().id).reverse().map((d) => {
+      const m = ms.get(d.mesaId)!;
+      return { id: d.id, mesa_id: d.mesaId, localidad: m.localidad, puesto: m.puesto, mesa: m.mesa, votos: d.votos, en: d.en, estado: m.estado };
+    });
+  },
+  async corregirDigitacion(id, votos) {
+    await espera();
+    const d = digitaciones.find((x) => x.id === id && x.por === yo().id);
+    if (!d) throw new Error('No tienes permiso para hacer esto.');
+    d.votos = votos;
+    consolidar(d.eleccionId, d.mesaId);
+  },
+  async revisionE14(id) {
+    await espera();
+    if (yo().rol !== 'admin') return [];
+    return mesasCalc(id).filter((m) => m.estado === 'en_revision').map((m) => ({
+      mesa_id: m.mesa_id, localidad: m.localidad, puesto: m.puesto, mesa: m.mesa,
+      digitaciones: digitaciones.filter((d) => d.eleccionId === id && d.mesaId === m.mesa_id).map((d) => ({ votos: d.votos, por: nombreUsuario(d.por), en: d.en })),
+    }));
+  },
+  async resolverE14(eleccionId, m, votos) {
+    await espera();
+    if (yo().rol !== 'admin') throw new Error('Solo un administrador puede resolver mesas');
+    resultados.set(clave(eleccionId, m), { votos, estado: 'verificado', admin: true });
+  },
+  async resultadosE14(id) {
+    await espera();
+    if (!['admin', 'coordinador', 'candidato'].includes(yo().rol)) return { localidades: [], puestos: [], lideres: [] };
+    const ms = mesasCalc(id);
+    const localidades: LocalidadE14[] = sumar(ms, (f) => String(f.localidad_id)).map(({ f, ...t }) => ({ ...t, localidad_id: f.localidad_id, localidad: f.localidad }));
+    const puestos: PuestoE14[] = sumar(ms, (f) => String(f.puesto_id)).map(({ f, ...t }) => ({ ...t, puesto_id: f.puesto_id, puesto: f.puesto, localidad_id: f.localidad_id, localidad: f.localidad }));
+    // Reparto por residuo mayor entre los líderes de cada mesa
+    const porLider = new Map<string, { esperados: number; esperadosVer: number; confirmados: number; pendientes: number }>();
+    for (const m of ms) {
+      const entradas = [...m.porLider.entries()];
+      let reparto = new Map<string, number>();
+      if (m.confirmados != null) {
+        const cuotas = entradas.map(([l, e]) => ({ l, e, q: (m.confirmados! * e) / m.esperados }));
+        const pisos = cuotas.map((c) => ({ ...c, p: Math.floor(c.q), r: c.q - Math.floor(c.q) }));
+        let sobran = m.confirmados - pisos.reduce((s, c) => s + c.p, 0);
+        pisos.sort((a, b) => b.r - a.r || b.e - a.e || a.l.localeCompare(b.l));
+        reparto = new Map(pisos.map((c) => [c.l, c.p + (sobran-- > 0 ? 1 : 0)]));
+      }
+      for (const [l, e] of entradas) {
+        const t = porLider.get(l) ?? { esperados: 0, esperadosVer: 0, confirmados: 0, pendientes: 0 };
+        t.esperados += e;
+        if (m.estado === 'verificado') { t.esperadosVer += e; t.confirmados += reparto.get(l) ?? 0; } else t.pendientes++;
+        porLider.set(l, t);
+      }
+    }
+    const visibles = new Set(yo().rol === 'candidato' ? lideres.map((l) => l.id) : misLideres().map((l) => l.id));
+    const ls: LiderE14[] = [...porLider.entries()].filter(([l]) => visibles.has(l)).map(([l, t]) => ({
+      lider_id: l, nombre: lideres.find((x) => x.id === l)?.nombre ?? '', esperados: t.esperados,
+      esperados_verificados: t.esperadosVer || null, confirmados: t.confirmados, mesas_pendientes: t.pendientes,
+      cumplimiento: t.esperadosVer ? Math.round((1000 * t.confirmados) / t.esperadosVer) / 10 : null,
+    }));
+    return { localidades, puestos, lideres: ls };
+  },
+  async mesasE14(id, puestoId): Promise<MesaE14[]> {
+    await espera();
+    return mesasCalc(id).filter((m) => m.puesto_id === puestoId).sort((a, b) => a.mesa - b.mesa)
+      .map(({ mesa_id, mesa, puesto_id, estado, esperados, votos_reales, confirmados, faltantes, adicionales }) =>
+        ({ mesa_id, mesa, puesto_id, estado, esperados, votos_reales, confirmados, faltantes, adicionales }));
+  },
 
   async equipo() { await espera(); return yo().rol === 'admin' ? usuarios : []; },
   async vincularUsuario(email, nombre, rol, liderId) {

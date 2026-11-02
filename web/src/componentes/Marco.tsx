@@ -10,6 +10,7 @@ const ENLACES: { a: string; texto: string; roles: Rol[] }[] = [
   { a: '/personas', texto: 'Personas', roles: ['admin', 'coordinador', 'lider'] },
   { a: '/revision', texto: 'Puestos por revisar', roles: ['admin'] },
   { a: '/importar', texto: 'Importar Excel', roles: ['admin'] },
+  { a: '/e14', texto: 'E14', roles: ['admin', 'coordinador', 'candidato', 'digitador'] },
   { a: '/lideres', texto: 'Líderes', roles: ['admin', 'coordinador'] },
   { a: '/equipo', texto: 'Equipo', roles: ['admin'] },
 ];
