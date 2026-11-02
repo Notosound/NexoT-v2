@@ -350,8 +350,16 @@ console.log('E14: administrador (escritorio)');
     await page.getByText('de cumplimiento en mesas verificadas').waitFor();
     assert.ok(await page.locator('tbody tr').count() >= 3, 'hay líderes');
     await page.getByRole('tab', { name: 'Por puesto' }).click();
-    await page.locator('tbody .enlace').first().click();
-    await page.getByRole('columnheader', { name: 'Votos E14' }).waitFor();
+    const enlace = page.locator('tbody .enlace').first();
+    const nombre = await enlace.innerText();
+    await enlace.click();
+    try {
+      await page.locator('table table th', { hasText: 'Votos E14' }).waitFor({ timeout: 10000 });
+    } catch (e) {
+      const texto = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
+      const i = texto.indexOf(nombre);
+      throw new Error(`No apareció el detalle de "${nombre}". Pantalla: ${texto.slice(Math.max(0, i - 100), i + 400)}`);
+    }
     await page.screenshot({ path: join(capturas, '31-e14-resultados.png'), fullPage: true });
   });
   await paso('diferencias: el admin elige el valor correcto', async () => {
