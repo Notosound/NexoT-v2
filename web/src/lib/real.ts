@@ -367,10 +367,18 @@ export const api: Api = {
       todas((a, b) => sb.from('v_e14_lideres').select('lider_id, nombre, esperados, esperados_verificados, confirmados, mesas_pendientes, cumplimiento').eq('eleccion_id', id).range(a, b)),
     ]);
     // Los totales vienen como enteros (::int); solo "cumplimiento" es numeric y llega como texto
+    // Una localidad o puesto sin mesas verificadas suma null en la base: se normaliza a 0
+    const totales = <T extends Record<string, unknown>>(x: T) => ({
+      ...x, esperados: Number(x.esperados ?? 0), confirmados: Number(x.confirmados ?? 0), faltantes: Number(x.faltantes ?? 0),
+      adicionales: Number(x.adicionales ?? 0), votos_reales: Number(x.votos_reales ?? 0), mesas: Number(x.mesas ?? 0), mesas_verificadas: Number(x.mesas_verificadas ?? 0),
+    });
     return {
-      localidades: localidades as LocalidadE14[],
-      puestos: puestos as PuestoE14[],
-      lideres: (lideres as LiderE14[]).map((l) => ({ ...l, cumplimiento: l.cumplimiento == null ? null : Number(l.cumplimiento) })),
+      localidades: (localidades as Record<string, unknown>[]).map(totales) as unknown as LocalidadE14[],
+      puestos: (puestos as Record<string, unknown>[]).map(totales) as unknown as PuestoE14[],
+      lideres: (lideres as LiderE14[]).map((l) => ({
+        ...l, esperados: Number(l.esperados ?? 0), confirmados: Number(l.confirmados ?? 0),
+        cumplimiento: l.cumplimiento == null ? null : Number(l.cumplimiento),
+      })),
     };
   },
   async mesasE14(eleccionId, puestoId) {

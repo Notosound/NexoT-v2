@@ -28,8 +28,8 @@ export function normalizar(t: string): string {
   return t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
-export function formatoNumero(n: number): string {
-  return n.toLocaleString('es-CO');
+export function formatoNumero(n: number | null | undefined): string {
+  return Number(n ?? 0).toLocaleString('es-CO');
 }
 
 export function nombreCompleto(p: { nombres: string; apellidos?: string | null }): string {

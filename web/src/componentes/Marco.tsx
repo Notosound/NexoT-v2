@@ -7,6 +7,7 @@ import {
 import { useSesion } from '../lib/sesion';
 import { ROLES, type Rol } from '../lib/tipos';
 import SelectorVerComo from './VerComo';
+import Protector from './Protector';
 
 const ENLACES: { a: string; texto: string; icono: LucideIcon; roles: Rol[]; textoLider?: string }[] = [
   { a: '/', texto: 'Inicio', icono: Home, roles: ['admin', 'coordinador', 'lider', 'digitador'] },
@@ -92,7 +93,7 @@ export default function Marco({ children }: { children: ReactNode }) {
             </NavLink>
           ))}
         </nav>
-        <main className="contenido" key={vista?.objetivo ?? 'propio'}>{children}</main>
+        <main className="contenido" key={vista?.objetivo ?? 'propio'}><Protector clave={ruta + (vista?.objetivo ?? '')}>{children}</Protector></main>
       </div>
       {eligiendo && <SelectorVerComo alCerrar={() => setEligiendo(false)} />}
     </div>
