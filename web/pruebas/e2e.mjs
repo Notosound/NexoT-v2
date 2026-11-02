@@ -387,6 +387,7 @@ console.log('E14: digitador (móvil)');
     let puesto = null;
     for (const o of opciones) {
       await page.getByLabel('1. Localidad').selectOption({ label: o });
+      await page.locator('.buscador-lista li button').first().waitFor();
       const candidato = page.locator('.buscador-lista li button').filter({ hasText: /([2-9]|\d{2,}) mesas pendientes/ });
       if (await candidato.count()) { puesto = candidato.first(); break; }
     }
