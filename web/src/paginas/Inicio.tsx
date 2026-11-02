@@ -1,4 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useEnVivo } from '../lib/enVivo';
+import EnVivo from '../componentes/EnVivo';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle, BarChart3, ClipboardCheck, Contact, Flag, LineChart, MapPinOff, QrCode, Target, UserPlus, Users, UsersRound, Vote,
@@ -33,9 +35,7 @@ function InicioLider() {
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [ficha, setFicha] = useState<Lider | null>(null);
   const [error, setError] = useState('');
-  useEffect(() => {
-    Promise.all([api.resumen().then(setResumen), api.lideres().then((l) => setFicha(l[0] ?? null))]).catch((e) => setError(mensajeError(e)));
-  }, [api]);
+  useEnVivo(() => Promise.all([api.resumen().then(setResumen), api.lideres().then((l) => setFicha(l[0] ?? null))]).catch((e) => setError(mensajeError(e))), ['registros']);
   const nombre = sesion!.perfil!.nombre.split(' ')[0];
   const meta = ficha?.meta_votos ?? 0;
   const sinPuesto = resumen ? resumen.porRevisar + resumen.sinUbicacion : null;
@@ -108,11 +108,11 @@ function InicioEquipo() {
   const [lideres, setLideres] = useState<Lider[]>([]);
   const [error, setError] = useState('');
 
-  useEffect(() => {
+  const vivo = useEnVivo(() => {
     const t: Promise<unknown>[] = [api.demografia().then(setDemo), api.tendencia().then(setTendencia)];
     if (rol !== 'candidato') t.push(api.resumen().then(setResumen), api.lideres().then(setLideres));
-    Promise.all(t).catch((e) => setError(mensajeError(e)));
-  }, [api, rol]);
+    return Promise.all(t).catch((e) => setError(mensajeError(e)));
+  }, ['registros']);
 
   const r = demo ? resumirDemografia(demo) : null;
   const serie = serieDesdeTendencia(tendencia, 30);
@@ -127,6 +127,7 @@ function InicioEquipo() {
         <div>
           <h1>Hola, {sesion!.perfil!.nombre.split(' ')[0]}</h1>
           <p className="subtitulo">{sesion!.organizacion} · así va la campaña hoy</p>
+          <EnVivo {...vivo} />
         </div>
         {rol !== 'candidato' && <Link to="/registrar" className="boton primario"><UserPlus className="icono" aria-hidden />Registrar persona</Link>}
       </div>

@@ -1,5 +1,7 @@
 // Estadísticas del líder (como "Mis estadísticas" del piloto), con sus propios datos
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useEnVivo } from '../lib/enVivo';
+import EnVivo from '../componentes/EnVivo';
 import { CalendarDays, CheckCircle2, MapPinOff, Target, Users } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
 import type { Lider, PersonaFila } from '../lib/tipos';
@@ -13,10 +15,8 @@ export default function MisEstadisticas() {
   const [personas, setPersonas] = useState<PersonaFila[] | null>(null);
   const [ficha, setFicha] = useState<Lider | null>(null);
   const [error, setError] = useState('');
-  useEffect(() => {
-    Promise.all([api.personasTodas({ texto: '', estado: '' }).then(setPersonas), api.lideres().then((l) => setFicha(l[0] ?? null))])
-      .catch((e) => setError(mensajeError(e)));
-  }, [api]);
+  const vivo = useEnVivo(() => Promise.all([api.personasTodas({ texto: '', estado: '' }).then(setPersonas), api.lideres().then((l) => setFicha(l[0] ?? null))])
+    .catch((e) => setError(mensajeError(e))), ['registros']);
 
   const ps = personas ?? [];
   const r = resumirPersonas(ps);
@@ -28,7 +28,7 @@ export default function MisEstadisticas() {
 
   return (
     <>
-      <div className="encabezado"><div><h1>Mis estadísticas</h1><p className="subtitulo">Cómo va tu equipo, actualizado al momento</p></div></div>
+      <div className="encabezado"><div><h1>Mis estadísticas</h1><p className="subtitulo">Cómo va tu equipo, actualizado al momento</p><EnVivo {...vivo} /></div></div>
       {error && <div className="aviso error">{error}</div>}
       <div className="cifras">
         <Cifra icono={Users} valor={personas ? ps.length : null} etiqueta="personas registradas" />

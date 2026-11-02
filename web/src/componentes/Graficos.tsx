@@ -30,11 +30,13 @@ export function Leyenda({ series }: { series: { nombre: string; color: string }[
 
 // ── Barras horizontales (una serie o apiladas) ──────────────────────
 export interface FilaBarra { nombre: string; valores: number[]; detalle?: string }
-export function BarrasH({ filas, series, max: maxFijo, sufijo = '', vacio = 'Sin datos todavía', limite }: {
+export function BarrasH({ filas, series, max: maxFijo, sufijo = '', vacio = 'Sin datos todavía', limite, alElegir }: {
   filas: FilaBarra[]; series?: { nombre: string; color: string }[]; max?: number; sufijo?: string; vacio?: string; limite?: number;
+  alElegir?: (nombre: string) => void;
 }) {
   const { caja, mostrar, ocultar, nodo } = useBurbuja();
-  const visibles = limite ? filas.slice(0, limite) : filas;
+  const [todas, setTodas] = useState(false);
+  const visibles = limite && !todas ? filas.slice(0, limite) : filas;
   const max = maxFijo ?? Math.max(1, ...visibles.map((f) => f.valores.reduce((a, b) => a + b, 0)));
   const colores = series?.map((s) => s.color) ?? [SERIES[0]];
   if (!visibles.length) return <p className="vacio">{vacio}</p>;
@@ -53,8 +55,11 @@ export function BarrasH({ filas, series, max: maxFijo, sufijo = '', vacio = 'Sin
             </>
           );
           return (
-            <div className="barra-h" role="listitem" key={f.nombre} onMouseMove={(e) => mostrar(e, detalle)}>
-              <span className="nombre" title={f.nombre}>{f.nombre}</span>
+            <div className={`barra-h${alElegir ? ' elegible' : ''}`} role="listitem" key={f.nombre} onMouseMove={(e) => mostrar(e, detalle)}
+              onClick={alElegir ? () => alElegir(f.nombre) : undefined}>
+              {alElegir
+                ? <button type="button" className="nombre enlace-barra" title={`Ver ${f.nombre}`}>{f.nombre}</button>
+                : <span className="nombre" title={f.nombre}>{f.nombre}</span>}
               <span className="pista" aria-hidden>
                 {f.valores.map((v, i) => v > 0 && (
                   <span key={i} style={{ width: `${(100 * v) / max}%`, background: colores[i % colores.length] }} />
@@ -65,6 +70,9 @@ export function BarrasH({ filas, series, max: maxFijo, sufijo = '', vacio = 'Sin
           );
         })}
       </div>
+      {limite && filas.length > limite && (
+        <button type="button" className="ver-todas" onClick={() => setTodas(!todas)}>{todas ? 'Ver menos' : `Ver todas (${filas.length})`}</button>
+      )}
       {series && series.length > 1 && <Leyenda series={series} />}
       {nodo}
     </div>

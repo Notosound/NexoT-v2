@@ -16,8 +16,8 @@ before(async () => {
   lider = await base.crearUsuario(org, 'Líder', 'lider');
   [{ id: ficha }] = await base.sistema(`insert into lideres(organizacion_id, perfil_id, nombre) values ($1,$2,'Líder') returning id`, [org, lider]);
   for (const [c, mesa] of [['1', 1], ['2', 1], ['3', 2], ['4', 3]]) {
-    await base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en, mesa_id)
-                        values ($1,$2,$3,'X','otro',30,current_date,$4)`, [org, ficha, `7000${c}`, mesa]);
+    await base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en, mesa_id, telefono)
+                        values ($1,$2,$3,'X','otro',30,current_date,$4,'3001234567')`, [org, ficha, `7000${c}`, mesa]);
   }
   [{ id: eleccion }] = await base.sistema(
     `insert into elecciones(organizacion_id, nombre, fecha, municipio_id) values ($1,'Senado','2026-03-08',(select id from municipios where divipola='11001')) returning id`, [org]);

@@ -21,8 +21,8 @@ before(async () => {
     await base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en, mesa_id, telefono)
                         values ($1,$2,$3,'X','otro',30,current_date,$4,$5)`, [org, ficha, `8000${c}`, mesa, tel]);
   }
-  await base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, puesto_reportado, localidad_votacion_id, origen)
-                      values ($1,$2,'80009','Sin datos','Colegio raro',(select id from localidades where codigo='01'),'importacion')`, [org, ficha]);
+  await base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, puesto_reportado, localidad_votacion_id, origen, telefono)
+                      values ($1,$2,'80009','Sin datos','Colegio raro',(select id from localidades where codigo='01'),'importacion','3001234567')`, [org, ficha]);
   [{ id: eleccion }] = await base.sistema(
     `insert into elecciones(organizacion_id, nombre, fecha, municipio_id) values ($1,'Senado','2026-03-08',(select id from municipios where divipola='11001')) returning id`, [org]);
 });
@@ -105,7 +105,7 @@ test('análisis: registros por mesa y calidad por líder', async () => {
   assert.deepEqual(rm.map((x) => [x.puesto, x.mesa, x.personas]), [['Colegio Kennedy', 1, 1], ['Pepe Sierra', 1, 2], ['Pepe Sierra', 2, 1]]);
   const [c] = await base.como(lider, `select * from v_calidad_lideres`);
   assert.deepEqual([c.total, c.ubicados, c.por_revisar, c.sin_sexo, c.sin_edad, c.sin_telefono, c.sin_consentimiento, c.importados],
-    [5, 4, 1, 1, 1, 4, 5, 1]);
+    [5, 4, 1, 1, 1, 3, 5, 1]);
   assert.equal((await base.como(dig1, `select * from v_registros_mesa`)).length, 0);
 });
 

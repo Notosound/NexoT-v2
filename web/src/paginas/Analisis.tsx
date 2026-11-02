@@ -1,14 +1,16 @@
 // Análisis: jerarquía localidad → puesto → mesa, calidad de los datos,
 // rendimiento de líderes y simulación de campaña. Solo cifras agregadas;
 // todo se puede exportar a Excel (queda registrado en la auditoría).
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEnVivo } from '../lib/enVivo';
+import EnVivo from '../componentes/EnVivo';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle, CalendarClock, CheckCircle2, Download, MapPin, MapPinOff, Phone, Target, TrendingDown, TrendingUp, Users, Vote,
 } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
 import { BarrasH, Linea, Segmentos, SERIES } from '../componentes/Graficos';
-import { Cifra, QueEs } from '../componentes/Piezas';
+import { Cifra, Plegable, QueEs } from '../componentes/Piezas';
 import { ORDEN_EDAD, partesSexo, resumirDemografia, serieDesdeTendencia } from '../lib/estadisticas';
 import type {
   CalidadLider, Demografia, Eleccion, LiderE14, LocalidadE14, MesaE14, PuestoCenso, PuestoCodigos, PuestoE14, RegistrosMesa, Tendencia,
@@ -44,14 +46,19 @@ export default function Analisis() {
   const [e14, setE14] = useState<{ localidades: LocalidadE14[]; puestos: PuestoE14[]; lideres: LiderE14[] } | null>(null);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    Promise.all([api.demografia(), api.censoPuestos(), api.puestosConCodigos(), api.registrosMesa(), api.calidadLideres(), api.tendencia(), api.elecciones()])
-      .then(([demo, censo, codigos, porMesa, calidad, tendencia, elecciones]) => {
-        setDatos({ demo, censo: new Map(censo.map((c) => [c.id, c])), codigos: new Map(codigos.map((c) => [c.id, c])), porMesa, calidad, tendencia, elecciones });
-        setEleccionId(elecciones[0]?.id ?? '');
-      })
-      .catch((e) => setError(mensajeError(e)));
-  }, [api]);
+  const cargarDatos = async () => {
+    try {
+      const [demo, censo, codigos, porMesa, calidad, tendencia, elecciones] = await Promise.all([
+        api.demografia(), api.censoPuestos(), api.puestosConCodigos(), api.registrosMesa(), api.calidadLideres(), api.tendencia(), api.elecciones()]);
+      setDatos({ demo, censo: new Map(censo.map((c) => [c.id, c])), codigos: new Map(codigos.map((c) => [c.id, c])), porMesa, calidad, tendencia, elecciones });
+      setEleccionId((actual) => (actual === '' && !eleccionElegida.current ? elecciones[0]?.id ?? '' : actual));
+    } catch (e) { setError(mensajeError(e)); }
+  };
+  const eleccionElegida = useRef(false);
+  const eleccionActual = useRef('');
+  eleccionActual.current = eleccionId;
+  const vivo = useEnVivo(cargarDatos, ['registros']);
+  useEnVivo(async () => { if (eleccionActual.current) setE14(await api.resultadosE14(eleccionActual.current)); }, ['e14']);
 
   useEffect(() => {
     setE14(null);
@@ -68,10 +75,10 @@ export default function Analisis() {
   return (
     <>
       <div className="encabezado">
-        <div><h1>Análisis</h1><p className="subtitulo">Qué está pasando en la campaña y qué hacer, en palabras sencillas.</p></div>
+        <div><h1>Análisis</h1><p className="subtitulo">Qué está pasando en la campaña y qué hacer, en palabras sencillas.</p><EnVivo {...vivo} /></div>
         {datos && datos.elecciones.length > 0 && (
           <label className="campo" style={{ minWidth: 220 }}><span>Cruzar con E14</span>
-            <select value={eleccionId} onChange={(e) => setEleccionId(e.target.value)}>
+            <select value={eleccionId} onChange={(e) => { eleccionElegida.current = true; setEleccionId(e.target.value); }}>
               <option value="">Sin cruzar</option>
               {datos.elecciones.map((e) => <option key={e.id} value={e.id}>{e.nombre}</option>)}
             </select>
@@ -315,12 +322,14 @@ function Jerarquia({ datos, e14, eleccionId, exportar }: { datos: Datos; e14: { 
                   const x = e14Loc.get(l.id);
                   const conf = x?.confirmados ?? 0, falt = x?.faltantes ?? 0;
                   return { nombre: l.nombre, valores: [conf, falt, Math.max(0, l.personas - conf - falt)], detalle: `${formatoNumero(l.personas)} simpatizantes` };
-                })} />
+                })} alElegir={(n) => { const l = localidades.find((x) => x.nombre === n); if (l) setLocalidad({ id: l.id, nombre: l.nombre }); }} />
             ) : (
-              <BarrasH limite={10} filas={localidades.filter((l) => l.personas).map((l) => ({ nombre: l.nombre, valores: [l.personas], detalle: `${porMil(l.personas, l.censo).toLocaleString('es-CO')} por cada 1.000 votantes` }))} />
+              <BarrasH limite={10} filas={localidades.filter((l) => l.personas).map((l) => ({ nombre: l.nombre, valores: [l.personas], detalle: `${porMil(l.personas, l.censo).toLocaleString('es-CO')} por cada 1.000 votantes` }))}
+                alElegir={(n) => { const l = localidades.find((x) => x.nombre === n); if (l) setLocalidad({ id: l.id, nombre: l.nombre }); }} />
             )}
-            <p className="ayuda" style={{ marginTop: '0.5rem' }}>Toca una localidad en la tabla para ver sus puestos, y un puesto para ver sus mesas.</p>
+            <p className="ayuda" style={{ marginTop: '0.5rem' }}>Toca una localidad para ver sus puestos, y un puesto para ver sus mesas.</p>
           </div>
+          <details className="plegable-simple"><summary>Ver la tabla completa ({localidades.length} localidades)</summary>
           <div className="envoltura-tabla"><table className="tabla compacta">
             <thead><tr><th>Localidad</th><th className="num">Simpatizantes</th><th className="num solo-ancho">Censo</th><th className="num">Por 1.000</th><th className="num solo-ancho">Puestos</th><th className="num solo-ancho">Mesas</th>{conE14 && <><th className="num solo-ancho">Confirmados E14</th><th className="num">Cumpl.</th></>}</tr></thead>
             <tbody>{localidades.map((l) => (
@@ -335,6 +344,7 @@ function Jerarquia({ datos, e14, eleccionId, exportar }: { datos: Datos; e14: { 
               </tr>
             ))}</tbody>
           </table></div>
+          </details>
         </>
       )}
 
@@ -347,6 +357,10 @@ function Jerarquia({ datos, e14, eleccionId, exportar }: { datos: Datos; e14: { 
                 ...(conE14 ? [e14Puesto.get(p.id)?.confirmados ?? 0, cumpl(e14Puesto.get(p.id)) ?? ''] : [])]),
             ], { localidad: localidad.nombre })} />
           </div>
+          <BarrasH limite={10} vacio="Ningún puesto de esta localidad tiene simpatizantes todavía"
+            filas={puestos.filter((p) => p.personas || e14Puesto.has(p.id)).map((p) => ({ nombre: p.nombre, valores: [p.personas], detalle: `${p.mesasCon} de ${p.mesas} mesas con simpatizantes` }))}
+            alElegir={(n) => { const p = puestos.find((x) => x.nombre === n); if (p) setPuesto({ id: p.id, nombre: p.nombre }); }} />
+          <details className="plegable-simple"><summary>Ver todos los puestos ({puestos.length})</summary>
           <div className="envoltura-tabla"><table className="tabla compacta">
             <thead><tr><th>Puesto</th><th className="num">Simpatizantes</th><th className="num solo-ancho">Censo</th><th className="num">Por 1.000</th><th className="num solo-ancho">Mesas</th>{conE14 && <><th className="num solo-ancho">Confirmados E14</th><th className="num">Cumpl.</th></>}</tr></thead>
             <tbody>{puestos.map((p) => (
@@ -360,6 +374,7 @@ function Jerarquia({ datos, e14, eleccionId, exportar }: { datos: Datos; e14: { 
               </tr>
             ))}</tbody>
           </table></div>
+          </details>
         </>
       )}
 
@@ -433,8 +448,8 @@ function Calidad({ datos, esAdmin, exportar }: { datos: Datos; esAdmin: boolean;
         </p>
       </div>
       {esAdmin && (t.por_revisar ?? 0) > 0 && <div className="aviso atencion" style={{ marginBottom: '1rem' }}><p>{formatoNumero(t.por_revisar)} personas tienen el puesto por revisar. <Link to="/revision">Resolverlas</Link></p></div>}
-      <div className="tarjeta">
-        <div className="encabezado"><h2 style={{ margin: 0 }}>Por líder</h2>
+      <Plegable titulo="Calidad por líder" cuenta={`${datos.calidad.length} líderes`}>
+        <div className="encabezado"><span className="ayuda">Ordenados de menos a más ubicados: los primeros necesitan ayuda.</span>
           <BotonExportar onClick={() => exportar('calidad', 'Calidad_de_datos', [
             ['Líder', 'Registrados', 'Ubicados', '% ubicados', ...PROBLEMAS.map((p) => p.texto), 'Importados'],
             ...datos.calidad.map((l) => [l.nombre, l.total, l.ubicados, pct(l.ubicados, l.total) ?? '', ...PROBLEMAS.map((p) => Number(l[p.k])), l.importados]),
@@ -449,7 +464,7 @@ function Calidad({ datos, esAdmin, exportar }: { datos: Datos; esAdmin: boolean;
             </tr>
           ))}</tbody>
         </table></div>
-      </div>
+      </Plegable>
     </>
   );
 }
@@ -483,7 +498,7 @@ function Lideres({ datos, e14, exportar }: { datos: Datos; e14: { lideres: Lider
         </div>
       )}
     </div>
-    <div className="tarjeta">
+    <Plegable titulo="Tabla de líderes" cuenta={`${filas.length} líderes`}>
       <div className="encabezado">
         <label className="campo" style={{ maxWidth: 240 }}><span>Ordenar por</span>
           <select value={orden} onChange={(ev) => setOrden(ev.target.value as typeof orden)}>
@@ -509,7 +524,7 @@ function Lideres({ datos, e14, exportar }: { datos: Datos; e14: { lideres: Lider
           </tr>
         ))}</tbody>
       </table></div>
-    </div>
+    </Plegable>
     </>
   );
 }

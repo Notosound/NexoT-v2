@@ -1,7 +1,7 @@
 // Piezas visuales reutilizables: cifras con ícono, explicaciones y ventanas
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import type { LucideIcon } from 'lucide-react';
+import { ChevronDown, type LucideIcon } from 'lucide-react';
 import { formatoNumero } from '../lib/utilidades';
 
 export function Cifra({ icono: Icono, valor, etiqueta, detalle, tono, a }: {
@@ -50,3 +50,22 @@ export function Iniciales({ nombre }: { nombre: string }) {
 
 export const pct = (a: number, b: number) => (b > 0 ? Math.round((100 * a) / b) : 0);
 export { formatoNumero };
+
+/** Sección que se abre y se cierra (para listas y tablas largas) */
+export function Plegable({ titulo, cuenta, abierto = false, children, acciones }: {
+  titulo: ReactNode; cuenta?: ReactNode; abierto?: boolean; children: ReactNode; acciones?: ReactNode;
+}) {
+  return (
+    <details className="tarjeta plegable" open={abierto}>
+      <summary>
+        <span>{titulo}</span>
+        {cuenta != null && <span className="cuenta">{cuenta}</span>}
+        <ChevronDown className="flecha" aria-hidden />
+      </summary>
+      <div className="contenido-plegable">
+        {acciones && <div className="acciones" style={{ justifyContent: 'flex-end', marginBottom: '0.75rem' }}>{acciones}</div>}
+        {children}
+      </div>
+    </details>
+  );
+}

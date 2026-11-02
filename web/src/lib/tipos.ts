@@ -288,6 +288,8 @@ export interface Api {
   opcionesVerComo(): Promise<OpcionVerComo[]>;
   /** Activa o quita la vista de solo lectura; null = volver a ser admin */
   usarVistaComo(objetivo: string | null): Promise<void>;
+  // en vivo: avisa cuando cambian registros o E14 en la organización
+  alCambiarDatos(cb: (tema: 'registros' | 'e14') => void, alConectar?: (ok: boolean) => void): () => void;
   // enlace de registro del líder
   enlaceLider(liderId: string): Promise<EnlaceLider>;
   configurarEnlace(liderId: string, activo: boolean, regenerar: boolean): Promise<void>;

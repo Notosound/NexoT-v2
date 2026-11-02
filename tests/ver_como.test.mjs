@@ -20,8 +20,8 @@ before(async () => {
   [{ id: ficha2 }] = await base.sistema(`insert into lideres(organizacion_id, perfil_id, nombre) values ($1,$2,'Beto') returning id`, [org, lider2]);
   let c = 1;
   for (const [f, n] of [[ficha1, 3], [ficha2, 2]]) for (let i = 0; i < n; i++) {
-    await base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en, mesa_id)
-                        values ($1,$2,$3,'X','otro',30,current_date,1)`, [org, f, `7000${c++}`]);
+    await base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en, mesa_id, telefono)
+                        values ($1,$2,$3,'X','otro',30,current_date,1,'3001234567')`, [org, f, `7000${c++}`]);
   }
 });
 
@@ -80,7 +80,7 @@ test('opciones y auditoría', async () => {
 
 test('como la ficha de un líder sin usuario: ve solo lo suyo y solo lectura', async () => {
   const [{ id: sinUsuario }] = await base.sistema(`insert into lideres(organizacion_id, nombre, meta_votos) values ($1,'Sin usuario',10) returning id`, [org]);
-  await base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en) values ($1,$2,'7100001','X','otro',30,current_date)`, [org, sinUsuario]);
+  await base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en, telefono) values ($1,$2,'7100001','X','otro',30,current_date,'3001234567')`, [org, sinUsuario]);
   const obj = `lider:${sinUsuario}`;
   const r = await ver(admin, obj, `select (select count(*)::int from personas) n, (select count(*)::int from lideres) l,
     (select count(*)::int from v_avance_lideres) a, (select count(*)::int from v_calidad_lideres) c, app.rol_actual() rol`);

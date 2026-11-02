@@ -11,8 +11,8 @@ let cedula = 10000000;
 async function persona(liderId, mesaId, extra = {}) {
   const datos = { sexo: 'femenino', fecha_nacimiento: '1990-01-01', ...extra };
   const [p] = await base.sistema(
-    `insert into personas(organizacion_id, lider_id, cedula, nombres, apellidos, sexo, fecha_nacimiento, mesa_id)
-     values ($1,$2,$3,'Persona','Prueba',$4,$5,$6) returning id, puesto_id`,
+    `insert into personas(organizacion_id, lider_id, cedula, nombres, apellidos, sexo, fecha_nacimiento, mesa_id, telefono)
+     values ($1,$2,$3,'Persona','Prueba',$4,$5,$6,'3001234567') returning id, puesto_id`,
     [org, liderId, String(++cedula), datos.sexo, datos.fecha_nacimiento, mesaId]);
   return p;
 }
@@ -60,14 +60,14 @@ before(async () => {
 describe('Integridad de datos', () => {
   test('la misma cédula no puede registrarse dos veces', async () => {
     await assert.rejects(
-      base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en) values ($1,$2,'10000001','Repetida','otro',30,current_date)`, [org, l.A]),
+      base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en, telefono) values ($1,$2,'10000001','Repetida','otro',30,current_date,'3001234567')`, [org, l.A]),
       /personas_cedula_uq/);
   });
 
   test('no acepta menores de edad', async () => {
     await assert.rejects(
-      base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, fecha_nacimiento)
-                    values ($1,$2,'55555','Menor','femenino', current_date - interval '15 years')`, [org, l.A]),
+      base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, fecha_nacimiento, telefono)
+                    values ($1,$2,'55555','Menor','femenino', current_date - interval '15 years','3001234567')`, [org, l.A]),
       /mayor de edad/);
   });
 
@@ -75,8 +75,8 @@ describe('Integridad de datos', () => {
     const [p] = await base.sistema(`select puesto_id from personas where mesa_id = 5 limit 1`);
     assert.equal(p.puesto_id, 2);
     await assert.rejects(
-      base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en, puesto_id, mesa_id)
-                    values ($1,$2,'66666','Contradicha','otro',30,current_date, 2, 1)`, [org, l.A]),
+      base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en, puesto_id, mesa_id, telefono)
+                    values ($1,$2,'66666','Contradicha','otro',30,current_date, 2, 1,'3001234567')`, [org, l.A]),
       /no pertenece al puesto/);
   });
 
@@ -84,7 +84,7 @@ describe('Integridad de datos', () => {
     const [{ id: liderAjeno }] = await base.sistema(
       `insert into lideres(organizacion_id, nombre) values ($1, 'Ajeno') returning id`, [otraOrg]);
     await assert.rejects(
-      base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en) values ($1,$2,'77777','Cruzada','otro',30,current_date)`, [org, liderAjeno]),
+      base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en, telefono) values ($1,$2,'77777','Cruzada','otro',30,current_date,'3001234567')`, [org, liderAjeno]),
       /foreign key/);
   });
 
@@ -100,11 +100,11 @@ describe('Integridad de datos', () => {
 
   test('la auditoría registra cambios y no se puede alterar', async () => {
     const [p] = await base.sistema(`select id from personas where lider_id = $1 limit 1`, [l.A]);
-    await base.como(u.admin, `update personas set telefono = '3001234567' where id = $1`, [p.id]);
+    await base.como(u.admin, `update personas set telefono = '3109998877' where id = $1`, [p.id]);
     const [aud] = await base.sistema(
       `select cambios, antes->>'telefono' antes, despues->>'telefono' despues from auditoria
        where tabla='personas' and registro_id=$1 and accion='UPDATE' order by id desc limit 1`, [p.id]);
-    assert.deepEqual(aud, { cambios: ['telefono'], antes: null, despues: '3001234567' });
+    assert.deepEqual(aud, { cambios: ['telefono'], antes: '3001234567', despues: '3109998877' });
     await assert.rejects(base.sistema(`delete from auditoria`), /solo lectura/);
     await assert.rejects(base.sistema(`update auditoria set accion = 'INSERT'`), /solo lectura/);
   });
@@ -203,7 +203,7 @@ describe('Permisos por rol', () => {
 
   test('el líder no puede registrar personas a nombre de otro líder', async () => {
     await assert.rejects(
-      base.como(u.liderA, `insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en, consentimiento_version, consentimiento_en, consentimiento_canal) values ($1,$2,'88888','X','otro',30,current_date,'v1',now(),'presencial')`, [org, l.B]),
+      base.como(u.liderA, `insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en, consentimiento_version, consentimiento_en, consentimiento_canal, telefono) values ($1,$2,'88888','X','otro',30,current_date,'v1',now(),'presencial','3001234567')`, [org, l.B]),
       /row-level security/);
   });
 
@@ -357,8 +357,8 @@ describe('Puesto "Otro"', () => {
   let usaquen;
   const registrar = (cedula, extra) => base.como(u.liderA,
     `insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, fecha_nacimiento, origen,
-                          localidad_votacion_id, puesto_reportado, direccion_reportada, mesa_reportada, consentimiento_version, consentimiento_en, consentimiento_canal)
-     values ($1,$2,$3,'Votante','femenino','1985-03-03','formulario',$4,$5,$6,$7,'v1',now(),'formulario')
+                          localidad_votacion_id, puesto_reportado, direccion_reportada, mesa_reportada, consentimiento_version, consentimiento_en, consentimiento_canal, telefono)
+     values ($1,$2,$3,'Votante','femenino','1985-03-03','formulario',$4,$5,$6,$7,'v1',now(),'formulario','3001234567')
      returning ubicacion_estado, ubicacion_metodo, puesto_id, mesa_id`,
     [org, l.A, cedula, extra.localidad ?? usaquen, extra.puesto ?? null, extra.direccion ?? null, extra.mesa ?? null]);
 
@@ -368,10 +368,10 @@ describe('Puesto "Otro"', () => {
 
   test('sexo y edad son obligatorios en registros nuevos', async () => {
     await assert.rejects(
-      base.como(u.liderA, `insert into personas(organizacion_id, lider_id, cedula, nombres, origen, consentimiento_version, consentimiento_en, consentimiento_canal) values ($1,$2,'31313131','Sin datos','formulario','v1',now(),'formulario')`, [org, l.A]),
+      base.como(u.liderA, `insert into personas(organizacion_id, lider_id, cedula, nombres, origen, consentimiento_version, consentimiento_en, consentimiento_canal, telefono) values ($1,$2,'31313131','Sin datos','formulario','v1',now(),'formulario','3001234567')`, [org, l.A]),
       /personas_sexo_edad_obligatorios/);
     await assert.rejects(
-      base.como(u.liderA, `insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, origen, consentimiento_version, consentimiento_en, consentimiento_canal) values ($1,$2,'31313132','Sin edad','femenino','formulario','v1',now(),'formulario')`, [org, l.A]),
+      base.como(u.liderA, `insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, origen, consentimiento_version, consentimiento_en, consentimiento_canal, telefono) values ($1,$2,'31313132','Sin edad','femenino','formulario','v1',now(),'formulario','3001234567')`, [org, l.A]),
       /personas_sexo_edad_obligatorios/);
   });
 

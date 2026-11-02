@@ -43,6 +43,7 @@ export default function RegistroPublico() {
     const edad = modoEdad === 'fecha' ? edadDesde(d.fecha_nacimiento || null, null, null) : Number(d.edad);
     if (soloDigitos(d.cedula).length < 5) return setError('Revisa la cédula: solo números, entre 5 y 10 dígitos.');
     if (!d.nombres.trim()) return setError('Escribe tu nombre.');
+    if (!/^3\d{9}$/.test(d.telefono)) return setError('Escribe tu celular: 10 dígitos, empieza por 3.');
     if (!d.sexo) return setError('Elige una opción en sexo.');
     if (!edad) return setError('Escribe tu fecha de nacimiento o tu edad.');
     if (edad < 18) return setError('Debes ser mayor de edad para registrarte.');
@@ -99,7 +100,7 @@ export default function RegistroPublico() {
           <label className="campo"><span>Cédula</span>
             <input type="text" inputMode="numeric" autoComplete="off" value={d.cedula} onChange={(e) => poner('cedula', soloDigitos(e.target.value).slice(0, 10))} />
           </label>
-          <label className="campo"><span>Teléfono <span className="opcional">(opcional)</span></span>
+          <label className="campo"><span>Celular</span>
             <input type="tel" inputMode="tel" value={d.telefono} onChange={(e) => poner('telefono', soloDigitos(e.target.value).slice(0, 10))} />
           </label>
         </div>

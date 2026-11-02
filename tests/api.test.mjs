@@ -19,8 +19,8 @@ before(async () => {
 });
 
 test('un registro hecho por un usuario exige consentimiento', async () => {
-  const sql = (con) => `insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en${con ? ', ' + C : ''})
-    values ($1,$2,$3,'Ana','femenino',30,current_date${con ? ",'aviso-v1',now(),'presencial'" : ''})`;
+  const sql = (con) => `insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en${con ? ', ' + C : ''}, telefono)
+    values ($1,$2,$3,'Ana','femenino',30,current_date${con ? ",'aviso-v1',now(),'presencial'" : ''},'3001234567')`;
   await assert.rejects(base.como(lider, sql(false), [org, fichaLider, '50000001']), /consentimiento/);
   await base.como(lider, sql(true), [org, fichaLider, '50000001']);
 });

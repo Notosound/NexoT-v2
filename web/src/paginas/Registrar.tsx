@@ -78,7 +78,8 @@ export default function Registrar() {
     else if (edadCalc < 18) e.edad = 'Debe ser mayor de edad.';
     else if (edadCalc > 120) e.edad = 'Revisa la fecha o la edad.';
     const tel = soloDigitos(telefono).replace(/^57(?=\d{10}$)/, '');
-    if (telefono.trim() && !/^\d{7,10}$/.test(tel)) e.telefono = 'Teléfono de 7 a 10 dígitos.';
+    if (!tel) e.telefono = 'Escribe el celular: es obligatorio.';
+    else if (!/^3\d{9}$/.test(tel)) e.telefono = 'El celular debe tener 10 dígitos y empezar por 3.';
     if (sabeDonde) {
       if (!localidadId) e.localidad = 'Elige la localidad.';
       else if (!puesto && !otro) e.puesto = 'Elige el puesto o marca que no aparece en la lista.';
@@ -110,7 +111,7 @@ export default function Registrar() {
         sexo: sexo as Sexo,
         fechaNacimiento: modoEdad === 'fecha' ? fecha : null,
         edad: modoEdad === 'edad' ? Number(edad) : null,
-        telefono: telefono.trim() ? soloDigitos(telefono).replace(/^57(?=\d{10}$)/, '') : null,
+        telefono: soloDigitos(telefono).replace(/^57(?=\d{10}$)/, ''),
         localidadId: sabeDonde ? localidadId : null,
         puestoId: sabeDonde ? puesto?.id ?? null : null,
         puestoReportado: sabeDonde && otro ? puestoReportado.trim() || null : null,
@@ -208,7 +209,7 @@ export default function Registrar() {
                 )}
                 {err('edad')}
               </div>
-              <label className="campo"><span>Teléfono <span className="opcional">(opcional)</span></span>
+              <label className="campo"><span>Celular</span>
                 <input type="tel" inputMode="tel" autoComplete="off" value={telefono} onChange={(e) => setTelefono(e.target.value)} aria-invalid={!!errores.telefono} />
                 {err('telefono')}
               </label>

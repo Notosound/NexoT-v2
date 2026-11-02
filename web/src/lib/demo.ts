@@ -163,6 +163,8 @@ try {
 const oyentes = new Set<() => void>();
 const avisar = () => oyentes.forEach((f) => f());
 
+const oyentesDatos = new Set<(t: 'registros' | 'e14') => void>();
+
 // Enlace de registro: fijo en la demostración (cada carga empieza de cero)
 const tokenDemo = (liderId: string) => `demo${liderId.replace(/\W/g, '')}enlace`;
 
@@ -279,6 +281,7 @@ export const api: Api = {
       const s = sugerir(p.localidadId, p.puestoReportado, p.direccionReportada ?? '');
       if (s?.confianza === 'alta') puestoId = s.puesto_id;
     }
+    if (!p.telefono || !/^3\d{9}$/.test(p.telefono)) throw new Error('El celular debe tener 10 dígitos y empezar por 3');
     const puesto = PUESTOS.find((x) => x.id === puestoId);
     const mesaValida = puesto && p.mesa && p.mesa <= (puesto.mesas_total ?? 0) ? p.mesa : null;
     const nueva: PersonaDemo = {
@@ -689,6 +692,12 @@ export const api: Api = {
     }
   },
 
+  alCambiarDatos(cb, alConectar) {
+    oyentesDatos.add(cb);
+    setTimeout(() => alConectar?.(true), 0);
+    return () => { oyentesDatos.delete(cb); };
+  },
+
   async enlaceLider(liderId) {
     await espera();
     const l = misLideres().find((x) => x.id === liderId);
@@ -715,6 +724,7 @@ export const api: Api = {
     if (!d.acepta) throw new Error('Para registrarte debes aceptar el tratamiento de tus datos.');
     const ced = d.cedula.replace(/\D/g, '');
     if (!/^\d{5,10}$/.test(ced)) throw new Error('Revisa la cédula: solo números, entre 5 y 10 dígitos.');
+    if (!/^3\d{9}$/.test(d.telefono.replace(/\D/g, ''))) throw new Error('El celular debe tener 10 dígitos y empezar por 3');
     if (personas.some((p) => p.cedula === ced)) return;
     personas.push({
       id: `p-${personas.length + 1}`, cedula: ced, nombres: d.nombres.trim(), apellidos: d.apellidos.trim(), sexo: (d.sexo || null) as Sexo | null,
@@ -725,6 +735,17 @@ export const api: Api = {
     });
   },
 };
+
+// En vivo (demostración): cada escritura avisa a las pantallas abiertas
+for (const k of ['registrarPersona', 'resolverUbicacion', 'confirmarImportacion', 'digitarE14', 'corregirDigitacion', 'resolverE14', 'importarE14', 'registrarPorEnlace', 'eliminarPersona'] as (keyof Api)[]) {
+  const original = api[k] as (...a: unknown[]) => Promise<unknown>;
+  (api as unknown as Record<string, unknown>)[k] = async (...a: unknown[]) => {
+    const r = await original.apply(api, a);
+    const tema = /E14/.test(k) ? 'e14' : 'registros';
+    setTimeout(() => oyentesDatos.forEach((f) => f(tema)), 0);
+    return r;
+  };
+}
 
 // En "Ver como" ninguna escritura pasa (igual que en la base real)
 const ESCRITURAS: (keyof Api)[] = ['crearLider', 'registrarPersona', 'eliminarPersona', 'resolverUbicacion', 'crearImportacion', 'cargarFilas',

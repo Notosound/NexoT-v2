@@ -117,3 +117,24 @@ test('las conexiones del formulario se borran a los 2 días', async () => {
   const r = await base.sistema(`select token from app.enlace_intentos where token in ('viejo', 'nuevo')`);
   assert.deepEqual(r.map((x) => x.token), ['nuevo']);
 });
+
+test('el celular es obligatorio en registros de la plataforma, no en importaciones', async () => {
+  const [{ token: t }] = await base.como(lider, 'select token from enlace_lider($1)', [ficha]);
+  const reg = (o) => base.como(null, 'select registrar_por_enlace($1, $2::jsonb) r', [t, persona(o)]);
+  await assert.rejects(reg({ cedula: '5000001', telefono: '' }), /celular es obligatorio/);
+  await assert.rejects(reg({ cedula: '5000002', telefono: '6011234567' }), /empezar por 3/);
+  await assert.rejects(base.como(lider, `insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en, consentimiento_en, consentimiento_canal)
+    values ($1,$2,'5000003','X','otro',30,current_date,now(),'presencial')`, [org, ficha]), /celular es obligatorio/);
+  await base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, origen) values ($1,$2,'5000004','Importado','importacion')`, [org, ficha]);
+});
+
+test('en vivo: cada cambio marca la actividad de la organización, sin datos personales', async () => {
+  const [{ en: antes }] = await base.sistema(`select en from actividad where organizacion_id = $1 and tema = 'registros'`, [org]);
+  await new Promise((r) => setTimeout(r, 1100));
+  await base.sistema(`update personas set nombres = 'Luz María' where cedula = '1020304'`);
+  const [{ en: despues }] = await base.sistema(`select en from actividad where organizacion_id = $1 and tema = 'registros'`, [org]);
+  assert.ok(new Date(despues) > new Date(antes));
+  assert.equal((await base.como(lider, 'select * from actividad')).length >= 1, true);
+  const cols = await base.sistema(`select column_name from information_schema.columns where table_name = 'actividad' order by 1`);
+  assert.deepEqual(cols.map((c) => c.column_name), ['en', 'organizacion_id', 'tema']);
+});

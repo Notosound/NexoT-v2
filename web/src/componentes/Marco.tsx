@@ -56,7 +56,7 @@ export default function Marco({ children }: { children: ReactNode }) {
   const salirDeVista = async () => { await verComo(null); ir('/equipo'); };
 
   return (
-    <div className={`app${vista ? ' con-cinta' : ''}`}>
+    <div className={`app${vista ? ' con-cinta' : ''}${perfil.rol === 'candidato' ? ' ejecutivo' : ''}`}>
       {api.modo === 'demo' && <div className="cinta-demo">Modo demostración: datos inventados, nada se guarda</div>}
       <header className="barra">
         <NavLink to="/" className="marca"><img src="/icono.svg" alt="" />NexoT</NavLink>

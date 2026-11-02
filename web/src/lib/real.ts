@@ -443,6 +443,14 @@ export const api: Api = {
     verComo = objetivo;
   },
 
+  alCambiarDatos(cb, alConectar) {
+    const canal = sb.channel(`actividad-${Math.random().toString(36).slice(2)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'actividad' },
+        (p) => cb(((p.new as { tema?: string })?.tema ?? 'registros') as 'registros' | 'e14'))
+      .subscribe((estado) => alConectar?.(estado === 'SUBSCRIBED'));
+    return () => { sb.removeChannel(canal); };
+  },
+
   async enlaceLider(liderId) {
     const r = lista(await rpcLectura('enlace_lider', { p_lider: liderId })) as EnlaceLider[];
     return r[0] ?? { token: null, activo: false, registros_enlace: 0 };

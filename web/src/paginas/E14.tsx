@@ -4,6 +4,8 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormE
 import { useSearchParams } from 'react-router-dom';
 import { CheckCircle2, Target, UserPlus, UserX, Vote } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
+import { useEnVivo } from '../lib/enVivo';
+import EnVivo from '../componentes/EnVivo';
 import { BarrasH, Segmentos, SERIES } from '../componentes/Graficos';
 import { Cifra } from '../componentes/Piezas';
 import E14Excel from './E14Excel';
@@ -51,13 +53,14 @@ export default function E14() {
 
   useEffect(() => { cargarElecciones(); }, [cargarElecciones]);
   useEffect(() => { cargarAvance(); }, [cargarAvance, vista]);
+  const vivo = useEnVivo(async () => { if (eleccionId) setAvance(await api.avanceE14(eleccionId)); }, ['e14']);
 
   const eleccion = elecciones?.find((e) => e.id === eleccionId);
 
   return (
     <>
       <div className="encabezado">
-        <div><h1>E14</h1><p>Resultados por mesa de los formularios E14.</p></div>
+        <div><h1>E14</h1><p>Resultados por mesa de los formularios E14.</p><EnVivo {...vivo} /></div>
         {elecciones && elecciones.length > 1 && (
           <label className="campo" style={{ minWidth: 220 }}><span>Elección</span>
             <select value={eleccionId} onChange={(e) => setEleccionId(e.target.value)}>
@@ -365,6 +368,7 @@ function Resultados({ eleccion }: { eleccion: Eleccion }) {
   useEffect(() => {
     api.resultadosE14(eleccion.id).then(setDatos).catch((e) => setError(mensajeError(e)));
   }, [api, eleccion.id]);
+  useEnVivo(() => api.resultadosE14(eleccion.id).then(setDatos).catch(() => {}), ['e14']);
   useEffect(() => {
     setMesas([]);
     if (abierto != null) api.mesasE14(eleccion.id, abierto).then(setMesas).catch(() => {});
