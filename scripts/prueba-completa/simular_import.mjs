@@ -1,0 +1,22 @@
+import ExcelJS from 'exceljs';
+import { crearBase } from '/home/claude/gestion-territorial/tests/entorno.mjs';
+import { mapearEncabezados, filaACanonica, filaVacia } from '/home/claude/gestion-territorial/src/importacion/mapeo.mjs';
+const S = '/tmp/claude-0/-home-claude/8e845a6c-91b1-54e5-b24c-087fcc7003db/scratchpad/prueba';
+const b = await crearBase();
+const [{ id: org }] = await b.sistema(`insert into organizaciones(nombre, slug) values ('x','xxx-x') returning id`);
+const admin = await b.crearUsuario(org, 'A', 'admin');
+for (const c of ['99000901','99000902','99000903','99000904','99000905']) await b.sistema(`insert into lideres(organizacion_id, nombre, cedula) values ($1,$2,$3)`, [org, 'PRUEBA '+c, c]);
+await b.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, origen) values ($1,(select id from lideres limit 1),'99000001','Existente','importacion')`, [org]);
+const libro = new ExcelJS.Workbook(); await libro.xlsx.readFile(`${S}/registros_200.xlsx`);
+const filas = []; libro.worksheets[0].eachRow((r, n) => filas.push({ n, c: r.values.slice(1) }));
+const [enc, ...datos] = filas;
+const m = mapearEncabezados(enc.c);
+console.log('faltan', m.faltan, 'sinReconocer', m.sinReconocer);
+const [{ id: imp }] = await b.como(admin, `insert into importaciones(organizacion_id, archivo, municipio_id, consentimiento_version) values ($1,'r.xlsx',(select id from municipios where divipola='11001'),'aviso-2026-10') returning id`, [org]);
+for (const { n, c } of datos) { const d = filaACanonica(c, m.mapeo); if (filaVacia(d)) continue; await b.como(admin, `insert into importacion_filas(importacion_id, organizacion_id, fila, datos) values ($1,$2,$3,$4)`, [imp, org, n, JSON.stringify(d)]); }
+const [r] = await b.como(admin, `select * from app.validar_importacion($1)`, [imp]);
+console.log({ total: r.total_filas, validas: r.filas_validas, errores: r.filas_con_errores, duplicadas: r.filas_duplicadas });
+console.log(await b.sistema(`select estado, array_agg(fila order by fila) filas from importacion_filas where estado <> 'valida' group by 1`));
+console.log(await b.sistema(`select unnest(advertencias) a, count(*)::int from importacion_filas where cardinality(advertencias)>0 group by 1 order by 2 desc`));
+await b.como(admin, `select app.confirmar_importacion($1)`, [imp]);
+console.log(await b.sistema(`select ubicacion_estado, ubicacion_metodo, count(*)::int from personas where cedula like '990001%' or cedula like '990002%' group by 1,2 order by 1,2`));
