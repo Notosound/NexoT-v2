@@ -2,16 +2,24 @@
 // rendimiento de líderes y simulación de campaña. Solo cifras agregadas;
 // todo se puede exportar a Excel (queda registrado en la auditoría).
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import {
+  AlertTriangle, CalendarClock, CheckCircle2, Download, Lightbulb, MapPin, MapPinOff, Phone, Target, TrendingDown, TrendingUp, Users, Vote,
+} from 'lucide-react';
 import { useSesion } from '../lib/sesion';
+import { BarrasH, Linea, Segmentos, SERIES } from '../componentes/Graficos';
+import { Cifra, QueEs } from '../componentes/Piezas';
+import { ORDEN_EDAD, partesSexo, resumirDemografia, serieDesdeTendencia } from '../lib/estadisticas';
 import type {
   CalidadLider, Demografia, Eleccion, LiderE14, LocalidadE14, MesaE14, PuestoCenso, PuestoCodigos, PuestoE14, RegistrosMesa, Tendencia,
 } from '../lib/tipos';
 import { descargarExcel, fechaArchivo, type Celda } from '../lib/excel';
 import { formatoNumero, mensajeError } from '../lib/utilidades';
 
-type Pestana = 'jerarquia' | 'calidad' | 'lideres' | 'simulacion';
+type Pestana = 'resumen' | 'jerarquia' | 'calidad' | 'lideres' | 'simulacion';
+const PESTANAS: [Pestana, string][] = [['resumen', 'Resumen'], ['jerarquia', 'Territorio'], ['lideres', 'Líderes'], ['calidad', 'Calidad de los datos'], ['simulacion', 'Simulación']];
 const pct = (a: number, b: number) => (b > 0 ? Math.round((100 * a) / b) : null);
+const pct0 = (a: number, b: number) => pct(a, b) ?? 0;
 const porMil = (a: number, b: number) => (b > 0 ? Math.round((10000 * a) / b) / 10 : 0);
 const fmtPct = (v: number | null) => (v == null ? '—' : `${v}%`);
 
@@ -28,7 +36,9 @@ interface Datos {
 export default function Analisis() {
   const { api, sesion } = useSesion();
   const rol = sesion!.perfil!.rol;
-  const [pestana, setPestana] = useState<Pestana>('jerarquia');
+  const [params, setParams] = useSearchParams();
+  const pestana = (PESTANAS.find(([k]) => k === params.get('vista'))?.[0] ?? 'resumen') as Pestana;
+  const setPestana = (k: Pestana) => setParams({ vista: k }, { replace: true });
   const [datos, setDatos] = useState<Datos | null>(null);
   const [eleccionId, setEleccionId] = useState('');
   const [e14, setE14] = useState<{ localidades: LocalidadE14[]; puestos: PuestoE14[]; lideres: LiderE14[] } | null>(null);
@@ -58,7 +68,7 @@ export default function Analisis() {
   return (
     <>
       <div className="encabezado">
-        <div><h1>Análisis</h1><p>Toda la información de la campaña, de lo general al detalle de cada mesa.</p></div>
+        <div><h1>Análisis</h1><p className="subtitulo">Qué está pasando en la campaña y qué hacer, en palabras sencillas.</p></div>
         {datos && datos.elecciones.length > 0 && (
           <label className="campo" style={{ minWidth: 220 }}><span>Cruzar con E14</span>
             <select value={eleccionId} onChange={(e) => setEleccionId(e.target.value)}>
@@ -70,12 +80,13 @@ export default function Analisis() {
       </div>
       {error && <div className="aviso error" role="alert" style={{ marginBottom: '1rem' }}>{error}</div>}
       <div className="pestanas" role="tablist">
-        {([['jerarquia', 'Localidad → puesto → mesa'], ['calidad', 'Calidad de los datos'], ['lideres', 'Rendimiento de líderes'], ['simulacion', 'Simulación']] as const).map(([k, t]) => (
+        {PESTANAS.map(([k, t]) => (
           <button key={k} role="tab" aria-selected={pestana === k} onClick={() => setPestana(k)}>{t}</button>
         ))}
       </div>
       {!datos ? <div className="tarjeta vacio">Cargando…</div> : (
         <>
+          {pestana === 'resumen' && <Resumen datos={datos} e14={eleccionId ? e14 : null} eleccion={datos.elecciones.find((e) => e.id === eleccionId)} esAdmin={rol === 'admin'} irA={setPestana} />}
           {pestana === 'jerarquia' && <Jerarquia datos={datos} e14={eleccionId ? e14 : null} eleccionId={eleccionId} exportar={exportar} />}
           {pestana === 'calidad' && <Calidad datos={datos} esAdmin={rol === 'admin'} exportar={exportar} />}
           {pestana === 'lideres' && <Lideres datos={datos} e14={eleccionId ? e14 : null} exportar={exportar} />}
@@ -89,7 +100,135 @@ export default function Analisis() {
 type Exportar = (tipo: string, archivo: string, filas: Celda[][], filtros?: Record<string, unknown>) => Promise<void>;
 
 function BotonExportar({ onClick }: { onClick: () => void }) {
-  return <button className="boton chico" onClick={onClick}>Exportar a Excel</button>;
+  return <button className="boton chico" onClick={onClick}><Download className="icono" aria-hidden />Exportar a Excel</button>;
+}
+
+// ── Resumen: hallazgos en palabras sencillas ──────────────────────────
+interface Hallazgo { tono: 'bien' | 'atencion' | 'info'; icono: typeof Users; texto: React.ReactNode; accion?: React.ReactNode }
+
+function Resumen({ datos, e14, eleccion, esAdmin, irA }: {
+  datos: Datos; e14: { localidades: LocalidadE14[]; lideres: LiderE14[] } | null; eleccion?: Eleccion; esAdmin: boolean; irA: (p: Pestana) => void;
+}) {
+  const r = resumirDemografia(datos.demo);
+  const serie = serieDesdeTendencia(datos.tendencia, 28);
+  const ult7 = serie.slice(-7).reduce((a, p) => a + p.valor, 0);
+  const prev7 = serie.slice(-14, -7).reduce((a, p) => a + p.valor, 0);
+  const cambio = prev7 > 0 ? Math.round((100 * (ult7 - prev7)) / prev7) : null;
+
+  // Territorio: concentración y penetración (por cada 1.000 votantes del censo)
+  const censoLoc = new Map<string, number>();
+  for (const p of datos.censo.values()) {
+    const loc = datos.codigos.get(p.id)?.localidad;
+    if (loc) censoLoc.set(loc, (censoLoc.get(loc) ?? 0) + p.censo_total);
+  }
+  const locs = [...r.localidad.entries()].map(([nombre, n]) => ({ nombre, n, porMil: porMil(n, censoLoc.get(nombre) ?? 0) })).sort((a, b) => b.n - a.n);
+  const conLugar = locs.reduce((a, l) => a + l.n, 0);
+  const mejorPenetracion = [...locs].sort((a, b) => b.porMil - a.porMil)[0];
+
+  // Personas
+  const mujeres = r.sexo.get('Femenino') ?? 0;
+  const edadTop = ORDEN_EDAD.map((e) => [e, r.edad.get(e) ?? 0] as const).sort((a, b) => b[1] - a[1])[0];
+
+  // Líderes
+  const conMeta = datos.calidad.filter((l) => l.meta_votos > 0);
+  const sobreMitad = conMeta.filter((l) => l.total >= l.meta_votos / 2).length;
+  const quietos = datos.calidad.filter((l) => !l.ultimo_registro || Date.now() - new Date(l.ultimo_registro).getTime() > 7 * 864e5);
+  const top = [...datos.calidad].sort((a, b) => b.total - a.total)[0];
+
+  // Calidad
+  const total = datos.calidad.reduce((a, l) => a + l.total, 0);
+  const ubicados = datos.calidad.reduce((a, l) => a + l.ubicados, 0);
+  const porRevisar = datos.calidad.reduce((a, l) => a + l.por_revisar, 0);
+  const sinLugar = datos.calidad.reduce((a, l) => a + l.sin_lugar + l.sin_mesa, 0);
+
+  // E14
+  const t14 = e14?.localidades.reduce((a, l) => ({
+    esperados: a.esperados + l.esperados, conf: a.conf + l.confirmados, falt: a.falt + l.faltantes, adic: a.adic + l.adicionales,
+    mesas: a.mesas + l.mesas, verif: a.verif + l.mesas_verificadas,
+  }), { esperados: 0, conf: 0, falt: 0, adic: 0, mesas: 0, verif: 0 });
+
+  const h: Hallazgo[] = [];
+  h.push({
+    tono: cambio != null && cambio < 0 ? 'atencion' : 'bien', icono: cambio != null && cambio < 0 ? TrendingDown : TrendingUp,
+    texto: <>Esta semana entraron <strong>{formatoNumero(ult7)}</strong> registros{cambio != null && <>, {cambio >= 0 ? <strong>{cambio}% más</strong> : <strong>{-cambio}% menos</strong>} que la semana anterior ({formatoNumero(prev7)})</>}.</>,
+  });
+  if (locs[0]) h.push({
+    tono: 'info', icono: MapPin,
+    texto: <><strong>{locs[0].nombre}</strong> concentra el <strong>{pct0(locs[0].n, conLugar)}%</strong> de los simpatizantes con lugar de votación{locs[1] && <>, seguida de {locs[1].nombre} ({pct0(locs[1].n, conLugar)}%)</>}.
+      {mejorPenetracion && mejorPenetracion.nombre !== locs[0].nombre && <> Donde más pesan frente al número de votantes es <strong>{mejorPenetracion.nombre}</strong>.</>}</>,
+    accion: <button className="enlace" onClick={() => irA('jerarquia')}>Ver territorio</button>,
+  });
+  if (r.total) h.push({
+    tono: 'info', icono: Users,
+    texto: <>El <strong>{pct0(mujeres, r.total)}%</strong> son mujeres y el grupo de edad más grande es <strong>{edadTop[0]} años</strong> ({pct0(edadTop[1], r.total)}%).</>,
+  });
+  if (conMeta.length) h.push({
+    tono: sobreMitad >= conMeta.length / 2 ? 'bien' : 'atencion', icono: Target,
+    texto: <><strong>{sobreMitad} de {conMeta.length}</strong> líderes van por encima de la mitad de su meta.{top && <> Quien más ha registrado: <strong>{top.nombre}</strong> ({formatoNumero(top.total)}).</>}</>,
+    accion: <button className="enlace" onClick={() => irA('lideres')}>Ver líderes</button>,
+  });
+  if (quietos.length) h.push({
+    tono: 'atencion', icono: CalendarClock,
+    texto: <><strong>{quietos.length}</strong> {quietos.length === 1 ? 'líder no registra' : 'líderes no registran'} a nadie hace más de una semana: {quietos.slice(0, 3).map((l) => l.nombre).join(', ')}{quietos.length > 3 && ' y otros'}. Vale la pena llamarlos.</>,
+  });
+  if (total) h.push({
+    tono: pct0(ubicados, total) >= 85 ? 'bien' : 'atencion', icono: pct0(ubicados, total) >= 85 ? CheckCircle2 : MapPinOff,
+    texto: <>El <strong>{pct0(ubicados, total)}%</strong> tiene puesto y mesa confirmados: son los únicos que se pueden contar con el E14.
+      {sinLugar > 0 && <> A {formatoNumero(sinLugar)} les falta el puesto o la mesa.</>}</>,
+    accion: esAdmin && porRevisar > 0 ? <Link to="/revision">Resolver {formatoNumero(porRevisar)} por revisar</Link> : <button className="enlace" onClick={() => irA('calidad')}>Ver calidad</button>,
+  });
+  if (t14 && eleccion) h.push({
+    tono: t14.verif < t14.mesas ? 'atencion' : 'bien', icono: Vote,
+    texto: <>En <strong>{eleccion.nombre}</strong> van <strong>{t14.verif} de {t14.mesas}</strong> mesas verificadas. En ellas se confirmaron <strong>{formatoNumero(t14.conf)}</strong> votos de los simpatizantes
+      ({pct0(t14.conf, t14.conf + t14.falt)}% de los esperados), faltaron {formatoNumero(t14.falt)} y aparecieron {formatoNumero(t14.adic)} votos adicionales.</>,
+    accion: <Link to="/e14">Ver E14</Link>,
+  });
+
+  const porLocalidadE14 = (e14?.localidades ?? []).filter((l) => l.mesas_verificadas > 0).sort((a, b) => b.esperados - a.esperados);
+  return (
+    <>
+      <div className="tarjeta">
+        <div className="tarjeta-titulo"><h2><Lightbulb className="icono" aria-hidden /> Lo más importante</h2><small>se calcula con los datos de este momento</small></div>
+        <ul className="hallazgos">
+          {h.map((x, i) => (
+            <li key={i} className={x.tono}><x.icono className="icono" aria-hidden /><div>{x.texto}{x.accion && <div style={{ marginTop: '0.3rem' }}>{x.accion}</div>}</div></li>
+          ))}
+        </ul>
+      </div>
+      <div className="graficos seccion">
+        <div className="tarjeta">
+          <div className="tarjeta-titulo"><h2>Registros por día</h2><small>últimas 4 semanas</small></div>
+          <Linea puntos={serie} nombre="Registros" />
+        </div>
+        <div className="tarjeta">
+          <div className="tarjeta-titulo">
+            <h2>Peso en cada localidad <QueEs>“Por cada 1.000” compara los simpatizantes con el número de votantes de la localidad (censo electoral). Sirve para ver dónde la campaña pesa más, aunque la localidad sea pequeña.</QueEs></h2>
+          </div>
+          <BarrasH limite={8} filas={locs.map((l) => ({ nombre: l.nombre, valores: [l.n], detalle: `${l.porMil.toLocaleString('es-CO')} por cada 1.000 votantes` }))} />
+        </div>
+        {porLocalidadE14.length > 0 && (
+          <div className="tarjeta">
+            <div className="tarjeta-titulo">
+              <h2>E14: esperados vs. votos <QueEs>
+                <strong>Confirmados</strong>: votos que coinciden con simpatizantes registrados en esa mesa (como máximo, los esperados).{' '}
+                <strong>Faltantes</strong>: simpatizantes registrados en la mesa que no aparecen en el E14.{' '}
+                <strong>Adicionales</strong>: votos de más, de personas que no estaban registradas. Solo cuentan las mesas verificadas.
+              </QueEs></h2>
+            </div>
+            <BarrasH limite={8} series={[{ nombre: 'Confirmados', color: SERIES[0] }, { nombre: 'Faltantes', color: SERIES[1] }, { nombre: 'Adicionales', color: SERIES[2] }]}
+              filas={porLocalidadE14.map((l) => ({ nombre: l.localidad, valores: [l.confirmados, l.faltantes, l.adicionales], detalle: `${l.mesas_verificadas} de ${l.mesas} mesas verificadas` }))} />
+          </div>
+        )}
+        <div className="tarjeta">
+          <div className="tarjeta-titulo"><h2>Sexo y edad</h2></div>
+          <Segmentos partes={partesSexo(r.sexo, [SERIES[0], SERIES[1], SERIES[2], SERIES[3], 'var(--texto-3)'])} />
+          <div style={{ marginTop: '1rem' }}>
+            <BarrasH filas={ORDEN_EDAD.map((e) => ({ nombre: `${e} años`, valores: [r.edad.get(e) ?? 0] }))} />
+          </div>
+        </div>
+      </div>
+    </>
+  );
 }
 
 // ── Jerarquía ─────────────────────────────────────────────────────────
@@ -171,6 +310,19 @@ function Jerarquia({ datos, e14, eleccionId, exportar }: { datos: Datos; e14: { 
               ...localidades.map((l) => [l.nombre, l.personas, l.censo, porMil(l.personas, l.censo), l.puestosCon, l.puestos, l.mesasCon,
                 ...(conE14 ? [e14Loc.get(l.id)?.confirmados ?? 0, cumpl(e14Loc.get(l.id)) ?? ''] : [])]),
             ])} />
+          </div>
+          <div style={{ marginBottom: '1rem' }}>
+            {conE14 ? (
+              <BarrasH limite={10} series={[{ nombre: 'Confirmados E14', color: SERIES[0] }, { nombre: 'Faltantes', color: SERIES[1] }, { nombre: 'Sin verificar aún', color: 'var(--borde-fuerte)' }]}
+                filas={localidades.filter((l) => l.personas).map((l) => {
+                  const x = e14Loc.get(l.id);
+                  const conf = x?.confirmados ?? 0, falt = x?.faltantes ?? 0;
+                  return { nombre: l.nombre, valores: [conf, falt, Math.max(0, l.personas - conf - falt)], detalle: `${formatoNumero(l.personas)} simpatizantes` };
+                })} />
+            ) : (
+              <BarrasH limite={10} filas={localidades.filter((l) => l.personas).map((l) => ({ nombre: l.nombre, valores: [l.personas], detalle: `${porMil(l.personas, l.censo).toLocaleString('es-CO')} por cada 1.000 votantes` }))} />
+            )}
+            <p className="ayuda" style={{ marginTop: '0.5rem' }}>Toca una localidad en la tabla para ver sus puestos, y un puesto para ver sus mesas.</p>
           </div>
           <div className="envoltura-tabla"><table className="tabla compacta">
             <thead><tr><th>Localidad</th><th className="num">Simpatizantes</th><th className="num solo-ancho">Censo</th><th className="num">Por 1.000</th><th className="num solo-ancho">Puestos</th><th className="num solo-ancho">Mesas</th>{conE14 && <><th className="num solo-ancho">Confirmados E14</th><th className="num">Cumpl.</th></>}</tr></thead>
@@ -261,13 +413,27 @@ function Calidad({ datos, esAdmin, exportar }: { datos: Datos; esAdmin: boolean;
   }, {} as Record<string, number>);
   return (
     <>
-      <div className="rejilla cifras" style={{ marginBottom: '1rem' }}>
-        <div className="tarjeta cifra"><span className="valor">{fmtPct(pct(t.ubicados ?? 0, t.total ?? 0))}</span><span className="etiqueta">con puesto y mesa confirmados ({formatoNumero(t.ubicados ?? 0)} de {formatoNumero(t.total ?? 0)})</span></div>
-        {PROBLEMAS.map((p) => (
-          <div key={p.k} className={`tarjeta cifra ${(t[p.k] ?? 0) > 0 ? 'alerta' : ''}`}>
-            <span className="valor">{formatoNumero(t[p.k] ?? 0)}</span><span className="etiqueta">{p.texto.toLowerCase()}</span>
-          </div>
-        ))}
+      <div className="cifras" style={{ marginBottom: '1rem' }}>
+        <Cifra icono={CheckCircle2} valor={fmtPct(pct(t.ubicados ?? 0, t.total ?? 0))} tono="ok" etiqueta="con puesto y mesa confirmados"
+          detalle={`${formatoNumero(t.ubicados ?? 0)} de ${formatoNumero(t.total ?? 0)} personas`} />
+        <Cifra icono={AlertTriangle} valor={t.por_revisar ?? 0} etiqueta="puesto por revisar" tono={t.por_revisar ? 'aviso' : undefined} a={esAdmin ? '/revision' : undefined} />
+        <Cifra icono={MapPinOff} valor={(t.sin_lugar ?? 0) + (t.sin_mesa ?? 0)} etiqueta="sin lugar o sin mesa" tono="info" />
+        <Cifra icono={Phone} valor={t.sin_telefono ?? 0} etiqueta="sin teléfono" detalle="Difícil contactarlos el día de la elección" />
+      </div>
+      <div className="tarjeta" style={{ marginBottom: '1rem' }}>
+        <div className="tarjeta-titulo">
+          <h2>¿Se pueden contar con el E14? <QueEs>Para cruzar un registro con el E14 hace falta saber en qué puesto y en qué mesa vota la persona.
+            “Por revisar” son lugares escritos a mano que el sistema no pudo ubicar solo; el administrador los resuelve una vez y el sistema aprende el nombre.</QueEs></h2>
+        </div>
+        <Segmentos partes={[
+          { nombre: 'Puesto y mesa', valor: t.ubicados ?? 0, color: SERIES[2] },
+          { nombre: 'Falta la mesa', valor: t.sin_mesa ?? 0, color: SERIES[0] },
+          { nombre: 'Puesto por revisar', valor: t.por_revisar ?? 0, color: SERIES[3] },
+          { nombre: 'Sin lugar de votación', valor: t.sin_lugar ?? 0, color: 'var(--texto-3)' },
+        ]} />
+        <p className="ayuda" style={{ marginTop: '0.75rem' }}>
+          Además: {formatoNumero(t.sin_sexo ?? 0)} sin sexo, {formatoNumero(t.sin_edad ?? 0)} sin edad y {formatoNumero(t.sin_consentimiento ?? 0)} sin autorización de datos registrada (vienen de Excel importados).
+        </p>
       </div>
       {esAdmin && (t.por_revisar ?? 0) > 0 && <div className="aviso atencion" style={{ marginBottom: '1rem' }}><p>{formatoNumero(t.por_revisar)} personas tienen el puesto por revisar. <Link to="/revision">Resolverlas</Link></p></div>}
       <div className="tarjeta">
@@ -302,7 +468,24 @@ function Lideres({ datos, e14, exportar }: { datos: Datos; e14: { lideres: Lider
     : orden === 'meta' ? (b.avance ?? -1) - (a.avance ?? -1)
     : orden === 'cumplimiento' ? (b.e14?.cumplimiento ?? -1) - (a.e14?.cumplimiento ?? -1)
     : b.total - a.total);
+  const conMeta = filas.filter((l) => l.meta_votos > 0);
   return (
+    <>
+    <div className="graficos" style={{ marginBottom: '1rem' }}>
+      <div className="tarjeta">
+        <div className="tarjeta-titulo"><h2>Avance de la meta <QueEs>Registrados de cada líder frente a la meta que se le puso. Una meta cumplida no son votos: el E14 dice cuántos votaron de verdad.</QueEs></h2></div>
+        <BarrasH max={100} sufijo="%" limite={10} vacio="Ningún líder tiene meta definida"
+          filas={[...conMeta].sort((a, b) => (b.avance ?? 0) - (a.avance ?? 0)).map((l) => ({ nombre: l.nombre, valores: [Math.min(100, l.avance ?? 0)], detalle: `${formatoNumero(l.total)} de ${formatoNumero(l.meta_votos)}` }))} />
+      </div>
+      {e14 && (
+        <div className="tarjeta">
+          <div className="tarjeta-titulo"><h2>Cumplimiento E14 <QueEs>De los simpatizantes de cada líder en mesas ya verificadas, qué porcentaje aparece confirmado en el E14. Cuando dos líderes comparten mesa, los votos se reparten en proporción a sus registrados.</QueEs></h2></div>
+          <BarrasH max={100} sufijo="%" limite={10} vacio="Aún no hay mesas verificadas"
+            filas={filas.filter((l) => l.e14?.cumplimiento != null).sort((a, b) => (b.e14!.cumplimiento ?? 0) - (a.e14!.cumplimiento ?? 0))
+              .map((l) => ({ nombre: l.nombre, valores: [Math.round(l.e14!.cumplimiento ?? 0)], detalle: `${formatoNumero(l.e14!.confirmados)} confirmados de ${formatoNumero(l.e14!.esperados_verificados ?? 0)} en mesas verificadas` }))} />
+        </div>
+      )}
+    </div>
     <div className="tarjeta">
       <div className="encabezado">
         <label className="campo" style={{ maxWidth: 240 }}><span>Ordenar por</span>
@@ -330,6 +513,7 @@ function Lideres({ datos, e14, exportar }: { datos: Datos; e14: { lideres: Lider
         ))}</tbody>
       </table></div>
     </div>
+    </>
   );
 }
 
@@ -352,36 +536,50 @@ function Simulacion({ datos, exportar }: { datos: Datos; exportar: Exportar }) {
   const cambiar = (k: keyof typeof p, v: string) => { setEscenario('personalizado'); setP((x) => ({ ...x, [k]: Math.max(0, Math.min(100, Number(v) || 0)) })); };
 
   const r = useMemo(() => {
+    // Simpatizantes actuales por localidad (los sin lugar van aparte, para que todo sume)
     const locs = new Map<number, { nombre: string; actual: number }>();
+    let sinLugar = 0;
     for (const d of datos.demo) {
-      if (d.localidad_id == null) continue;
+      if (d.localidad_id == null) { sinLugar += d.personas; continue; }
       const e = locs.get(d.localidad_id) ?? { nombre: d.localidad, actual: 0 };
       e.actual += d.personas; locs.set(d.localidad_id, e);
     }
-    const porLocalidad = [...locs.entries()].map(([id, l]) => {
-      const crec = Math.round(l.actual * p.crecimiento / 100);
-      const terr = !locSel.size || locSel.has(id) ? Math.round(l.actual * p.movTerritorial / 100) : 0;
-      return { id, nombre: l.nombre, actual: l.actual, crec, terr, simulado: l.actual + crec + terr };
-    }).sort((a, b) => (b.simulado - b.actual) - (a.simulado - a.actual));
-    const porLider = datos.calidad.map((l) => {
-      const recuperables = l.por_revisar + l.sin_lugar;
-      const crec = Math.round(l.total * p.crecimiento / 100);
-      const mov = !lidSel.size || lidSel.has(l.lider_id) ? Math.round(l.total * p.movLideres / 100) : 0;
-      const rec = Math.round(recuperables * p.recuperacion / 100);
-      return { id: l.lider_id, nombre: l.nombre, meta: l.meta_votos, actual: l.total, crec, mov, rec, recuperables, simulado: l.total + crec + mov + rec };
-    }).sort((a, b) => (b.simulado - b.actual) - (a.simulado - a.actual));
-    const actual = porLider.reduce((s, l) => s + l.actual, 0);
-    const terr = porLocalidad.reduce((s, l) => s + l.terr, 0);
-    const simulado = porLider.reduce((s, l) => s + l.simulado, 0) + terr;
+    const actual = datos.calidad.reduce((s, l) => s + l.total, 0);
+    // 1) Crecimiento de la base: sobre todos, repartido en proporción exacta
+    const crecimiento = Math.round(actual * p.crecimiento / 100);
+    // 2) Movilización de líderes: solo los elegidos
+    const movPorLider = datos.calidad.map((l) => (!lidSel.size || lidSel.has(l.lider_id) ? Math.round(l.total * p.movLideres / 100) : 0));
+    const movLideres = movPorLider.reduce((a, b) => a + b, 0);
+    // 3) Movilización territorial: solo en las localidades elegidas
+    const listaLocs = [...locs.entries()];
+    const terrPorLoc = listaLocs.map(([id, l]) => (!locSel.size || locSel.has(id) ? Math.round(l.actual * p.movTerritorial / 100) : 0));
+    const movTerritorial = terrPorLoc.reduce((a, b) => a + b, 0);
+    const simulado = actual + crecimiento + movLideres + movTerritorial;
+
+    const crecLoc = repartir(crecimiento, [...listaLocs.map(([, l]) => l.actual), sinLugar]);
+    const porLocalidad = listaLocs.map(([id, l], i) => ({ id, nombre: l.nombre, actual: l.actual, crec: crecLoc[i], terr: terrPorLoc[i], simulado: l.actual + crecLoc[i] + terrPorLoc[i] }))
+      .sort((x, y) => (y.simulado - y.actual) - (x.simulado - x.actual));
+    // Lo que no tiene localidad (sin lugar + movilización de líderes) se muestra en una fila aparte
+    const noAsignable = { actual: sinLugar, mas: crecLoc[crecLoc.length - 1] + movLideres };
+
+    const crecLid = repartir(crecimiento, datos.calidad.map((l) => l.total));
+    const porLider = datos.calidad.map((l, i) => ({
+      id: l.lider_id, nombre: l.nombre, meta: l.meta_votos, actual: l.total, crec: crecLid[i], mov: movPorLider[i], simulado: l.total + crecLid[i] + movPorLider[i],
+    })).sort((x, y) => (y.simulado - y.actual) - (x.simulado - x.actual));
+
+    // Recuperación: NO suma simpatizantes (ya están registrados); los vuelve contables con el E14
+    const ubicados = datos.calidad.reduce((s, l) => s + l.ubicados, 0);
+    const recuperables = datos.calidad.reduce((s, l) => s + l.por_revisar + l.sin_lugar + l.sin_mesa, 0);
+    const recuperados = Math.round(recuperables * p.recuperacion / 100);
+
     const meta = datos.calidad.reduce((s, l) => s + l.meta_votos, 0);
-    // Ritmo actual: registros de los últimos 14 días
     const hace14 = Date.now() - 14 * 864e5;
-    const ultimos = datos.tendencia.filter((t) => new Date(t.dia + 'T12:00:00').getTime() >= hace14).reduce((s, t) => s + t.nuevos, 0);
+    const ultimos = datos.tendencia.filter((t) => new Date(t.dia.slice(0, 10) + 'T12:00:00').getTime() >= hace14).reduce((s, t) => s + t.nuevos, 0);
     const ritmo = ultimos / 14;
     const dias = fecha ? Math.max(0, Math.ceil((new Date(fecha + 'T23:59:59').getTime() - Date.now()) / 864e5)) : null;
     return {
-      porLocalidad, porLider, actual, simulado, meta, ritmo, dias,
-      recuperables: porLider.reduce((s, l) => s + l.recuperables, 0),
+      porLocalidad, porLider, noAsignable, actual, crecimiento, movLideres, movTerritorial, simulado, meta, ritmo, dias,
+      ubicados, recuperables, recuperados,
       alRitmo: dias != null ? Math.round(actual + ritmo * dias) : null,
       necesario: dias && meta > actual ? Math.ceil((meta - actual) / dias) : null,
     };
@@ -402,7 +600,7 @@ function Simulacion({ datos, exportar }: { datos: Datos; exportar: Exportar }) {
         </div>
         <div className="fila-campos">
           <label className="campo"><span>Crecimiento de la base (%)</span><input type="number" min={0} max={100} value={p.crecimiento} onChange={(e) => cambiar('crecimiento', e.target.value)} /><small>Nuevos simpatizantes sobre los actuales.</small></label>
-          <label className="campo"><span>Recuperación de registros incompletos (%)</span><input type="number" min={0} max={100} value={p.recuperacion} onChange={(e) => cambiar('recuperacion', e.target.value)} /><small>De los {formatoNumero(r.recuperables)} sin puesto confirmado.</small></label>
+          <label className="campo"><span>Recuperación de registros incompletos (%)</span><input type="number" min={0} max={100} value={p.recuperacion} onChange={(e) => cambiar('recuperacion', e.target.value)} /><small>De los {formatoNumero(r.recuperables)} sin puesto o sin mesa. No suma gente nueva.</small></label>
           <label className="campo"><span>Movilización de líderes (%)</span><input type="number" min={0} max={100} value={p.movLideres} onChange={(e) => cambiar('movLideres', e.target.value)} /><small>Esfuerzo adicional de los líderes elegidos.</small></label>
           <label className="campo"><span>Movilización territorial (%)</span><input type="number" min={0} max={100} value={p.movTerritorial} onChange={(e) => cambiar('movTerritorial', e.target.value)} /><small>Trabajo de calle en las localidades elegidas.</small></label>
           <label className="campo"><span>Fecha objetivo <span className="opcional">(opcional)</span></span><input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} /></label>
@@ -421,12 +619,35 @@ function Simulacion({ datos, exportar }: { datos: Datos; exportar: Exportar }) {
         </div>
       </div>
 
-      <div className="rejilla cifras" style={{ marginBottom: '1rem' }}>
-        <div className="tarjeta cifra"><span className="valor">{formatoNumero(r.actual)}</span><span className="etiqueta">simpatizantes hoy</span></div>
-        <div className="tarjeta cifra"><span className="valor">{formatoNumero(r.simulado)}</span><span className="etiqueta">proyectados en este escenario (+{formatoNumero(r.simulado - r.actual)})</span></div>
-        {r.meta > 0 && <div className="tarjeta cifra"><span className="valor">{fmtPct(pct(r.simulado, r.meta))}</span><span className="etiqueta">de la meta total ({formatoNumero(r.meta)})</span></div>}
-        {r.dias != null && <div className="tarjeta cifra"><span className="valor">{formatoNumero(r.alRitmo ?? 0)}</span><span className="etiqueta">al ritmo actual ({r.ritmo.toLocaleString('es-CO', { maximumFractionDigits: 1 })}/día) en {r.dias} días</span></div>}
-        {r.necesario != null && <div className="tarjeta cifra alerta"><span className="valor">{formatoNumero(r.necesario)}</span><span className="etiqueta">registros por día para llegar a la meta</span></div>}
+      <div className="cifras" style={{ marginBottom: '1rem' }}>
+        <Cifra icono={Users} valor={r.actual} etiqueta="simpatizantes hoy" />
+        <Cifra icono={TrendingUp} valor={r.simulado} etiqueta="proyectados en este escenario" tono="ok" detalle={`+${formatoNumero(r.simulado - r.actual)} nuevos`} />
+        {r.meta > 0 && <Cifra icono={Target} valor={fmtPct(pct(r.simulado, r.meta))} etiqueta={`de la meta total (${formatoNumero(r.meta)})`} detalle={`Hoy: ${fmtPct(pct(r.actual, r.meta))}`} />}
+        {r.dias != null && <Cifra icono={CalendarClock} valor={r.alRitmo ?? 0} etiqueta={`al ritmo actual en ${r.dias} días`} detalle={`${r.ritmo.toLocaleString('es-CO', { maximumFractionDigits: 1 })} registros por día`} />}
+        {r.necesario != null && <Cifra icono={AlertTriangle} valor={r.necesario} etiqueta="registros por día para llegar a la meta" tono="aviso" />}
+      </div>
+
+      <div className="graficos" style={{ marginBottom: '1rem' }}>
+        <div className="tarjeta">
+          <div className="tarjeta-titulo"><h2>De dónde salen los nuevos <QueEs>La proyección suma tres cosas: gente nueva que llega sola (crecimiento), el esfuerzo extra de los líderes elegidos y el trabajo de calle en las localidades elegidas. Cada parte se calcula sobre lo que hay hoy.</QueEs></h2></div>
+          <BarrasH filas={[
+            { nombre: 'Hoy', valores: [r.actual] },
+            { nombre: 'Crecimiento de la base', valores: [r.crecimiento], detalle: `${p.crecimiento}% sobre ${formatoNumero(r.actual)}` },
+            { nombre: 'Movilización de líderes', valores: [r.movLideres], detalle: `${p.movLideres}% de los registrados de ${lidSel.size ? `${lidSel.size} líderes` : 'todos los líderes'}` },
+            { nombre: 'Movilización territorial', valores: [r.movTerritorial], detalle: `${p.movTerritorial}% en ${locSel.size ? `${locSel.size} localidades` : 'todas las localidades'}` },
+            { nombre: 'Proyectado', valores: [r.simulado] },
+          ]} />
+        </div>
+        <div className="tarjeta">
+          <div className="tarjeta-titulo"><h2>Recuperar incompletos <QueEs>Personas que ya están registradas pero sin puesto o sin mesa. Recuperarlas no suma simpatizantes nuevos: hace que se puedan contar con el E14.</QueEs></h2></div>
+          <p>De <strong>{formatoNumero(r.recuperables)}</strong> registros incompletos, recuperar el {p.recuperacion}% son <strong>{formatoNumero(r.recuperados)}</strong> personas más que se pueden contar con el E14.</p>
+          <Segmentos partes={[
+            { nombre: 'Ya contables', valor: r.ubicados, color: SERIES[2] },
+            { nombre: 'Se recuperarían', valor: r.recuperados, color: SERIES[0] },
+            { nombre: 'Seguirían incompletos', valor: r.recuperables - r.recuperados, color: 'var(--texto-3)' },
+          ]} />
+          <p className="ayuda" style={{ marginTop: '0.6rem' }}>Contables con E14: de {fmtPct(pct(r.ubicados, r.actual))} hoy a {fmtPct(pct(r.ubicados + r.recuperados, r.actual))}.</p>
+        </div>
       </div>
 
       <div className="rejilla" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
@@ -434,26 +655,50 @@ function Simulacion({ datos, exportar }: { datos: Datos; exportar: Exportar }) {
           <div className="encabezado"><h2 style={{ margin: 0 }}>Por localidad</h2>
             <BotonExportar onClick={() => exportar('simulacion', 'Simulacion_localidades', [
               ['Localidad', 'Actual', 'Crecimiento', 'Movilización territorial', 'Proyectado'], ...r.porLocalidad.map((l) => [l.nombre, l.actual, l.crec, l.terr, l.simulado]),
+              ['Sin localidad (sin lugar de votación y movilización de líderes)', r.noAsignable.actual, r.noAsignable.mas, 0, r.noAsignable.actual + r.noAsignable.mas],
+              ['Total', r.actual, r.crecimiento, r.movTerritorial, r.simulado],
             ], { escenario, ...p })} />
           </div>
           <div className="envoltura-tabla"><table className="tabla compacta">
             <thead><tr><th>Localidad</th><th className="num">Actual</th><th className="num">Proyectado</th><th className="num">+</th></tr></thead>
-            <tbody>{r.porLocalidad.map((l) => <tr key={l.id}><td>{l.nombre}</td><td className="num">{formatoNumero(l.actual)}</td><td className="num">{formatoNumero(l.simulado)}</td><td className="num">+{formatoNumero(l.simulado - l.actual)}</td></tr>)}</tbody>
+            <tbody>
+              {r.porLocalidad.map((l) => <tr key={l.id}><td>{l.nombre}</td><td className="num">{formatoNumero(l.actual)}</td><td className="num">{formatoNumero(l.simulado)}</td><td className="num">+{formatoNumero(l.simulado - l.actual)}</td></tr>)}
+              <tr><td>Sin localidad <small>sin lugar de votación + movilización de líderes</small></td><td className="num">{formatoNumero(r.noAsignable.actual)}</td><td className="num">{formatoNumero(r.noAsignable.actual + r.noAsignable.mas)}</td><td className="num">+{formatoNumero(r.noAsignable.mas)}</td></tr>
+              <tr style={{ fontWeight: 700 }}><td>Total</td><td className="num">{formatoNumero(r.actual)}</td><td className="num">{formatoNumero(r.simulado)}</td><td className="num">+{formatoNumero(r.simulado - r.actual)}</td></tr>
+            </tbody>
           </table></div>
         </div>
         <div className="tarjeta">
           <div className="encabezado"><h2 style={{ margin: 0 }}>Por líder</h2>
             <BotonExportar onClick={() => exportar('simulacion', 'Simulacion_lideres', [
-              ['Líder', 'Actual', 'Crecimiento', 'Movilización', 'Recuperados', 'Proyectado', 'Meta'], ...r.porLider.map((l) => [l.nombre, l.actual, l.crec, l.mov, l.rec, l.simulado, l.meta]),
+              ['Líder', 'Actual', 'Crecimiento', 'Movilización', 'Proyectado', 'Meta'], ...r.porLider.map((l) => [l.nombre, l.actual, l.crec, l.mov, l.simulado, l.meta]),
+              ['Movilización territorial (no se asigna a un líder)', 0, 0, r.movTerritorial, r.movTerritorial, ''],
+              ['Total', r.actual, r.crecimiento, r.movLideres + r.movTerritorial, r.simulado, r.meta],
             ], { escenario, ...p })} />
           </div>
           <div className="envoltura-tabla"><table className="tabla compacta">
             <thead><tr><th>Líder</th><th className="num">Actual</th><th className="num">Proyectado</th><th className="num">Meta</th></tr></thead>
-            <tbody>{r.porLider.map((l) => <tr key={l.id}><td>{l.nombre}</td><td className="num">{formatoNumero(l.actual)}</td><td className="num">{formatoNumero(l.simulado)}</td><td className="num">{l.meta ? `${formatoNumero(l.meta)} (${pct(l.simulado, l.meta)}%)` : '—'}</td></tr>)}</tbody>
+            <tbody>
+              {r.porLider.map((l) => <tr key={l.id}><td>{l.nombre}</td><td className="num">{formatoNumero(l.actual)}</td><td className="num">{formatoNumero(l.simulado)}</td><td className="num">{l.meta ? `${formatoNumero(l.meta)} (${pct(l.simulado, l.meta)}%)` : '—'}</td></tr>)}
+              <tr><td>Movilización territorial <small>no se asigna a un líder</small></td><td className="num">0</td><td className="num">{formatoNumero(r.movTerritorial)}</td><td className="num">—</td></tr>
+              <tr style={{ fontWeight: 700 }}><td>Total</td><td className="num">{formatoNumero(r.actual)}</td><td className="num">{formatoNumero(r.simulado)}</td><td className="num">{r.meta ? formatoNumero(r.meta) : '—'}</td></tr>
+            </tbody>
           </table></div>
         </div>
       </div>
-      <p className="ayuda" style={{ marginTop: '1rem' }}>La simulación es una proyección con los supuestos de arriba, no un pronóstico. La movilización territorial se suma al total, pero no a cada líder.</p>
+      <p className="ayuda" style={{ marginTop: '1rem' }}>La simulación es una proyección con los supuestos de arriba, no un pronóstico. Las dos tablas suman exactamente el mismo total.</p>
     </>
   );
+}
+
+/** Reparte un total entero en proporción a unos pesos (residuo mayor): la suma da exacto */
+export function repartir(total: number, pesos: number[]): number[] {
+  const suma = pesos.reduce((a, b) => a + b, 0);
+  if (!suma) return pesos.map(() => 0);
+  const cuotas = pesos.map((p) => (total * p) / suma);
+  const pisos = cuotas.map(Math.floor);
+  let sobra = total - pisos.reduce((a, b) => a + b, 0);
+  const orden = cuotas.map((c, i) => [c - Math.floor(c), i] as const).sort((a, b) => b[0] - a[0] || a[1] - b[1]);
+  for (const [, i] of orden) { if (sobra-- <= 0) break; pisos[i]++; }
+  return pisos;
 }

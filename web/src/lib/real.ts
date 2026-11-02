@@ -4,7 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import type {
   Api, Demografia, FilaImportacion, PuestoCenso, Tendencia,
   AvanceE14, Eleccion, CalidadLider, FilaPlantillaE14, PuestoCodigos, RegistrosMesa, ResultadoFilaE14, LiderE14, LocalidadE14, MesaE14, MesaEnRevision, MesaPendiente, MiDigitacion, PuestoE14, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
-  PersonaFila, Puesto, Rol, Sesion, Sugerencia,
+  PersonaFila, Puesto, Rol, Sesion, Sugerencia, OpcionVerComo, EnlaceLider,
 } from './tipos';
 import { AVISO_VERSION } from './tipos';
 import { edadDesde, hoyISO } from './utilidades';
@@ -15,7 +15,32 @@ if (!url || !llave) {
   throw new Error('Faltan VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY (ver web/.env.example)');
 }
 
-const sb = createClient(url, llave, { auth: { persistSession: true, autoRefreshToken: true } });
+// "Ver como": mientras esté activo, cada consulta a la base lleva el
+// encabezado x-ver-como; la base cambia la identidad y SOLO permite leer.
+let verComo: string | null = null;
+const fetchConVista: typeof fetch = (entrada, init) => {
+  const u = typeof entrada === 'string' ? entrada : entrada instanceof URL ? entrada.href : entrada.url;
+  if (verComo && u.includes('/rest/v1/')) {
+    const h = new Headers(init?.headers ?? (entrada instanceof Request ? entrada.headers : undefined));
+    h.set('x-ver-como', verComo);
+    return fetch(entrada, { ...init, headers: h });
+  }
+  return fetch(entrada, init);
+};
+const sb = createClient(url, llave, { auth: { persistSession: true, autoRefreshToken: true }, global: { fetch: fetchConVista } });
+/** RPC de solo lectura: en "Ver como" va por GET (la base rechaza POST) */
+const rpcLectura = (fn: string, args?: Record<string, unknown>) => sb.rpc(fn, args, { get: !!verComo });
+
+async function llamarFuncion(cuerpo: Record<string, unknown>): Promise<string> {
+  const { data, error } = await sb.functions.invoke('equipo', { body: { ...cuerpo, redirect: window.location.origin } });
+  if (error) {
+    let mensaje = error.message;
+    try { const j = await (error as { context?: Response }).context?.json(); if (j?.error) mensaje = j.error; } catch { /* sin cuerpo */ }
+    throw new Error(mensaje);
+  }
+  if (data?.error) throw new Error(data.error);
+  return data?.mensaje ?? 'Listo';
+}
 
 function ok<T>(r: { data: T; error: unknown }): T {
   if (r.error) throw r.error;
@@ -155,7 +180,7 @@ export const api: Api = {
       .eq('localidad_id', localidadId).order('nombre'));
   },
   async sugerirPuesto(localidadId, nombre, direccion): Promise<Sugerencia | null> {
-    const r = ok(await sb.rpc('sugerir_puesto', {
+    const r = ok(await rpcLectura('sugerir_puesto', {
       p_localidad: localidadId, p_nombre: nombre.trim() || null, p_direccion: direccion.trim() || null,
     })) as Sugerencia[] | null;
     return r?.[0] ?? null;
@@ -377,12 +402,51 @@ export const api: Api = {
   },
 
   async equipo(): Promise<MiembroEquipo[]> {
-    return ok(await sb.rpc('equipo')) as MiembroEquipo[];
+    return ok(await rpcLectura('equipo')) as MiembroEquipo[];
   },
   async vincularUsuario(email, nombre, rol, liderId) {
     ok(await sb.rpc('vincular_usuario', { p_email: email, p_nombre: nombre, p_rol: rol, p_lider: liderId }));
   },
   async desactivarUsuario(id) {
     ok(await sb.rpc('desactivar_usuario', { p_usuario: id }));
+  },
+  async reactivarUsuario(id) {
+    ok(await sb.rpc('reactivar_usuario', { p_usuario: id }));
+  },
+  async cambiarRol(id, rol) {
+    ok(await sb.rpc('cambiar_rol', { p_usuario: id, p_rol: rol }));
+  },
+  invitarUsuario(d) {
+    return llamarFuncion({ accion: 'invitar', email: d.email, nombre: d.nombre, rol: d.rol, lider_id: d.liderId });
+  },
+  reenviarAcceso(id) {
+    return llamarFuncion({ accion: 'reenviar', usuario_id: id });
+  },
+
+  async opcionesVerComo() {
+    const antes = verComo; verComo = null;
+    try { return lista(await sb.rpc('opciones_ver_como')) as OpcionVerComo[]; } finally { verComo = antes; }
+  },
+  async usarVistaComo(objetivo) {
+    if (objetivo) {
+      verComo = null;
+      sinError(await sb.rpc('registrar_ver_como', { p_objetivo: objetivo }));
+    }
+    verComo = objetivo;
+  },
+
+  async enlaceLider(liderId) {
+    const r = lista(await rpcLectura('enlace_lider', { p_lider: liderId })) as EnlaceLider[];
+    return r[0] ?? { token: null, activo: false, registros_enlace: 0 };
+  },
+  async configurarEnlace(liderId, activo, regenerar) {
+    ok(await sb.rpc('configurar_enlace', { p_lider: liderId, p_activo: activo, p_regenerar: regenerar }));
+  },
+  async enlaceInfo(token) {
+    const r = lista(await sb.rpc('enlace_info', { p_token: token })) as { lider: string; campana: string }[];
+    return r[0] ?? null;
+  },
+  async registrarPorEnlace(token, d) {
+    sinError(await sb.rpc('registrar_por_enlace', { p_token: token, p: { ...d, aviso_version: AVISO_VERSION } }));
   },
 };

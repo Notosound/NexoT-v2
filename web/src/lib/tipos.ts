@@ -149,6 +149,22 @@ export interface MiembroEquipo {
   rol: Rol;
   activo: boolean;
   email: string;
+  creado_en: string;
+  ultimo_ingreso: string | null;
+  acepto: boolean;
+  lider_id: string | null;
+}
+
+/** A quién puede "ver como" el admin */
+export interface OpcionVerComo { id: string; nombre: string; rol: Rol; lider_id: string | null }
+/** Vista activa: 'rol:candidato' o el id de un perfil */
+export interface VistaComo { objetivo: string; nombre: string; rol: Rol }
+
+export interface EnlaceLider { token: string | null; activo: boolean; registros_enlace: number }
+export interface DatosFormularioPublico {
+  cedula: string; nombres: string; apellidos: string; sexo: Sexo | ''; fecha_nacimiento: string; edad: string;
+  telefono: string; localidad_id: number | null; puesto_id: number | null; puesto_reportado: string;
+  direccion_reportada: string; mesa: string; acepta: boolean;
 }
 
 export interface Resumen {
@@ -263,4 +279,18 @@ export interface Api {
   equipo(): Promise<MiembroEquipo[]>;
   vincularUsuario(email: string, nombre: string, rol: Rol, liderId: string | null): Promise<void>;
   desactivarUsuario(id: string): Promise<void>;
+  reactivarUsuario(id: string): Promise<void>;
+  cambiarRol(id: string, rol: Rol): Promise<void>;
+  /** Envía el correo de invitación (función del servidor). Devuelve el mensaje para mostrar. */
+  invitarUsuario(d: { email: string; nombre: string; rol: Rol; liderId: string | null }): Promise<string>;
+  reenviarAcceso(id: string): Promise<string>;
+  // ver como (solo admin)
+  opcionesVerComo(): Promise<OpcionVerComo[]>;
+  /** Activa o quita la vista de solo lectura; null = volver a ser admin */
+  usarVistaComo(objetivo: string | null): Promise<void>;
+  // enlace de registro del líder
+  enlaceLider(liderId: string): Promise<EnlaceLider>;
+  configurarEnlace(liderId: string, activo: boolean, regenerar: boolean): Promise<void>;
+  enlaceInfo(token: string): Promise<{ lider: string; campana: string } | null>;
+  registrarPorEnlace(token: string, d: DatosFormularioPublico): Promise<void>;
 }

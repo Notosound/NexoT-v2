@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useSesion } from './lib/sesion';
 import type { Rol } from './lib/tipos';
 import Marco from './componentes/Marco';
@@ -15,6 +15,9 @@ import Lideres from './paginas/Lideres';
 import Equipo from './paginas/Equipo';
 import E14 from './paginas/E14';
 import Analisis from './paginas/Analisis';
+import MisEstadisticas from './paginas/MisEstadisticas';
+import MiEnlace from './paginas/MiEnlace';
+import RegistroPublico from './paginas/RegistroPublico';
 
 // El tablero carga el mapa (Leaflet): solo se descarga cuando se abre
 const Tablero = lazy(() => import('./paginas/Tablero'));
@@ -27,6 +30,12 @@ function Solo({ roles, children }: { roles: Rol[]; children: JSX.Element }) {
 
 export default function App() {
   const { sesion, debeCambiarClave } = useSesion();
+  const ruta = useLocation().pathname;
+
+  // Formulario público del enlace de un líder: no requiere sesión
+  if (ruta.startsWith('/r/')) {
+    return <Routes><Route path="/r/:token" element={<RegistroPublico />} /></Routes>;
+  }
 
   if (!sesion) {
     return (
@@ -42,7 +51,9 @@ export default function App() {
   return (
     <Marco>
       <Routes>
-        <Route path="/" element={sesion.perfil.rol === 'candidato' ? <Suspense fallback={cargandoTablero}><Tablero /></Suspense> : <Inicio />} />
+        <Route path="/" element={sesion.perfil.rol === 'candidato' ? <Navigate to="/tablero" replace /> : <Inicio />} />
+        <Route path="/estadisticas" element={<Solo roles={['lider']}><MisEstadisticas /></Solo>} />
+        <Route path="/mi-enlace" element={<Solo roles={['lider']}><MiEnlace /></Solo>} />
         <Route path="/tablero" element={<Solo roles={['admin', 'coordinador', 'candidato']}><Suspense fallback={cargandoTablero}><Tablero /></Suspense></Solo>} />
         <Route path="/registrar" element={<Solo roles={['admin', 'coordinador', 'lider']}><Registrar /></Solo>} />
         <Route path="/personas" element={<Solo roles={['admin', 'coordinador', 'lider']}><Personas /></Solo>} />

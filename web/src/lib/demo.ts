@@ -30,7 +30,7 @@ interface PersonaDemo {
   id: string; liderId: string; cedula: string; nombres: string; apellidos: string; sexo: Sexo | null;
   fechaNacimiento: string | null; edad: number | null; edadEn: string | null; telefono: string | null;
   localidadId: number | null; puestoId: number | null; puestoReportado: string | null; direccionReportada: string | null;
-  mesa: number | null; creadoEn: string; eliminada: boolean;
+  mesa: number | null; creadoEn: string; eliminada: boolean; origen?: string;
 }
 
 // Generador pseudoaleatorio con semilla: los mismos datos en cada carga
@@ -43,15 +43,18 @@ const NOMBRES_M = ['Carlos', 'Jorge', 'Luis', 'Andrés', 'Javier', 'Óscar', 'Fa
 const APELLIDOS = ['Rojas', 'Gómez', 'Díaz', 'Torres', 'Moreno', 'Vargas', 'Castro', 'Ruiz', 'Ortiz', 'Suárez', 'Pardo', 'Niño', 'Cárdenas', 'Mejía'];
 
 const ORG = 'org-demo';
-const usuarios: (MiembroEquipo & { lider?: string })[] = [
-  { id: 'u-admin', nombre: 'Admin Demo', rol: 'admin', activo: true, email: 'admin@demo.co' },
-  { id: 'u-coord', nombre: 'Coordinadora Demo', rol: 'coordinador', activo: true, email: 'coordinadora@demo.co' },
-  { id: 'u-lider', nombre: 'Líder Demo', rol: 'lider', activo: true, email: 'lider@demo.co' },
-  { id: 'u-cand', nombre: 'Candidato Demo', rol: 'candidato', activo: true, email: 'candidato@demo.co' },
-  { id: 'u-dig', nombre: 'Digitador Demo', rol: 'digitador', activo: true, email: 'digitador@demo.co' },
-  { id: 'u-dig2', nombre: 'Segunda Digitadora', rol: 'digitador', activo: true, email: 'digitadora2@demo.co' },
+const HACE = (dias: number) => new Date(Date.now() - dias * 86400000).toISOString();
+const miembro = (id: string, nombre: string, rol: Rol, email: string, acepto = true): MiembroEquipo =>
+  ({ id, nombre, rol, activo: true, email, creado_en: HACE(30), ultimo_ingreso: acepto ? HACE(1) : null, acepto, lider_id: null });
+const usuarios: MiembroEquipo[] = [
+  miembro('u-admin', 'Admin Demo', 'admin', 'admin@demo.co'),
+  miembro('u-coord', 'Coordinadora Demo', 'coordinador', 'coordinadora@demo.co'),
+  { ...miembro('u-lider', 'Líder Demo', 'lider', 'lider@demo.co'), lider_id: 'l-1' },
+  miembro('u-cand', 'Candidato Demo', 'candidato', 'candidato@demo.co'),
+  miembro('u-dig', 'Digitador Demo', 'digitador', 'digitador@demo.co'),
+  miembro('u-dig2', 'Segunda Digitadora', 'digitador', 'digitadora2@demo.co', false),
 ];
-const lideres: Omit<Lider, 'registrados'>[] = [
+const lideres: (Omit<Lider, 'registrados'> & { token?: string; enlaceActivo?: boolean })[] = [
   { id: 'l-1', nombre: 'Líder Demo', cedula: '900001', telefono: '3001112233', meta_votos: 60, coordinador_id: 'u-coord', perfil_id: 'u-lider' },
   { id: 'l-2', nombre: 'Marcela Pinto', cedula: '900002', telefono: null, meta_votos: 40, coordinador_id: 'u-coord', perfil_id: null },
   { id: 'l-3', nombre: 'Germán Ríos', cedula: '900003', telefono: null, meta_votos: 80, coordinador_id: null, perfil_id: null },
@@ -160,9 +163,17 @@ try {
 const oyentes = new Set<() => void>();
 const avisar = () => oyentes.forEach((f) => f());
 
+// Enlace de registro: fijo en la demostración (cada carga empieza de cero)
+const tokenDemo = (liderId: string) => `demo${liderId.replace(/\W/g, '')}enlace`;
+
+// "Ver como" en demostración: cambia quién soy y prohíbe escribir
+let vista: MiembroEquipo | null = null;
 function yo() {
   if (!actual) throw new Error('Sesión cerrada');
-  return actual.usuario;
+  return vista ?? actual.usuario;
+}
+function soloLectura() {
+  if (vista) throw new Error('Estás en "Ver como": es solo lectura');
 }
 function misLideres() {
   const u = yo();
@@ -614,7 +625,7 @@ export const api: Api = {
     if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error('Correo inválido');
     const existente = usuarios.find((u) => u.email === email.trim().toLowerCase());
     if (existente?.id === yo().id) throw new Error('No puedes cambiar tu propio rol');
-    const u = existente ?? { id: `u-${usuarios.length + 1}`, email: email.trim().toLowerCase(), nombre, rol, activo: true };
+    const u = existente ?? { ...miembro(`u-${usuarios.length + 1}`, nombre, rol, email.trim().toLowerCase(), false) };
     Object.assign(u, { nombre, rol, activo: true });
     if (!existente) usuarios.push(u);
     if (rol === 'lider') {
@@ -628,4 +639,91 @@ export const api: Api = {
     if (id === yo().id) throw new Error('No puedes desactivarte a ti mismo');
     usuarios.find((u) => u.id === id)!.activo = false;
   },
+  async reactivarUsuario(id) { await espera(); usuarios.find((u) => u.id === id)!.activo = true; },
+  async cambiarRol(id, rol) {
+    await espera();
+    if (id === yo().id) throw new Error('No puedes cambiar tu propio rol');
+    const u = usuarios.find((x) => x.id === id)!;
+    u.rol = rol;
+    if (rol !== 'lider') for (const l of lideres) if (l.perfil_id === id) l.perfil_id = null;
+  },
+  async invitarUsuario(d) {
+    await api.vincularUsuario(d.email, d.nombre, d.rol, d.liderId);
+    const u = usuarios.find((x) => x.email === d.email.trim().toLowerCase())!;
+    u.lider_id = lideres.find((l) => l.perfil_id === u.id)?.id ?? null;
+    return `Invitación enviada a ${u.email} (en la demostración no sale ningún correo).`;
+  },
+  async reenviarAcceso(id) {
+    await espera();
+    const u = usuarios.find((x) => x.id === id)!;
+    return `Reenviamos el acceso a ${u.email} (en la demostración no sale ningún correo).`;
+  },
+
+  async opcionesVerComo() {
+    await espera();
+    if (actual?.usuario.rol !== 'admin') return [];
+    return usuarios.filter((u) => u.activo && u.id !== actual!.usuario.id)
+      .map((u) => ({ id: u.id, nombre: u.nombre, rol: u.rol, lider_id: lideres.find((l) => l.perfil_id === u.id)?.id ?? null }));
+  },
+  async usarVistaComo(objetivo) {
+    await espera(30);
+    if (!objetivo) { vista = null; return; }
+    if (actual?.usuario.rol !== 'admin') throw new Error('Solo un administrador puede usar "Ver como"');
+    if (objetivo.startsWith('rol:')) {
+      const rol = objetivo.slice(4) as Rol;
+      vista = { ...miembro('vista', `Vista de ${rol}`, rol, ''), id: 'vista-rol' };
+    } else {
+      const u = usuarios.find((x) => x.id === objetivo);
+      if (!u) throw new Error('Esa persona no es de tu organización');
+      vista = u;
+    }
+  },
+
+  async enlaceLider(liderId) {
+    await espera();
+    const l = misLideres().find((x) => x.id === liderId);
+    if (!l) throw new Error('Sin acceso a ese líder');
+    if (!l.token && !vista) { l.token = tokenDemo(l.id); l.enlaceActivo = true; }
+    return { token: l.token ?? null, activo: l.enlaceActivo ?? true, registros_enlace: personas.filter((p) => p.liderId === l.id && p.origen === 'formulario').length };
+  },
+  async configurarEnlace(liderId, activo, regenerar) {
+    await espera(); soloLectura();
+    const l = misLideres().find((x) => x.id === liderId);
+    if (!l) throw new Error('Sin acceso a ese líder');
+    l.enlaceActivo = activo;
+    if (regenerar || !l.token) l.token = `demo${Math.random().toString(36).slice(2, 14)}`;
+  },
+  async enlaceInfo(token) {
+    await espera();
+    const l = lideres.find((x) => (x.token ?? tokenDemo(x.id)) === token && x.enlaceActivo !== false);
+    return l ? { lider: l.nombre, campana: 'Campaña de demostración' } : null;
+  },
+  async registrarPorEnlace(token, d) {
+    await espera(200);
+    const l = lideres.find((x) => (x.token ?? tokenDemo(x.id)) === token && x.enlaceActivo !== false);
+    if (!l) throw new Error('Este enlace ya no está activo. Pídele uno nuevo a quien te lo envió.');
+    if (!d.acepta) throw new Error('Para registrarte debes aceptar el tratamiento de tus datos.');
+    const ced = d.cedula.replace(/\D/g, '');
+    if (!/^\d{5,10}$/.test(ced)) throw new Error('Revisa la cédula: solo números, entre 5 y 10 dígitos.');
+    if (personas.some((p) => p.cedula === ced)) return;
+    personas.push({
+      id: `p-${personas.length + 1}`, cedula: ced, nombres: d.nombres.trim(), apellidos: d.apellidos.trim(), sexo: (d.sexo || null) as Sexo | null,
+      fechaNacimiento: d.fecha_nacimiento || null, edad: d.fecha_nacimiento ? null : Number(d.edad) || null, edadEn: d.fecha_nacimiento ? null : hoyISO(),
+      telefono: d.telefono.replace(/\D/g, '') || null, liderId: l.id, localidadId: d.localidad_id, puestoId: d.puesto_id,
+      puestoReportado: d.puesto_id ? null : d.puesto_reportado || null, direccionReportada: d.puesto_id ? null : d.direccion_reportada || null,
+      mesa: d.mesa ? Number(d.mesa) : null, creadoEn: new Date().toISOString(), eliminada: false, origen: 'formulario',
+    });
+  },
 };
+
+// En "Ver como" ninguna escritura pasa (igual que en la base real)
+const ESCRITURAS: (keyof Api)[] = ['crearLider', 'registrarPersona', 'eliminarPersona', 'resolverUbicacion', 'crearImportacion', 'cargarFilas',
+  'confirmarImportacion', 'cancelarImportacion', 'crearEleccion', 'digitarE14', 'corregirDigitacion', 'resolverE14', 'importarE14',
+  'vincularUsuario', 'desactivarUsuario', 'reactivarUsuario', 'cambiarRol', 'invitarUsuario', 'reenviarAcceso'];
+for (const k of ESCRITURAS) {
+  const original = api[k] as (...a: unknown[]) => Promise<unknown>;
+  (api as unknown as Record<string, unknown>)[k] = async (...a: unknown[]) => {
+    soloLectura();
+    return original.apply(api, a);
+  };
+}

@@ -1,9 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
-import type { Api, Rol, Sesion } from './tipos';
+import type { Api, Rol, Sesion, VistaComo } from './tipos';
 
 interface Contexto {
   api: Api;
+  /** Sesión que ven las páginas: en "Ver como" trae el rol/nombre de la vista */
   sesion: Sesion | null;
+  /** Sesión de quien realmente inició sesión */
+  sesionReal: Sesion | null;
+  vista: VistaComo | null;
+  verComo: (v: VistaComo | null) => Promise<void>;
   recargar: () => Promise<void>;
   debeCambiarClave: boolean;
   claveCambiada: () => void;
@@ -18,6 +23,11 @@ const llegoParaCambiarClave = /type=(invite|recovery)/.test(window.location.hash
 export function ProveedorSesion({ api, children }: { api: Api; children: ReactNode }) {
   const [sesion, setSesion] = useState<Sesion | null | undefined>(undefined);
   const [debeCambiarClave, setDebe] = useState(llegoParaCambiarClave);
+  const [vista, setVista] = useState<VistaComo | null>(null);
+  const verComo = useCallback(async (v: VistaComo | null) => {
+    await api.usarVistaComo(v?.objetivo ?? null);
+    setVista(v);
+  }, [api]);
 
   const recargar = useCallback(async () => {
     try {
@@ -33,8 +43,11 @@ export function ProveedorSesion({ api, children }: { api: Api; children: ReactNo
   }, [api, recargar]);
 
   if (sesion === undefined) return <div className="cargando-pagina">Cargando…</div>;
+  const efectiva: Sesion | null = vista && sesion?.perfil
+    ? { ...sesion, perfil: { ...sesion.perfil, nombre: vista.nombre, rol: vista.rol } }
+    : sesion;
   return (
-    <Ctx.Provider value={{ api, sesion, recargar, debeCambiarClave, claveCambiada: () => setDebe(false) }}>
+    <Ctx.Provider value={{ api, sesion: efectiva, sesionReal: sesion, vista, verComo, recargar, debeCambiarClave, claveCambiada: () => setDebe(false) }}>
       {children}
     </Ctx.Provider>
   );

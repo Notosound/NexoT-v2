@@ -2,7 +2,10 @@
 // cumplimiento. Regla: todo se calcula por mesa y se suma hacia arriba.
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { CheckCircle2, Target, UserPlus, UserX } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
+import { BarrasH, Segmentos, SERIES } from '../componentes/Graficos';
+import { Cifra } from '../componentes/Piezas';
 import E14Excel from './E14Excel';
 import type {
   AvanceE14, Eleccion, LiderE14, LocalidadE14, MesaE14, MesaEnRevision, MesaPendiente, MiDigitacion, ModoDigitacion, PuestoE14, Rol,
@@ -98,25 +101,18 @@ export default function E14() {
 
 // ── Avance de la digitación ───────────────────────────────────────────
 function Avance({ avance, modo }: { avance: AvanceE14; modo: ModoDigitacion }) {
-  const total = Math.max(1, avance.mesas);
-  const partes = [
-    { k: 'verificadas', n: avance.verificadas, color: 'var(--ok)', texto: 'verificadas' },
-    { k: 'revision', n: avance.en_revision, color: 'var(--aviso)', texto: 'con diferencia' },
-    { k: 'una', n: avance.una_digitacion, color: '#7dd3fc', texto: 'con una digitación' },
-    { k: 'pend', n: avance.pendientes, color: '#e5e7eb', texto: 'sin digitar' },
-  ].filter((p) => p.n > 0 || p.k === 'verificadas');
   return (
     <div className="tarjeta" style={{ marginBottom: '1rem' }}>
       <div className="encabezado" style={{ marginBottom: '0.5rem' }}>
         <h2 style={{ margin: 0 }}>Avance: {pct(avance.verificadas, avance.mesas) ?? 0}% de las mesas verificadas</h2>
         <span className="ayuda">{formatoNumero(avance.mesas)} mesas con simpatizantes · {modo === 'doble' ? 'doble digitación' : 'digitación simple'}</span>
       </div>
-      <div className="barra-avance" role="img" aria-label={partes.map((p) => `${p.n} ${p.texto}`).join(', ')}>
-        {partes.map((p) => <div key={p.k} style={{ width: `${(100 * p.n) / total}%`, background: p.color }} title={`${p.n} ${p.texto}`} />)}
-      </div>
-      <div className="leyenda-mapa" style={{ padding: '0.5rem 0 0' }}>
-        {partes.map((p) => <span key={p.k} className="leyenda-item"><span className="muestra" style={{ background: p.color }} />{formatoNumero(p.n)} {p.texto}</span>)}
-      </div>
+      <Segmentos partes={[
+        { nombre: 'Verificadas', valor: avance.verificadas, color: 'var(--ok)' },
+        { nombre: 'Con diferencia', valor: avance.en_revision, color: 'var(--aviso)' },
+        { nombre: 'Con una digitación', valor: avance.una_digitacion, color: 'var(--serie-1)' },
+        { nombre: 'Sin digitar', valor: avance.pendientes, color: 'var(--borde-fuerte)' },
+      ]} />
     </div>
   );
 }
@@ -387,12 +383,30 @@ function Resultados({ eleccion }: { eleccion: Eleccion }) {
 
   return (
     <>
-      <div className="rejilla cifras" style={{ marginBottom: '1rem' }}>
-        <div className="tarjeta cifra"><span className="valor">{cumpl == null ? '—' : `${cumpl}%`}</span><span className="etiqueta">de cumplimiento en mesas verificadas</span></div>
-        <div className="tarjeta cifra"><span className="valor">{formatoNumero(t.confirmados)}</span><span className="etiqueta">votos confirmados</span></div>
-        <div className="tarjeta cifra alerta"><span className="valor">{formatoNumero(t.faltantes)}</span><span className="etiqueta">faltantes</span></div>
-        <div className="tarjeta cifra"><span className="valor">{formatoNumero(t.adicionales)}</span><span className="etiqueta">votos adicionales (apoyo fuera de los registrados)</span></div>
+      <div className="cifras" style={{ marginBottom: '1rem' }}>
+        <Cifra icono={Target} valor={cumpl == null ? '—' : `${cumpl}%`} etiqueta="de cumplimiento" detalle="en mesas verificadas" tono="ok" />
+        <Cifra icono={CheckCircle2} valor={t.confirmados} etiqueta="votos confirmados" detalle="de simpatizantes registrados" />
+        <Cifra icono={UserX} valor={t.faltantes} etiqueta="faltantes" detalle="registrados que no aparecen" tono="aviso" />
+        <Cifra icono={UserPlus} valor={t.adicionales} etiqueta="votos adicionales" detalle="apoyo fuera de los registrados" tono="info" />
       </div>
+      {datos.localidades.some((l) => l.mesas_verificadas > 0) && (
+        <div className="graficos" style={{ marginBottom: '1rem' }}>
+          <div className="tarjeta">
+            <div className="tarjeta-titulo"><h2>Por localidad</h2><small>solo mesas verificadas</small></div>
+            <BarrasH limite={10} series={[{ nombre: 'Confirmados', color: SERIES[0] }, { nombre: 'Faltantes', color: SERIES[1] }, { nombre: 'Adicionales', color: SERIES[2] }]}
+              filas={[...datos.localidades].filter((l) => l.mesas_verificadas > 0).sort((a, b) => b.votos_reales - a.votos_reales)
+                .map((l) => ({ nombre: l.localidad, valores: [l.confirmados, l.faltantes, l.adicionales], detalle: `${formatoNumero(l.votos_reales)} votos en el E14 · ${l.mesas_verificadas}/${l.mesas} mesas` }))} />
+          </div>
+          {datos.lideres.some((l) => l.cumplimiento != null) && (
+            <div className="tarjeta">
+              <div className="tarjeta-titulo"><h2>Cumplimiento por líder</h2><small>confirmados / esperados en mesas verificadas</small></div>
+              <BarrasH limite={10} max={100} sufijo="%"
+                filas={datos.lideres.filter((l) => l.cumplimiento != null).sort((a, b) => (b.cumplimiento ?? 0) - (a.cumplimiento ?? 0))
+                  .map((l) => ({ nombre: l.nombre, valores: [Math.round(l.cumplimiento ?? 0)], detalle: `${formatoNumero(l.confirmados)} de ${formatoNumero(l.esperados_verificados ?? 0)}` }))} />
+            </div>
+          )}
+        </div>
+      )}
 
       <details className="tarjeta" style={{ marginBottom: '1rem' }}>
         <summary><strong>¿Cómo se calcula?</strong></summary>

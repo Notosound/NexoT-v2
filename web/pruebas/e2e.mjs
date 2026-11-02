@@ -71,7 +71,7 @@ async function paso(nombre, fn) {
   }
 }
 
-async function sesion(rol, viewport, encabezado = /^Hola/) {
+async function sesion(rol, viewport, encabezado = /Hola/) {
   const ctx = await navegador.newContext({ viewport, locale: 'es-CO' });
   const page = await ctx.newPage();
   page.on('console', (m) => {
@@ -96,12 +96,12 @@ const escritorio = { width: 1280, height: 860 };
 console.log('Líder (móvil)');
 {
   const { ctx, page } = await sesion('lider', movil);
-  await page.locator('.cifra .valor').first().waitFor();
+  await page.locator('.cifra-tarjeta .valor').first().waitFor();
   await page.screenshot({ path: join(capturas, '01-lider-inicio.png'), fullPage: true });
 
   await paso('el menú del líder no muestra secciones de administración', async () => {
     const menu = await page.getByRole('navigation', { name: 'Secciones' }).innerText();
-    assert.match(menu, /Mis registrados/);
+    assert.match(menu, /Mis registros/);
     assert.doesNotMatch(menu, /Equipo|Importar|revisar/);
   });
 
@@ -170,7 +170,7 @@ console.log('Líder (móvil)');
   });
 
   await paso('"Otro" con un nombre desconocido: queda para revisión', async () => {
-    await page.getByRole('button', { name: 'Cambiar' }).click();
+    await page.getByRole('button', { name: 'Cambiar', exact: true }).click();
     await page.getByRole('button', { name: /No aparece en la lista/ }).click();
     await page.getByLabel('Nombre del puesto como le aparece').fill('Colegio de las Palmas Sede Norte');
     await page.getByLabel(/^Mesa/).fill('2');
@@ -182,7 +182,7 @@ console.log('Líder (móvil)');
   });
 
   await paso('mis registrados: búsqueda por cédula', async () => {
-    await page.getByRole('link', { name: 'Mis registrados' }).click();
+    await page.getByRole('link', { name: 'Mis registros' }).click();
     await page.getByLabel('Buscar').fill('80123456');
     await page.getByText('María Fernanda Prueba Demo').waitFor();
     await page.screenshot({ path: join(capturas, '06-mis-registrados.png'), fullPage: true });
@@ -190,7 +190,7 @@ console.log('Líder (móvil)');
 
   await paso('el líder no puede abrir secciones de administración', async () => {
     await page.goto(`${base}/equipo`);
-    await page.getByRole('heading', { name: /^Hola/ }).waitFor();
+    await page.getByRole('heading', { name: /Hola/ }).waitFor();
   });
   await ctx.close();
 }
@@ -198,7 +198,7 @@ console.log('Líder (móvil)');
 console.log('Administrador (escritorio)');
 {
   const { ctx, page } = await sesion('admin', escritorio);
-  await page.locator('.barra-fila').first().waitFor();
+  await page.locator('.barra-h').first().waitFor();
   await page.screenshot({ path: join(capturas, '10-admin-inicio.png'), fullPage: true });
 
   await paso('bandeja de revisión: agrupa y resuelve aprendiendo el nombre', async () => {
@@ -254,15 +254,75 @@ console.log('Administrador (escritorio)');
 
   await paso('equipo: dar acceso a un líder existente', async () => {
     await page.getByRole('link', { name: 'Equipo' }).click();
+    await page.getByRole('button', { name: 'Invitar a alguien' }).click();
     await page.getByLabel('Correo').fill('nuevo.lider@demo.co');
     await page.getByLabel('Nombre', { exact: true }).fill('Líder Nuevo Prueba');
-    await page.getByLabel('Rol').selectOption('lider');
-    await page.getByLabel('Ficha de líder').selectOption({ label: 'Líder Nuevo Prueba' });
-    await page.getByRole('button', { name: 'Dar acceso' }).click();
-    await page.getByText('ya tiene acceso como líder').waitFor();
+    await page.getByRole('radio', { name: /^Líder/ }).check();
+    await page.getByLabel('Ficha de líder').selectOption({ label: 'Líder Nuevo Prueba (ya existe, sin usuario)' });
+    await page.getByRole('button', { name: 'Enviar invitación' }).click();
+    await page.getByText('Invitación enviada a nuevo.lider@demo.co').waitFor();
+    const fila = page.locator('tr', { hasText: 'nuevo.lider@demo.co' });
+    assert.match(await fila.innerText(), /Invitación enviada/);
     await page.screenshot({ path: join(capturas, '15-equipo.png'), fullPage: true });
   });
+  await paso('ver como líder: su panel, sus datos y solo lectura', async () => {
+    await page.locator('.barra').getByRole('button', { name: 'Ver como' }).click();
+    await page.locator('.lista-opciones button', { hasText: 'Líder Demo' }).click();
+    await page.getByText(/Estás viendo el panel como/).waitFor();
+    const menu = await page.getByRole('navigation', { name: 'Secciones' }).innerText();
+    assert.match(menu, /Mis registros/);
+    assert.match(menu, /Mi enlace y QR/);
+    assert.doesNotMatch(menu, /Equipo|Importar/);
+    await page.screenshot({ path: join(capturas, '16-ver-como-lider.png'), fullPage: true });
+    // Intentar registrar: la vista no deja escribir
+    await page.getByRole('link', { name: 'Registrar persona' }).first().click();
+    await page.getByLabel('Líder que registra').selectOption({ label: 'Líder Demo' }).catch(() => {});
+    await page.getByLabel('Cédula').fill('99999995');
+    await page.getByLabel('Nombres').fill('No');
+    await page.getByRole('button', { name: 'Femenino' }).click();
+    await page.getByLabel('Fecha de nacimiento').fill('1980-01-01');
+    await page.getByLabel('Todavía no sabe dónde vota').check();
+    await page.getByLabel(/La persona autoriza/).check();
+    await page.getByRole('button', { name: 'Registrar', exact: true }).click();
+    await page.getByText(/solo lectura/).first().waitFor();
+    await page.getByRole('button', { name: 'Volver a mi panel' }).click();
+    await page.getByRole('heading', { name: 'Equipo' }).waitFor();
+    assert.equal(await page.getByText(/Estás viendo el panel como/).count(), 0);
+  });
   await ctx.close();
+}
+
+console.log('Enlace del líder y formulario público (móvil)');
+{
+  const { ctx, page } = await sesion('lider', movil);
+  let url;
+  await paso('el líder ve su enlace con QR', async () => {
+    await page.getByRole('link', { name: /Mi enlace y QR/ }).first().click();
+    await page.locator('.qr svg').waitFor();
+    url = (await page.locator('.caja-enlace').innerText()).trim();
+    assert.match(url, /\/r\/\w+/);
+    await page.screenshot({ path: join(capturas, '17-mi-enlace.png'), fullPage: true });
+  });
+  await ctx.close();
+  const publico = await navegador.newContext({ viewport: movil, locale: 'es-CO' });
+  const p = await publico.newPage();
+  p.on('pageerror', (e) => erroresConsola.push(`[publico] ${e.message}`));
+  await paso('formulario público: valida y registra sin iniciar sesión', async () => {
+    await p.goto(base + new URL(url).pathname);
+    await p.getByText('Te invita').waitFor();
+    await p.getByRole('button', { name: 'Registrarme' }).click();
+    await p.getByRole('alert').waitFor();
+    await p.getByLabel('Cédula').fill('99999996');
+    await p.getByLabel('Nombres').fill('Persona');
+    await p.getByLabel('Apellidos').fill('Del Enlace');
+    await p.getByRole('button', { name: 'Masculino' }).click();
+    await p.getByLabel('Fecha de nacimiento').fill('1990-03-03');
+    await p.getByLabel(/Autorizo el tratamiento/).check();
+    await p.screenshot({ path: join(capturas, '18-formulario-publico.png'), fullPage: true });
+    await p.getByRole('button', { name: 'Registrarme' }).click();
+    await p.getByText('¡Gracias! Tu registro quedó listo.').waitFor();
+  });
+  await publico.close();
 }
 
 console.log('Candidato (móvil)');
@@ -314,7 +374,7 @@ console.log('E14: digitador (móvil)');
 {
   const { ctx, page } = await sesion('digitador', movil);
   await paso('el digitador solo ve la pestaña de digitar', async () => {
-    await page.getByRole('link', { name: 'Ir a digitar' }).click();
+    await page.getByRole('link', { name: /Digitar mesas/ }).click();
     await page.getByRole('heading', { name: /^Avance:/ }).waitFor();
     assert.deepEqual(await page.getByRole('tab').allInnerTexts(), ['Digitar', 'Subir Excel']);
     const menu = await page.getByRole('navigation', { name: 'Secciones' }).innerText();
@@ -405,7 +465,7 @@ console.log('E14: administrador (escritorio)');
   const { ctx, page } = await sesion('admin', escritorio);
   await page.getByRole('link', { name: 'E14' }).click();
   await paso('resultados: cumplimiento, líderes y detalle por mesa', async () => {
-    await page.getByText('de cumplimiento en mesas verificadas').waitFor();
+    await page.locator('.cifra-tarjeta', { hasText: 'de cumplimiento' }).waitFor();
     assert.ok(await page.locator('tbody tr').count() >= 3, 'hay líderes');
     await page.getByRole('tab', { name: 'Por puesto' }).click();
     const enlace = page.locator('tbody .enlace').first();
@@ -449,6 +509,7 @@ console.log('Análisis y exportes (administrador)');
   const { ctx, page } = await sesion('admin', escritorio);
   await page.getByRole('link', { name: 'Análisis' }).click();
   await paso('jerarquía: localidad → puesto → mesa, cruzado con E14', async () => {
+    await page.getByRole('tab', { name: 'Territorio' }).click();
     await page.getByRole('navigation', { name: 'Nivel' }).waitFor();
     await page.locator('tbody .enlace').first().click();
     await page.getByText(/puestos con simpatizantes$/).waitFor();
@@ -461,13 +522,13 @@ console.log('Análisis y exportes (administrador)');
   await paso('calidad de datos y rendimiento de líderes', async () => {
     await page.getByRole('tab', { name: 'Calidad de los datos' }).click();
     await page.getByText(/con puesto y mesa confirmados/).waitFor();
-    await page.getByRole('tab', { name: 'Rendimiento de líderes' }).click();
+    await page.getByRole('tab', { name: 'Líderes', exact: true }).click();
     await page.getByLabel('Ordenar por').selectOption('cumplimiento');
     await page.screenshot({ path: join(capturas, '41-analisis-lideres.png'), fullPage: true });
   });
   await paso('simulación: el escenario cambia la proyección', async () => {
     await page.getByRole('tab', { name: 'Simulación' }).click();
-    const proyectado = async () => Number((await page.locator('.cifra', { hasText: 'proyectados' }).locator('.valor').innerText()).replace(/\D/g, ''));
+    const proyectado = async () => Number((await page.locator('.cifra-tarjeta', { hasText: 'proyectados' }).locator('.valor').innerText()).replace(/\D/g, ''));
     const moderado = await proyectado();
     await page.getByRole('button', { name: 'Optimista' }).click();
     assert.ok(await proyectado() > moderado);
@@ -499,7 +560,7 @@ console.log('E14: candidato');
   const { ctx, page } = await sesion('candidato', movil, 'Tablero');
   await paso('el candidato ve resultados, no digitación ni diferencias', async () => {
     await page.getByRole('link', { name: 'E14' }).click();
-    await page.getByText('de cumplimiento en mesas verificadas').waitFor();
+    await page.locator('.cifra-tarjeta', { hasText: 'de cumplimiento' }).waitFor();
     assert.equal(await page.getByRole('tablist').count(), 1, 'solo las pestañas internas de resultados');
     assert.equal(await page.getByRole('tab', { name: /Digitar|Diferencias|Elecciones/ }).count(), 0);
     await page.screenshot({ path: join(capturas, '33-e14-candidato.png'), fullPage: true });
@@ -508,6 +569,7 @@ console.log('E14: candidato');
 }
 
 await paso('sin errores en la consola del navegador', async () => {
+  if (erroresConsola.length) console.log(erroresConsola.join('\n'));
   assert.deepEqual(erroresConsola, []);
 });
 
