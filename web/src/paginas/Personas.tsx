@@ -65,7 +65,7 @@ export default function Personas() {
   return (
     <>
       <div className="encabezado">
-        <div><h1>{rol === 'lider' ? 'Mis registrados' : 'Personas'}</h1><p>{formatoNumero(total)} en total</p></div>
+        <div><h1>{rol === 'lider' ? 'Mis registros' : 'Personas'}</h1><p>{formatoNumero(total)} en total</p></div>
         <div className="acciones">
           {rol !== 'lider' && total > 0 && <button className="boton" disabled={exportando} onClick={exportarExcel}>{exportando ? 'Exportando…' : 'Exportar a Excel'}</button>}
           <Link to="/registrar" className="boton primario">Registrar persona</Link>
