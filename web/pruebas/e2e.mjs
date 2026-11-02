@@ -57,6 +57,7 @@ async function paso(nombre, fn) {
     console.log(`  ✓ ${nombre}`);
   } catch (e) {
     console.error(`  ✗ ${nombre}\n    ${e.message.split('\n').slice(0, 4).join('\n    ')}`);
+    if (process.env.GITHUB_ACTIONS) console.log(`::error title=${nombre}::${e.message.split('\n').slice(0, 6).join(' | ').replace(/\x1b\[[0-9;]*m/g, '')}`);
     process.exitCode = 1;
   }
 }
