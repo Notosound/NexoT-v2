@@ -116,3 +116,20 @@ test('las exportaciones quedan en la auditoría', async () => {
   assert.equal(a.usuario_id, admin);
   assert.deepEqual([a.despues.tipo, a.despues.filas, a.despues.filtros.localidad], ['personas', 42, 'Kennedy']);
 });
+
+// Error encontrado en la prueba completa: "B4" se leía como "04" y la mesa
+// terminaba en otro puesto. Los códigos con letras deben respetarse.
+test('códigos de puesto con letras: no se confunden con el numérico', async () => {
+  await base.sistema(`insert into puestos(id, localidad_id, zona, codigo, nombre, direccion, latitud, longitud)
+                      values (90, (select localidad_id from puestos where id = 2), '08', 'B1', 'Colegio Letra', 'Cl 1 # 1-1', 4.6, -74.1)`);
+  await base.sistema(`insert into mesas(id, puesto_id, numero) values (90, 90, 1)`);
+  const r = await importar(dig1, [
+    { fila: 2, zona: '8', codigo_puesto: ' b1 ', mesa: '1', votos: '3' },                         // con letras
+    { fila: 3, zona: '08', codigo_puesto: '1', puesto: 'Colegio Kennedy', mesa: '1', votos: '3' }, // numérico
+    { fila: 4, zona: '08', codigo_puesto: '01', puesto: 'Colegio Letra', mesa: '1', votos: '3' },  // código y nombre no cuadran
+  ], false);
+  assert.deepEqual(r.map((x) => [x.fila, x.estado === 'error', x.mesa_id]), [[2, false, 90], [3, false, 5], [4, true, null]]);
+  assert.match(r[2].mensaje, /el código 08-01 es "Colegio Kennedy", no "Colegio Letra"/);
+  const [{ a, b, c }] = await base.sistema(`select app.codigo_oficial('4') a, app.codigo_oficial(' b4 ') b, app.codigo_oficial('-') c`);
+  assert.deepEqual([a, b, c], ['04', 'B4', null]);
+});

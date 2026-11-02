@@ -8,6 +8,7 @@ import type {
 } from './tipos';
 import { edadDesde, hoyISO, normalizar } from './utilidades';
 import crudo from './demo-puestos.json';
+import { codigoOficial } from './mapeoE14';
 
 const espera = (ms = 120) => new Promise((r) => setTimeout(r, ms));
 
@@ -545,9 +546,13 @@ export const api: Api = {
       if (!txt) { salida.push({ fila, estado: 'vacia', mensaje: 'sin votos (se ignora)', mesa_id: null, votos: null }); continue; }
       if (!/^\d{1,4}$/.test(txt) || Number(txt) > 1000) { salida.push({ fila, estado: 'error', mensaje: `votos inválidos: "${r.votos}"`, mesa_id: null, votos: null }); continue; }
       const votos = Number(txt);
-      let puesto = r.zona && r.codigo_puesto
-        ? PUESTOS.find((p) => Number(CODIGOS.get(p.id)!.zona) === Number(String(r.zona).replace(/\D/g, '')) && Number(CODIGOS.get(p.id)!.codigo) === Number(String(r.codigo_puesto).replace(/\D/g, '')))
+      const zona = codigoOficial(String(r.zona ?? '')), cod = codigoOficial(String(r.codigo_puesto ?? ''));
+      let puesto = zona && cod
+        ? PUESTOS.find((p) => codigoOficial(CODIGOS.get(p.id)!.zona) === zona && codigoOficial(CODIGOS.get(p.id)!.codigo) === cod)
         : undefined;
+      if (puesto && normalizar(String(r.puesto ?? '')) && normalizar(String(r.puesto)) !== normalizar(puesto.nombre)) {
+        salida.push({ fila, estado: 'error', mensaje: `el código ${zona}-${cod} es "${puesto.nombre}", no "${r.puesto}": revisa la fila`, mesa_id: null, votos }); continue;
+      }
       if (!puesto) {
         const loc = LOCALIDADES.find((l) => normalizar(l.nombre) === normalizar(String(r.localidad ?? '')));
         if (!loc) { salida.push({ fila, estado: 'error', mensaje: `localidad no encontrada: "${r.localidad ?? ''}"`, mesa_id: null, votos }); continue; }
