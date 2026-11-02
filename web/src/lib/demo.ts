@@ -168,6 +168,7 @@ const tokenDemo = (liderId: string) => `demo${liderId.replace(/\W/g, '')}enlace`
 
 // "Ver como" en demostración: cambia quién soy y prohíbe escribir
 let vista: MiembroEquipo | null = null;
+let vistaLider: string | null = null;
 function yo() {
   if (!actual) throw new Error('Sesión cerrada');
   return vista ?? actual.usuario;
@@ -176,6 +177,7 @@ function soloLectura() {
   if (vista) throw new Error('Estás en "Ver como": es solo lectura');
 }
 function misLideres() {
+  if (vistaLider) return lideres.filter((l) => l.id === vistaLider);
   const u = yo();
   if (u.rol === 'admin') return lideres;
   if (u.rol === 'coordinador') return lideres.filter((l) => l.coordinador_id === u.id);
@@ -667,8 +669,16 @@ export const api: Api = {
   },
   async usarVistaComo(objetivo) {
     await espera(30);
+    vistaLider = null;
     if (!objetivo) { vista = null; return; }
     if (actual?.usuario.rol !== 'admin') throw new Error('Solo un administrador puede usar "Ver como"');
+    if (objetivo.startsWith('lider:')) {
+      const l = lideres.find((x) => x.id === objetivo.slice(6));
+      if (!l) throw new Error('Ese líder no es de tu organización');
+      vista = { ...miembro('vista-lider', l.nombre, 'lider', ''), id: 'vista-lider' };
+      vistaLider = l.id;
+      return;
+    }
     if (objetivo.startsWith('rol:')) {
       const rol = objetivo.slice(4) as Rol;
       vista = { ...miembro('vista', `Vista de ${rol}`, rol, ''), id: 'vista-rol' };

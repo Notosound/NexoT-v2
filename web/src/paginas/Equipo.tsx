@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Eye, Mail, MailCheck, RotateCcw, ShieldCheck, UserMinus, UserPlus, Users } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
 import { ROLES, type Lider, type MiembroEquipo, type Rol } from '../lib/tipos';
@@ -10,7 +11,8 @@ import { Cifra, Iniciales } from '../componentes/Piezas';
 const fecha = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
 
 export default function Equipo() {
-  const { api, sesionReal } = useSesion();
+  const { api, sesionReal, verComo } = useSesion();
+  const ir = useNavigate();
   const yoId = sesionReal!.usuarioId;
   const [equipo, setEquipo] = useState<MiembroEquipo[] | null>(null);
   const [lideres, setLideres] = useState<Lider[]>([]);
@@ -93,7 +95,9 @@ export default function Equipo() {
                             </button>
                           )}
                           {m.activo && m.rol !== 'admin' && (
-                            <button className="boton chico" onClick={() => setVerComoDe(m.id)}><Eye className="icono" aria-hidden />Ver como</button>
+                            <button className="boton chico" onClick={() => (m.rol === 'lider' && m.lider_id
+                              ? verComo({ objetivo: `lider:${m.lider_id}`, nombre: m.nombre, rol: 'lider' }).then(() => ir('/')).catch((e) => setError(mensajeError(e)))
+                              : setVerComoDe(m.id))}><Eye className="icono" aria-hidden />Ver como</button>
                           )}
                           {m.activo ? (
                             <button className="boton chico peligro" disabled={ocupado === m.id}

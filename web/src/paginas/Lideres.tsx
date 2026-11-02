@@ -5,7 +5,7 @@ import type { Lider } from '../lib/tipos';
 import { formatoNumero, mensajeError, soloDigitos } from '../lib/utilidades';
 import Invitar from '../componentes/Invitar';
 import EnlaceRegistro from '../componentes/EnlaceRegistro';
-import SelectorVerComo from '../componentes/VerComo';
+import { useNavigate } from 'react-router-dom';
 import { Ventana } from '../componentes/Piezas';
 
 export default function Lideres() {
@@ -23,7 +23,11 @@ export default function Lideres() {
   const [mensaje, setMensaje] = useState('');
   const [darAcceso, setDarAcceso] = useState<Lider | null>(null);
   const [enlaceDe, setEnlaceDe] = useState<Lider | null>(null);
-  const [verComoDe, setVerComoDe] = useState<string | null>(null);
+  const { verComo } = useSesion();
+  const ir = useNavigate();
+  const verComoLider = async (l: Lider) => {
+    try { await verComo({ objetivo: `lider:${l.id}`, nombre: l.nombre, rol: 'lider' }); ir('/'); } catch (e) { setError(mensajeError(e)); }
+  };
   const esAdmin = rol === 'admin';
 
   const cargar = useCallback(() => {
@@ -116,7 +120,7 @@ export default function Lideres() {
                     <div className="acciones">
                       <button className="boton chico" onClick={() => setEnlaceDe(l)}><QrCode className="icono" aria-hidden />Enlace y QR</button>
                       {esAdmin && !l.perfil_id && <button className="boton chico" onClick={() => setDarAcceso(l)}><KeyRound className="icono" aria-hidden />Dar acceso</button>}
-                      {esAdmin && l.perfil_id && <button className="boton chico" onClick={() => setVerComoDe(l.perfil_id)}><Eye className="icono" aria-hidden />Ver como</button>}
+                      {esAdmin && <button className="boton chico" onClick={() => verComoLider(l)}><Eye className="icono" aria-hidden />Ver como</button>}
                     </div>
                   </td>
                 </tr>
@@ -135,7 +139,6 @@ export default function Lideres() {
           <div className="acciones" style={{ justifyContent: 'flex-end', marginTop: '1rem' }}><button className="boton" onClick={() => setEnlaceDe(null)}>Cerrar</button></div>
         </Ventana>
       )}
-      {verComoDe && <SelectorVerComo soloPersona={verComoDe} alCerrar={() => setVerComoDe(null)} />}
     </>
   );
 }

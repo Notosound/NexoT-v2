@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  AlertTriangle, CalendarClock, CheckCircle2, Download, Lightbulb, MapPin, MapPinOff, Phone, Target, TrendingDown, TrendingUp, Users, Vote,
+  AlertTriangle, CalendarClock, CheckCircle2, Download, MapPin, MapPinOff, Phone, Target, TrendingDown, TrendingUp, Users, Vote,
 } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
 import { BarrasH, Linea, Segmentos, SERIES } from '../componentes/Graficos';
@@ -123,7 +123,6 @@ function Resumen({ datos, e14, eleccion, esAdmin, irA }: {
   }
   const locs = [...r.localidad.entries()].map(([nombre, n]) => ({ nombre, n, porMil: porMil(n, censoLoc.get(nombre) ?? 0) })).sort((a, b) => b.n - a.n);
   const conLugar = locs.reduce((a, l) => a + l.n, 0);
-  const mejorPenetracion = [...locs].sort((a, b) => b.porMil - a.porMil)[0];
 
   // Personas
   const mujeres = r.sexo.get('Femenino') ?? 0;
@@ -150,48 +149,46 @@ function Resumen({ datos, e14, eleccion, esAdmin, irA }: {
   const h: Hallazgo[] = [];
   h.push({
     tono: cambio != null && cambio < 0 ? 'atencion' : 'bien', icono: cambio != null && cambio < 0 ? TrendingDown : TrendingUp,
-    texto: <>Esta semana entraron <strong>{formatoNumero(ult7)}</strong> registros{cambio != null && <>, {cambio >= 0 ? <strong>{cambio}% más</strong> : <strong>{-cambio}% menos</strong>} que la semana anterior ({formatoNumero(prev7)})</>}.</>,
+    texto: <>Esta semana entraron <strong>{formatoNumero(ult7)}</strong> registros{cambio != null && <>, {cambio >= 0 ? `${cambio}% más` : `${-cambio}% menos`} que la semana anterior</>}.</>,
   });
   if (locs[0]) h.push({
     tono: 'info', icono: MapPin,
-    texto: <><strong>{locs[0].nombre}</strong> concentra el <strong>{pct0(locs[0].n, conLugar)}%</strong> de los simpatizantes con lugar de votación{locs[1] && <>, seguida de {locs[1].nombre} ({pct0(locs[1].n, conLugar)}%)</>}.
-      {mejorPenetracion && mejorPenetracion.nombre !== locs[0].nombre && <> Donde más pesan frente al número de votantes es <strong>{mejorPenetracion.nombre}</strong>.</>}</>,
-    accion: <button className="enlace" onClick={() => irA('jerarquia')}>Ver territorio</button>,
+    texto: <>{locs[0].nombre} concentra el <strong>{pct0(locs[0].n, conLugar)}%</strong> de los simpatizantes{locs[1] && <>, seguida de {locs[1].nombre} ({pct0(locs[1].n, conLugar)}%)</>}.
+      </>,
+    accion: <button className="ir" onClick={() => irA('jerarquia')}>Ver territorio →</button>,
   });
   if (r.total) h.push({
     tono: 'info', icono: Users,
-    texto: <>El <strong>{pct0(mujeres, r.total)}%</strong> son mujeres y el grupo de edad más grande es <strong>{edadTop[0]} años</strong> ({pct0(edadTop[1], r.total)}%).</>,
+    texto: <>El {pct0(mujeres, r.total)}% son mujeres; el grupo de edad más grande es {edadTop[0]} años.</>,
   });
   if (conMeta.length) h.push({
     tono: sobreMitad >= conMeta.length / 2 ? 'bien' : 'atencion', icono: Target,
-    texto: <><strong>{sobreMitad} de {conMeta.length}</strong> líderes van por encima de la mitad de su meta.{top && <> Quien más ha registrado: <strong>{top.nombre}</strong> ({formatoNumero(top.total)}).</>}</>,
-    accion: <button className="enlace" onClick={() => irA('lideres')}>Ver líderes</button>,
+    texto: <><strong>{sobreMitad} de {conMeta.length}</strong> líderes van por encima de la mitad de su meta.{top && <> El que más lleva: {top.nombre} ({formatoNumero(top.total)}).</>}</>,
+    accion: <button className="ir" onClick={() => irA('lideres')}>Ver líderes →</button>,
   });
   if (quietos.length) h.push({
     tono: 'atencion', icono: CalendarClock,
-    texto: <><strong>{quietos.length}</strong> {quietos.length === 1 ? 'líder no registra' : 'líderes no registran'} a nadie hace más de una semana: {quietos.slice(0, 3).map((l) => l.nombre).join(', ')}{quietos.length > 3 && ' y otros'}. Vale la pena llamarlos.</>,
+    texto: <><strong>{quietos.length}</strong> {quietos.length === 1 ? 'líder lleva' : 'líderes llevan'} más de una semana sin registrar: {quietos.slice(0, 3).map((l) => l.nombre).join(', ')}{quietos.length > 3 && ' y otros'}.</>,
   });
   if (total) h.push({
     tono: pct0(ubicados, total) >= 85 ? 'bien' : 'atencion', icono: pct0(ubicados, total) >= 85 ? CheckCircle2 : MapPinOff,
-    texto: <>El <strong>{pct0(ubicados, total)}%</strong> tiene puesto y mesa confirmados: son los únicos que se pueden contar con el E14.
-      {sinLugar > 0 && <> A {formatoNumero(sinLugar)} les falta el puesto o la mesa.</>}</>,
-    accion: esAdmin && porRevisar > 0 ? <Link to="/revision">Resolver {formatoNumero(porRevisar)} por revisar</Link> : <button className="enlace" onClick={() => irA('calidad')}>Ver calidad</button>,
+    texto: <>El <strong>{pct0(ubicados, total)}%</strong> tiene puesto y mesa: se pueden contar con el E14.{sinLugar > 0 && <> A {formatoNumero(sinLugar)} les falta el dato.</>}</>,
+    accion: esAdmin && porRevisar > 0 ? <Link className="ir" to="/revision">Resolver {formatoNumero(porRevisar)} →</Link> : <button className="ir" onClick={() => irA('calidad')}>Ver calidad →</button>,
   });
   if (t14 && eleccion) h.push({
     tono: t14.verif < t14.mesas ? 'atencion' : 'bien', icono: Vote,
-    texto: <>En <strong>{eleccion.nombre}</strong> van <strong>{t14.verif} de {t14.mesas}</strong> mesas verificadas. En ellas se confirmaron <strong>{formatoNumero(t14.conf)}</strong> votos de los simpatizantes
-      ({pct0(t14.conf, t14.conf + t14.falt)}% de los esperados), faltaron {formatoNumero(t14.falt)} y aparecieron {formatoNumero(t14.adic)} votos adicionales.</>,
-    accion: <Link to="/e14">Ver E14</Link>,
+    texto: <>E14: <strong>{pct0(t14.conf, t14.conf + t14.falt)}%</strong> de los simpatizantes votaron en las {t14.verif} mesas verificadas (de {t14.mesas}).</>,
+    accion: <Link className="ir" to="/e14">Ver E14 →</Link>,
   });
 
   const porLocalidadE14 = (e14?.localidades ?? []).filter((l) => l.mesas_verificadas > 0).sort((a, b) => b.esperados - a.esperados);
   return (
     <>
       <div className="tarjeta">
-        <div className="tarjeta-titulo"><h2><Lightbulb className="icono" aria-hidden /> Lo más importante</h2><small>se calcula con los datos de este momento</small></div>
+        <div className="tarjeta-titulo"><h2>Lo más importante</h2><small>con los datos de este momento</small></div>
         <ul className="hallazgos">
           {h.map((x, i) => (
-            <li key={i} className={x.tono}><x.icono className="icono" aria-hidden /><div>{x.texto}{x.accion && <div style={{ marginTop: '0.3rem' }}>{x.accion}</div>}</div></li>
+            <li key={i} className={x.tono}><x.icono aria-hidden /><div>{x.texto}</div>{x.accion ?? <span />}</li>
           ))}
         </ul>
       </div>
@@ -586,107 +583,131 @@ function Simulacion({ datos, exportar }: { datos: Datos; exportar: Exportar }) {
   }, [datos, p, locSel, lidSel, fecha]);
 
   const alternar = <T,>(s: Set<T>, v: T) => { const n = new Set(s); if (n.has(v)) n.delete(v); else n.add(v); return n; };
+  const nuevos = r.simulado - r.actual;
+  const maxBarra = Math.max(r.simulado, r.meta, 1);
+  const barra = (nombre: string, valor: number, color: string, nota?: string) => (
+    <div className="sim-barra">
+      <span className="sim-nombre">{nombre}</span>
+      <span className="pista"><span style={{ width: `${(100 * valor) / maxBarra}%`, background: color }} /></span>
+      <span className="sim-valor">{formatoNumero(valor)}{nota && <small>{nota}</small>}</span>
+    </div>
+  );
 
   return (
     <>
-      <div className="tarjeta formulario" style={{ marginBottom: '1rem' }}>
-        <div className="campo">
-          <span id="esc">Escenario</span>
-          <div className="segmentos" role="group" aria-labelledby="esc">
-            {(['conservador', 'moderado', 'optimista', 'personalizado'] as const).map((e) => (
-              <button key={e} type="button" className="opcion" aria-pressed={escenario === e} onClick={() => elegir(e)}>{e[0].toUpperCase() + e.slice(1)}</button>
-            ))}
+      <div className="tarjeta">
+        <h2>¿Cuántos simpatizantes podríamos tener?</h2>
+        <p className="subtitulo" style={{ marginBottom: '1rem' }}>Elige qué tan bien crees que le irá a la campaña y mira el resultado.</p>
+        <div className="segmentos" role="group" aria-label="Escenario">
+          {(['conservador', 'moderado', 'optimista'] as const).map((e) => (
+            <button key={e} type="button" className="opcion" aria-pressed={escenario === e} onClick={() => elegir(e)}>{e[0].toUpperCase() + e.slice(1)}</button>
+          ))}
+          {escenario === 'personalizado' && <button type="button" className="opcion" aria-pressed>Personalizado</button>}
+        </div>
+
+        <div className="sim-resultado">
+          <div className="sim-numero"><span>{formatoNumero(r.simulado)}</span><small>simpatizantes proyectados</small></div>
+          <div className="sim-numero suave"><span>+{formatoNumero(nuevos)}</span><small>más que hoy ({formatoNumero(r.actual)})</small></div>
+          {r.meta > 0 && <div className="sim-numero suave"><span>{fmtPct(pct(r.simulado, r.meta))}</span><small>de la meta ({formatoNumero(r.meta)})</small></div>}
+        </div>
+        <div className="sim-barras">
+          {barra('Hoy', r.actual, SERIES[0])}
+          {barra('Proyectado', r.simulado, SERIES[2])}
+          {r.meta > 0 && barra('Meta', r.meta, 'var(--texto-3)')}
+        </div>
+        <p className="sim-explicacion">
+          Este escenario supone que llega un <strong>{p.crecimiento}%</strong> más de gente por su cuenta (+{formatoNumero(r.crecimiento)}),
+          que los líderes consiguen un <strong>{p.movLideres}%</strong> más (+{formatoNumero(r.movLideres)})
+          y que el trabajo de calle suma un <strong>{p.movTerritorial}%</strong> (+{formatoNumero(r.movTerritorial)}).
+        </p>
+
+        <details className="sim-ajustes">
+          <summary>Ajustar los supuestos</summary>
+          <div className="fila-campos" style={{ marginTop: '0.75rem' }}>
+            <label className="campo"><span>Gente nueva por su cuenta (%)</span><input type="number" min={0} max={100} value={p.crecimiento} onChange={(e) => cambiar('crecimiento', e.target.value)} /></label>
+            <label className="campo"><span>Esfuerzo extra de líderes (%)</span><input type="number" min={0} max={100} value={p.movLideres} onChange={(e) => cambiar('movLideres', e.target.value)} /></label>
+            <label className="campo"><span>Trabajo de calle (%)</span><input type="number" min={0} max={100} value={p.movTerritorial} onChange={(e) => cambiar('movTerritorial', e.target.value)} /></label>
           </div>
+          <div className="fila-campos" style={{ marginTop: '0.75rem' }}>
+            <details><summary className="ayuda">Trabajo de calle solo en: {locSel.size ? `${locSel.size} localidades` : 'todas las localidades'}</summary>
+              <div className="lista-check">{[...r.porLocalidad].sort((a, b) => a.nombre.localeCompare(b.nombre)).map((l) => (
+                <label key={l.id} className="casilla"><input type="checkbox" checked={locSel.has(l.id)} onChange={() => setLocSel((s) => alternar(s, l.id))} /><span>{l.nombre}</span></label>
+              ))}</div>
+            </details>
+            <details><summary className="ayuda">Esfuerzo extra solo de: {lidSel.size ? `${lidSel.size} líderes` : 'todos los líderes'}</summary>
+              <div className="lista-check">{[...r.porLider].sort((a, b) => a.nombre.localeCompare(b.nombre)).map((l) => (
+                <label key={l.id} className="casilla"><input type="checkbox" checked={lidSel.has(l.id)} onChange={() => setLidSel((s) => alternar(s, l.id))} /><span>{l.nombre}</span></label>
+              ))}</div>
+            </details>
+          </div>
+        </details>
+      </div>
+
+      <div className="graficos seccion">
+        <div className="tarjeta">
+          <h2>¿Llegamos a la meta a tiempo?</h2>
+          <label className="campo" style={{ maxWidth: 260 }}><span>Fecha límite</span><input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} /></label>
+          <p style={{ marginTop: '0.75rem' }}>
+            Hoy entran unos <strong>{r.ritmo.toLocaleString('es-CO', { maximumFractionDigits: 1 })} registros por día</strong> (promedio de las últimas 2 semanas).
+            {r.dias != null && <> A ese ritmo, en {r.dias} días habría unos <strong>{formatoNumero(r.alRitmo ?? 0)}</strong> simpatizantes.</>}
+            {r.dias != null && r.meta > 0 && (r.necesario != null
+              ? <> Para llegar a la meta hacen falta <strong>{formatoNumero(r.necesario)} por día</strong>.</>
+              : <> La meta ya está cumplida.</>)}
+            {r.dias == null && <> Elige una fecha para saber si alcanza.</>}
+          </p>
         </div>
-        <div className="fila-campos">
-          <label className="campo"><span>Crecimiento de la base (%)</span><input type="number" min={0} max={100} value={p.crecimiento} onChange={(e) => cambiar('crecimiento', e.target.value)} /><small>Nuevos simpatizantes sobre los actuales.</small></label>
-          <label className="campo"><span>Recuperación de registros incompletos (%)</span><input type="number" min={0} max={100} value={p.recuperacion} onChange={(e) => cambiar('recuperacion', e.target.value)} /><small>De los {formatoNumero(r.recuperables)} sin puesto o sin mesa. No suma gente nueva.</small></label>
-          <label className="campo"><span>Movilización de líderes (%)</span><input type="number" min={0} max={100} value={p.movLideres} onChange={(e) => cambiar('movLideres', e.target.value)} /><small>Esfuerzo adicional de los líderes elegidos.</small></label>
-          <label className="campo"><span>Movilización territorial (%)</span><input type="number" min={0} max={100} value={p.movTerritorial} onChange={(e) => cambiar('movTerritorial', e.target.value)} /><small>Trabajo de calle en las localidades elegidas.</small></label>
-          <label className="campo"><span>Fecha objetivo <span className="opcional">(opcional)</span></span><input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} /></label>
-        </div>
-        <div className="fila-campos">
-          <details><summary className="ayuda">Localidades para movilización territorial: {locSel.size ? `${locSel.size} elegidas` : 'todas'}</summary>
-            <div className="lista-check">{[...r.porLocalidad].sort((a, b) => a.nombre.localeCompare(b.nombre)).map((l) => (
-              <label key={l.id} className="casilla"><input type="checkbox" checked={locSel.has(l.id)} onChange={() => setLocSel((s) => alternar(s, l.id))} /><span>{l.nombre}</span></label>
-            ))}</div>
-          </details>
-          <details><summary className="ayuda">Líderes para movilización: {lidSel.size ? `${lidSel.size} elegidos` : 'todos'}</summary>
-            <div className="lista-check">{[...r.porLider].sort((a, b) => a.nombre.localeCompare(b.nombre)).map((l) => (
-              <label key={l.id} className="casilla"><input type="checkbox" checked={lidSel.has(l.id)} onChange={() => setLidSel((s) => alternar(s, l.id))} /><span>{l.nombre}</span></label>
-            ))}</div>
-          </details>
+        <div className="tarjeta">
+          <h2>Personas por ubicar</h2>
+          <p>
+            Hay <strong>{formatoNumero(r.recuperables)}</strong> personas registradas a las que les falta el puesto o la mesa: no se pueden contar con el E14.
+            Si se ubica al <strong>{p.recuperacion}%</strong>, serían <strong>{formatoNumero(r.recuperados)}</strong> votos más que se pueden comprobar.
+          </p>
+          <label className="campo" style={{ maxWidth: 260 }}><span>Porcentaje que se logra ubicar</span>
+            <input type="number" min={0} max={100} value={p.recuperacion} onChange={(e) => cambiar('recuperacion', e.target.value)} /></label>
+          <p className="ayuda" style={{ marginTop: '0.5rem' }}>Esto no suma gente nueva: son personas que ya están registradas.</p>
         </div>
       </div>
 
-      <div className="cifras" style={{ marginBottom: '1rem' }}>
-        <Cifra icono={Users} valor={r.actual} etiqueta="simpatizantes hoy" />
-        <Cifra icono={TrendingUp} valor={r.simulado} etiqueta="proyectados en este escenario" tono="ok" detalle={`+${formatoNumero(r.simulado - r.actual)} nuevos`} />
-        {r.meta > 0 && <Cifra icono={Target} valor={fmtPct(pct(r.simulado, r.meta))} etiqueta={`de la meta total (${formatoNumero(r.meta)})`} detalle={`Hoy: ${fmtPct(pct(r.actual, r.meta))}`} />}
-        {r.dias != null && <Cifra icono={CalendarClock} valor={r.alRitmo ?? 0} etiqueta={`al ritmo actual en ${r.dias} días`} detalle={`${r.ritmo.toLocaleString('es-CO', { maximumFractionDigits: 1 })} registros por día`} />}
-        {r.necesario != null && <Cifra icono={AlertTriangle} valor={r.necesario} etiqueta="registros por día para llegar a la meta" tono="aviso" />}
-      </div>
-
-      <div className="graficos" style={{ marginBottom: '1rem' }}>
-        <div className="tarjeta">
-          <div className="tarjeta-titulo"><h2>De dónde salen los nuevos <QueEs>La proyección suma tres cosas: gente nueva que llega sola (crecimiento), el esfuerzo extra de los líderes elegidos y el trabajo de calle en las localidades elegidas. Cada parte se calcula sobre lo que hay hoy.</QueEs></h2></div>
-          <BarrasH filas={[
-            { nombre: 'Hoy', valores: [r.actual] },
-            { nombre: 'Crecimiento de la base', valores: [r.crecimiento], detalle: `${p.crecimiento}% sobre ${formatoNumero(r.actual)}` },
-            { nombre: 'Movilización de líderes', valores: [r.movLideres], detalle: `${p.movLideres}% de los registrados de ${lidSel.size ? `${lidSel.size} líderes` : 'todos los líderes'}` },
-            { nombre: 'Movilización territorial', valores: [r.movTerritorial], detalle: `${p.movTerritorial}% en ${locSel.size ? `${locSel.size} localidades` : 'todas las localidades'}` },
-            { nombre: 'Proyectado', valores: [r.simulado] },
-          ]} />
-        </div>
-        <div className="tarjeta">
-          <div className="tarjeta-titulo"><h2>Recuperar incompletos <QueEs>Personas que ya están registradas pero sin puesto o sin mesa. Recuperarlas no suma simpatizantes nuevos: hace que se puedan contar con el E14.</QueEs></h2></div>
-          <p>De <strong>{formatoNumero(r.recuperables)}</strong> registros incompletos, recuperar el {p.recuperacion}% son <strong>{formatoNumero(r.recuperados)}</strong> personas más que se pueden contar con el E14.</p>
-          <Segmentos partes={[
-            { nombre: 'Ya contables', valor: r.ubicados, color: SERIES[2] },
-            { nombre: 'Se recuperarían', valor: r.recuperados, color: SERIES[0] },
-            { nombre: 'Seguirían incompletos', valor: r.recuperables - r.recuperados, color: 'var(--texto-3)' },
-          ]} />
-          <p className="ayuda" style={{ marginTop: '0.6rem' }}>Contables con E14: de {fmtPct(pct(r.ubicados, r.actual))} hoy a {fmtPct(pct(r.ubicados + r.recuperados, r.actual))}.</p>
-        </div>
-      </div>
-
-      <div className="rejilla" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
-        <div className="tarjeta">
-          <div className="encabezado"><h2 style={{ margin: 0 }}>Por localidad</h2>
-            <BotonExportar onClick={() => exportar('simulacion', 'Simulacion_localidades', [
-              ['Localidad', 'Actual', 'Crecimiento', 'Movilización territorial', 'Proyectado'], ...r.porLocalidad.map((l) => [l.nombre, l.actual, l.crec, l.terr, l.simulado]),
-              ['Sin localidad (sin lugar de votación y movilización de líderes)', r.noAsignable.actual, r.noAsignable.mas, 0, r.noAsignable.actual + r.noAsignable.mas],
-              ['Total', r.actual, r.crecimiento, r.movTerritorial, r.simulado],
-            ], { escenario, ...p })} />
+      <details className="tarjeta seccion">
+        <summary><strong>Ver el detalle por localidad y por líder</strong></summary>
+        <div className="rejilla" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', marginTop: '1rem' }}>
+          <div>
+            <div className="encabezado"><h3 style={{ margin: 0 }}>Por localidad</h3>
+              <BotonExportar onClick={() => exportar('simulacion', 'Simulacion_localidades', [
+                ['Localidad', 'Actual', 'Gente nueva', 'Trabajo de calle', 'Proyectado'], ...r.porLocalidad.map((l) => [l.nombre, l.actual, l.crec, l.terr, l.simulado]),
+                ['Sin localidad (sin lugar de votación y esfuerzo de líderes)', r.noAsignable.actual, r.noAsignable.mas, 0, r.noAsignable.actual + r.noAsignable.mas],
+                ['Total', r.actual, r.crecimiento, r.movTerritorial, r.simulado],
+              ], { escenario, ...p })} />
+            </div>
+            <div className="envoltura-tabla"><table className="tabla compacta">
+              <thead><tr><th>Localidad</th><th className="num">Hoy</th><th className="num">Proyectado</th></tr></thead>
+              <tbody>
+                {r.porLocalidad.map((l) => <tr key={l.id}><td>{l.nombre}</td><td className="num">{formatoNumero(l.actual)}</td><td className="num">{formatoNumero(l.simulado)}</td></tr>)}
+                <tr><td>Sin localidad<small>sin lugar de votación + esfuerzo de líderes</small></td><td className="num">{formatoNumero(r.noAsignable.actual)}</td><td className="num">{formatoNumero(r.noAsignable.actual + r.noAsignable.mas)}</td></tr>
+                <tr style={{ fontWeight: 700 }}><td>Total</td><td className="num">{formatoNumero(r.actual)}</td><td className="num">{formatoNumero(r.simulado)}</td></tr>
+              </tbody>
+            </table></div>
           </div>
-          <div className="envoltura-tabla"><table className="tabla compacta">
-            <thead><tr><th>Localidad</th><th className="num">Actual</th><th className="num">Proyectado</th><th className="num">+</th></tr></thead>
-            <tbody>
-              {r.porLocalidad.map((l) => <tr key={l.id}><td>{l.nombre}</td><td className="num">{formatoNumero(l.actual)}</td><td className="num">{formatoNumero(l.simulado)}</td><td className="num">+{formatoNumero(l.simulado - l.actual)}</td></tr>)}
-              <tr><td>Sin localidad <small>sin lugar de votación + movilización de líderes</small></td><td className="num">{formatoNumero(r.noAsignable.actual)}</td><td className="num">{formatoNumero(r.noAsignable.actual + r.noAsignable.mas)}</td><td className="num">+{formatoNumero(r.noAsignable.mas)}</td></tr>
-              <tr style={{ fontWeight: 700 }}><td>Total</td><td className="num">{formatoNumero(r.actual)}</td><td className="num">{formatoNumero(r.simulado)}</td><td className="num">+{formatoNumero(r.simulado - r.actual)}</td></tr>
-            </tbody>
-          </table></div>
-        </div>
-        <div className="tarjeta">
-          <div className="encabezado"><h2 style={{ margin: 0 }}>Por líder</h2>
-            <BotonExportar onClick={() => exportar('simulacion', 'Simulacion_lideres', [
-              ['Líder', 'Actual', 'Crecimiento', 'Movilización', 'Proyectado', 'Meta'], ...r.porLider.map((l) => [l.nombre, l.actual, l.crec, l.mov, l.simulado, l.meta]),
-              ['Movilización territorial (no se asigna a un líder)', 0, 0, r.movTerritorial, r.movTerritorial, ''],
-              ['Total', r.actual, r.crecimiento, r.movLideres + r.movTerritorial, r.simulado, r.meta],
-            ], { escenario, ...p })} />
+          <div>
+            <div className="encabezado"><h3 style={{ margin: 0 }}>Por líder</h3>
+              <BotonExportar onClick={() => exportar('simulacion', 'Simulacion_lideres', [
+                ['Líder', 'Actual', 'Gente nueva', 'Esfuerzo extra', 'Proyectado', 'Meta'], ...r.porLider.map((l) => [l.nombre, l.actual, l.crec, l.mov, l.simulado, l.meta]),
+                ['Trabajo de calle (no se asigna a un líder)', 0, 0, r.movTerritorial, r.movTerritorial, ''],
+                ['Total', r.actual, r.crecimiento, r.movLideres + r.movTerritorial, r.simulado, r.meta],
+              ], { escenario, ...p })} />
+            </div>
+            <div className="envoltura-tabla"><table className="tabla compacta">
+              <thead><tr><th>Líder</th><th className="num">Hoy</th><th className="num">Proyectado</th><th className="num">Meta</th></tr></thead>
+              <tbody>
+                {r.porLider.map((l) => <tr key={l.id}><td>{l.nombre}</td><td className="num">{formatoNumero(l.actual)}</td><td className="num">{formatoNumero(l.simulado)}</td><td className="num">{l.meta ? formatoNumero(l.meta) : '—'}</td></tr>)}
+                <tr><td>Trabajo de calle<small>no se asigna a un líder</small></td><td className="num">0</td><td className="num">{formatoNumero(r.movTerritorial)}</td><td className="num">—</td></tr>
+                <tr style={{ fontWeight: 700 }}><td>Total</td><td className="num">{formatoNumero(r.actual)}</td><td className="num">{formatoNumero(r.simulado)}</td><td className="num">{r.meta ? formatoNumero(r.meta) : '—'}</td></tr>
+              </tbody>
+            </table></div>
           </div>
-          <div className="envoltura-tabla"><table className="tabla compacta">
-            <thead><tr><th>Líder</th><th className="num">Actual</th><th className="num">Proyectado</th><th className="num">Meta</th></tr></thead>
-            <tbody>
-              {r.porLider.map((l) => <tr key={l.id}><td>{l.nombre}</td><td className="num">{formatoNumero(l.actual)}</td><td className="num">{formatoNumero(l.simulado)}</td><td className="num">{l.meta ? `${formatoNumero(l.meta)} (${pct(l.simulado, l.meta)}%)` : '—'}</td></tr>)}
-              <tr><td>Movilización territorial <small>no se asigna a un líder</small></td><td className="num">0</td><td className="num">{formatoNumero(r.movTerritorial)}</td><td className="num">—</td></tr>
-              <tr style={{ fontWeight: 700 }}><td>Total</td><td className="num">{formatoNumero(r.actual)}</td><td className="num">{formatoNumero(r.simulado)}</td><td className="num">{r.meta ? formatoNumero(r.meta) : '—'}</td></tr>
-            </tbody>
-          </table></div>
         </div>
-      </div>
-      <p className="ayuda" style={{ marginTop: '1rem' }}>La simulación es una proyección con los supuestos de arriba, no un pronóstico. Las dos tablas suman exactamente el mismo total.</p>
+      </details>
+      <p className="ayuda" style={{ marginTop: '1rem' }}>Es una proyección con los supuestos de arriba, no un pronóstico.</p>
     </>
   );
 }

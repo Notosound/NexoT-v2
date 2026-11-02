@@ -77,3 +77,19 @@ test('opciones y auditoría', async () => {
   assert.deepEqual([a.accion, a.registro_id, a.usuario_id], ['VER_COMO', lider1, admin]);
   await assert.rejects(base.como(lider1, `select registrar_ver_como('x')`), /Sin acceso/);
 });
+
+test('como la ficha de un líder sin usuario: ve solo lo suyo y solo lectura', async () => {
+  const [{ id: sinUsuario }] = await base.sistema(`insert into lideres(organizacion_id, nombre, meta_votos) values ($1,'Sin usuario',10) returning id`, [org]);
+  await base.sistema(`insert into personas(organizacion_id, lider_id, cedula, nombres, sexo, edad_declarada, edad_declarada_en) values ($1,$2,'7100001','X','otro',30,current_date)`, [org, sinUsuario]);
+  const obj = `lider:${sinUsuario}`;
+  const r = await ver(admin, obj, `select (select count(*)::int from personas) n, (select count(*)::int from lideres) l,
+    (select count(*)::int from v_avance_lideres) a, (select count(*)::int from v_calidad_lideres) c, app.rol_actual() rol`);
+  assert.deepEqual([r[0].n, r[0].l, r[0].a, r[0].c, r[0].rol], [1, 1, 1, 1, 'lider']);
+  await assert.rejects(ver(admin, obj, 'select 1', 'POST'), /solo lectura/);
+  await assert.rejects(ver(admin, `lider:${crypto.randomUUID()}`, 'select 1'), /no es de tu organización/);
+  await assert.rejects(ver(lider1, obj, 'select 1'), /Solo un administrador/);
+  // Sin encabezado, el admin sigue viendo todo y el líder con usuario solo lo suyo
+  assert.equal((await base.como(admin, 'select count(*)::int n from lideres'))[0].n, 3);
+  assert.equal((await base.como(lider1, 'select count(*)::int n from v_avance_lideres'))[0].n, 1);
+  assert.equal((await base.como(cand, 'select count(*)::int n from v_avance_lideres'))[0].n, 3);
+});

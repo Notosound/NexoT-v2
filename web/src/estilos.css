@@ -416,11 +416,29 @@ a.cifra-tarjeta:hover { box-shadow: var(--sombra-alta); }
 .que-es { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; border: 1px solid var(--borde-fuerte);
   background: var(--superficie); color: var(--texto-3); font-size: 0.75rem; font-weight: 700; cursor: help; vertical-align: middle; margin-left: 0.3rem; padding: 0; }
 .explicacion { font-size: 0.88rem; color: var(--texto-2); background: var(--superficie-2); border-left: 3px solid var(--marca); border-radius: 0 8px 8px 0; padding: 0.55rem 0.8rem; margin: 0.5rem 0 0.75rem; }
-.hallazgos { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.6rem; }
-.hallazgos li { display: flex; gap: 0.7rem; align-items: flex-start; padding: 0.75rem 0.9rem; border-radius: 12px; background: var(--superficie-2); border: 1px solid var(--borde); }
-.hallazgos li svg { color: var(--marca); margin-top: 2px; }
+.hallazgos { list-style: none; padding: 0; margin: 0; }
+.hallazgos li { display: grid; grid-template-columns: 22px 1fr auto; gap: 0.75rem; align-items: start; padding: 0.8rem 0; border-top: 1px solid var(--borde); line-height: 1.5; }
+.hallazgos li:first-child { border-top: 0; padding-top: 0.2rem; }
+.hallazgos li svg { color: var(--texto-3); width: 18px; height: 18px; margin-top: 3px; }
 .hallazgos li.atencion svg { color: var(--aviso); }
 .hallazgos li.bien svg { color: var(--ok); }
+.hallazgos .ir { font-size: 0.85rem; color: var(--marca-fuerte); text-decoration: none; white-space: nowrap; background: none; border: 0; padding: 0; cursor: pointer; font-weight: 600; }
+.hallazgos .ir:hover { text-decoration: underline; }
+@media (max-width: 599px) { .hallazgos li { grid-template-columns: 22px 1fr; } .hallazgos .ir { grid-column: 2; } }
+
+/* Simulación */
+.sim-resultado { display: flex; flex-wrap: wrap; gap: 1.5rem 2.5rem; margin: 1.25rem 0 1rem; }
+.sim-numero span { display: block; font-size: 2.6rem; font-weight: 800; line-height: 1; background: var(--degradado); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.sim-numero.suave span { font-size: 1.7rem; background: none; color: var(--texto); }
+.sim-numero small { color: var(--texto-2); font-size: 0.9rem; }
+.sim-barras { display: grid; gap: 0.5rem; max-width: 640px; }
+.sim-barra { display: grid; grid-template-columns: 90px 1fr 90px; gap: 0.75rem; align-items: center; font-size: 0.92rem; }
+.sim-barra .pista { background: var(--pista); border-radius: 6px; height: 18px; overflow: hidden; display: block; }
+.sim-barra .pista > span { display: block; height: 100%; border-radius: 6px; }
+.sim-valor { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.sim-explicacion { color: var(--texto-2); margin: 1rem 0 0; max-width: 70ch; }
+.sim-ajustes { margin-top: 1rem; border-top: 1px solid var(--borde); padding-top: 0.75rem; }
+.sim-ajustes > summary, details.tarjeta > summary { cursor: pointer; color: var(--marca-fuerte); font-weight: 600; }
 
 /* Ventana (diálogo) */
 .velo { position: fixed; inset: 0; background: rgb(10 12 30 / 0.55); display: grid; place-items: center; z-index: 50; padding: 1rem; }

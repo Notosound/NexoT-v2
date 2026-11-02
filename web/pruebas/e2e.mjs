@@ -380,26 +380,33 @@ console.log('E14: digitador (móvil)');
     const menu = await page.getByRole('navigation', { name: 'Secciones' }).innerText();
     assert.doesNotMatch(menu, /Personas|Registrar|Tablero/);
   });
-  await paso('digita una mesa con el teclado y pasa a la siguiente', async () => {
-    // Abre el primer puesto que tenga al menos dos mesas
-    const bloque = page.locator('.puesto-e14').filter({ has: page.locator('.insignia', { hasText: /^[2-9]\d* mesas$/ }) }).first();
-    await bloque.locator('.cabecera-puesto').click();
-    const primera = bloque.locator('input').first();
-    await primera.waitFor();
-    const id = await primera.getAttribute('id');
-    await primera.fill('7');
-    await primera.press('Enter');
-    await page.locator('.fila-e14.hecha', { hasText: '✓ 7 votos' }).first().waitFor();
-    const enfocado = await page.evaluate(() => document.activeElement?.id);
-    assert.ok(enfocado && enfocado !== id && enfocado.startsWith('m-'), 'el foco pasó a la siguiente mesa del puesto');
+  await paso('digita como un formulario: localidad, puesto, mesa y votos', async () => {
+    // Busca un puesto con al menos dos mesas pendientes para ver que pasa a la siguiente
+    const opciones = (await page.getByLabel('1. Localidad').locator('option').allInnerTexts()).filter((o) => /\(\d+ mesas?\)/.test(o))
+      .sort((a, b) => Number(b.match(/\((\d+)/)[1]) - Number(a.match(/\((\d+)/)[1]));
+    let puesto = null;
+    for (const o of opciones) {
+      await page.getByLabel('1. Localidad').selectOption({ label: o });
+      const candidato = page.locator('.buscador-lista li button').filter({ hasText: /([2-9]|\d{2,}) mesas pendientes/ });
+      if (await candidato.count()) { puesto = candidato.first(); break; }
+    }
+    assert.ok(puesto, 'hay un puesto con varias mesas pendientes');
+    await puesto.click();
+    const elegida = (await page.locator('.opcion[aria-pressed=true]').innerText()).trim();
+    await page.getByLabel(/^4\. Votos/).fill('7');
+    await page.getByLabel(/^4\. Votos/).press('Enter');
+    await page.getByText(`${elegida} de`).first().waitFor();
+    await page.getByText('7 votos guardados').waitFor();
+    const siguiente = (await page.locator('.opcion[aria-pressed=true]').innerText()).trim();
+    assert.notEqual(siguiente, elegida, 'pasó a la siguiente mesa del puesto');
+    assert.equal(await page.evaluate(() => document.activeElement?.type), 'number');
     await page.screenshot({ path: join(capturas, '30-e14-digitar.png'), fullPage: true });
   });
   await paso('no acepta valores inválidos', async () => {
-    const input = page.locator('.puesto-e14 input:not([disabled])').first();
-    await input.fill('5000');
-    await input.press('Enter');
-    await page.getByText('Escribe un número de 0 a 1000.').first().waitFor();
-    await input.fill('');
+    await page.getByLabel(/^4\. Votos/).fill('5000');
+    await page.getByRole('button', { name: 'Guardar y seguir' }).click();
+    await page.getByText(/Escribe los votos: un número de 0 a 1000/).waitFor();
+    await page.getByLabel(/^4\. Votos/).fill('');
   });
   await paso('corrige lo que digitó', async () => {
     await page.getByRole('button', { name: 'Ver y corregir' }).click();
@@ -528,15 +535,21 @@ console.log('Análisis y exportes (administrador)');
   });
   await paso('simulación: el escenario cambia la proyección', async () => {
     await page.getByRole('tab', { name: 'Simulación' }).click();
-    const proyectado = async () => Number((await page.locator('.cifra-tarjeta', { hasText: 'proyectados' }).locator('.valor').innerText()).replace(/\D/g, ''));
+    const proyectado = async () => Number((await page.locator('.sim-numero', { hasText: 'proyectados' }).locator('span').first().innerText()).replace(/\D/g, ''));
     const moderado = await proyectado();
     await page.getByRole('button', { name: 'Optimista' }).click();
     assert.ok(await proyectado() > moderado);
-    await page.getByLabel('Crecimiento de la base (%)').fill('0');
+    await page.getByText('Ajustar los supuestos').click();
+    await page.getByLabel('Gente nueva por su cuenta (%)').fill('0');
     assert.equal(await page.getByRole('button', { name: 'Personalizado' }).getAttribute('aria-pressed'), 'true');
+    // Las tablas de detalle suman exactamente el total proyectado
+    await page.getByText('Ver el detalle por localidad y por líder').click();
+    const totales = await page.locator('tr', { hasText: /^Total/ }).allInnerTexts();
+    const proyectadoAhora = await proyectado();
+    for (const t of totales) assert.equal(Number(t.split('\t')[2].replace(/\D/g, '')), proyectadoAhora);
     const futuro = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
-    await page.getByLabel(/Fecha objetivo/).fill(futuro);
-    await page.getByText(/al ritmo actual/).waitFor();
+    await page.getByLabel('Fecha límite').fill(futuro);
+    await page.getByText(/A ese ritmo, en \d+ días/).waitFor();
     await page.screenshot({ path: join(capturas, '42-simulacion.png'), fullPage: true });
   });
   await paso('plantilla de registros con instrucciones y puestos oficiales', async () => {

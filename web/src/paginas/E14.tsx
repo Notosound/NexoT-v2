@@ -2,7 +2,7 @@
 // cumplimiento. Regla: todo se calcula por mesa y se suma hacia arriba.
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CheckCircle2, Target, UserPlus, UserX } from 'lucide-react';
+import { CheckCircle2, Target, UserPlus, UserX, Vote } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
 import { BarrasH, Segmentos, SERIES } from '../componentes/Graficos';
 import { Cifra } from '../componentes/Piezas';
@@ -117,86 +117,133 @@ function Avance({ avance, modo }: { avance: AvanceE14; modo: ModoDigitacion }) {
   );
 }
 
-// ── Digitar ───────────────────────────────────────────────────────────
+// ── Digitar: como un formulario de registro, mesa por mesa ────────────
 function Digitar({ eleccion, onCambio }: { eleccion: Eleccion; onCambio: () => void }) {
   const { api } = useSesion();
   const [pendientes, setPendientes] = useState<MesaPendiente[] | null>(null);
-  const [hechas, setHechas] = useState<Map<number, number>>(new Map());
   const [mias, setMias] = useState<MiDigitacion[]>([]);
   const [localidad, setLocalidad] = useState('');
-  const [texto, setTexto] = useState('');
+  const [puesto, setPuesto] = useState('');
+  const [buscar, setBuscar] = useState('');
+  const [mesaId, setMesaId] = useState<number | null>(null);
+  const [votos, setVotos] = useState('');
   const [error, setError] = useState('');
+  const [hecho, setHecho] = useState('');
+  const [enviando, setEnviando] = useState(false);
   const [verMias, setVerMias] = useState(false);
+  const refVotos = useRef<HTMLInputElement>(null);
 
   const cargar = useCallback(() => {
-    api.pendientesE14(eleccion.id).then((p) => { setPendientes(p); setHechas(new Map()); }).catch((e) => setError(mensajeError(e)));
+    api.pendientesE14(eleccion.id).then(setPendientes).catch((e) => setError(mensajeError(e)));
     api.misDigitaciones(eleccion.id).then(setMias).catch(() => {});
   }, [api, eleccion.id]);
   useEffect(cargar, [cargar]);
 
-  const localidades = useMemo(() => [...new Set((pendientes ?? []).map((p) => p.localidad))].sort(), [pendientes]);
-  const visibles = useMemo(() => {
-    const t = normalizar(texto);
-    return (pendientes ?? []).filter((p) => (!localidad || p.localidad === localidad) && (!t || normalizar(p.puesto).includes(t)));
-  }, [pendientes, localidad, texto]);
-  const grupos = useMemo(() => {
-    const g = new Map<string, MesaPendiente[]>();
-    for (const p of visibles) {
-      const k = `${p.localidad}|${p.puesto}`;
-      g.set(k, [...(g.get(k) ?? []), p]);
-    }
-    return [...g.entries()].map(([k, mesas]) => ({ k, localidad: mesas[0].localidad, puesto: mesas[0].puesto, mesas }));
-  }, [visibles]);
-  const [abierto, setAbierto] = useState<string | null>(null);
-  const LIMITE_PUESTOS = 60;
+  const localidades = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of pendientes ?? []) m.set(p.localidad, (m.get(p.localidad) ?? 0) + 1);
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [pendientes]);
+  const puestos = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const p of pendientes ?? []) if (p.localidad === localidad) m.set(p.puesto, (m.get(p.puesto) ?? 0) + 1);
+    const t = normalizar(buscar);
+    return [...m.entries()].filter(([n]) => !t || normalizar(n).includes(t)).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [pendientes, localidad, buscar]);
+  const mesas = useMemo(() => (pendientes ?? []).filter((p) => p.localidad === localidad && p.puesto === puesto).sort((a, b) => a.mesa - b.mesa),
+    [pendientes, localidad, puesto]);
+  const mesa = mesas.find((m) => m.mesa_id === mesaId) ?? null;
 
-  async function guardar(m: MesaPendiente, votos: number) {
-    setError('');
-    await api.digitarE14(eleccion.id, m.mesa_id, votos);
-    setHechas((h) => new Map(h).set(m.mesa_id, votos));
-    onCambio();
-    api.misDigitaciones(eleccion.id).then(setMias).catch(() => {});
+  const elegirPuesto = (nombre: string) => {
+    setPuesto(nombre); setBuscar(''); setError('');
+    const primera = (pendientes ?? []).filter((p) => p.localidad === localidad && p.puesto === nombre).sort((a, b) => a.mesa - b.mesa)[0];
+    setMesaId(primera?.mesa_id ?? null);
+    setTimeout(() => refVotos.current?.focus(), 50);
+  };
+
+  async function guardar(e: FormEvent) {
+    e.preventDefault();
+    setError(''); setHecho('');
+    if (!mesa) { setError('Elige la mesa.'); return; }
+    if (!/^\d{1,4}$/.test(votos) || Number(votos) > 1000) { setError('Escribe los votos: un número de 0 a 1000. Si la mesa no tiene votos, escribe 0.'); return; }
+    setEnviando(true);
+    try {
+      await api.digitarE14(eleccion.id, mesa.mesa_id, Number(votos));
+      setHecho(`Mesa ${mesa.mesa} de ${mesa.puesto}: ${nVotos(Number(votos))} guardados.`);
+      const resto = mesas.filter((m) => m.mesa_id !== mesa.mesa_id);
+      setPendientes((ps) => (ps ?? []).filter((p) => p.mesa_id !== mesa.mesa_id));
+      const siguiente = resto.find((m) => m.mesa > mesa.mesa) ?? resto[0];
+      setVotos('');
+      if (siguiente) { setMesaId(siguiente.mesa_id); setTimeout(() => refVotos.current?.focus(), 30); }
+      else { setMesaId(null); setPuesto(''); setHecho((h) => `${h} Terminaste este puesto ✓`); }
+      onCambio();
+      api.misDigitaciones(eleccion.id).then(setMias).catch(() => {});
+    } catch (err) { setError(mensajeError(err)); } finally { setEnviando(false); }
   }
 
+  const total = pendientes?.length ?? 0;
   return (
     <>
-      <div className="aviso info" style={{ marginBottom: '1rem' }}>
-        <p>Abre la foto del E14 de cada mesa en la página de la Registraduría y escribe <strong>los votos del candidato</strong> en esa mesa. Si no tiene votos, escribe <strong>0</strong>.
-          {eleccion.modo_digitacion === 'doble' && ' Otra persona digitará la misma mesa sin ver tu número: si no coinciden, el administrador la revisa.'}</p>
+      <div className="cifras" style={{ marginBottom: '1rem' }}>
+        <Cifra icono={Vote} valor={pendientes ? total : null} etiqueta="mesas te faltan" tono={total ? 'info' : 'ok'} />
+        <Cifra icono={CheckCircle2} valor={mias.length} etiqueta="mesas que has digitado" tono="ok" />
       </div>
-      {error && <div className="aviso error" role="alert" style={{ marginBottom: '1rem' }}>{error}</div>}
-
-      <div className="filtros">
-        <select value={localidad} onChange={(e) => setLocalidad(e.target.value)} aria-label="Localidad">
-          <option value="">Todas las localidades</option>
-          {localidades.map((l) => <option key={l} value={l}>{l}</option>)}
-        </select>
-        <input type="search" placeholder="Buscar puesto" value={texto} onChange={(e) => setTexto(e.target.value)} aria-label="Buscar puesto" />
-        <button className="boton" onClick={cargar}>Actualizar lista</button>
-      </div>
-
-      {pendientes === null ? <div className="tarjeta vacio">Cargando…</div>
-        : pendientes.length === 0 ? <div className="tarjeta vacio">No te quedan mesas por digitar. ¡Bien hecho!</div>
-        : (
-          <>
-            <p className="ayuda">{formatoNumero(visibles.length - [...hechas.keys()].filter((k) => visibles.some((v) => v.mesa_id === k)).length)} mesas por digitar en {formatoNumero(grupos.length)} puestos{grupos.length > LIMITE_PUESTOS && ` · se muestran ${LIMITE_PUESTOS}: filtra por localidad o busca el puesto`}</p>
-            <div className="lista-puestos">
-              {grupos.slice(0, LIMITE_PUESTOS).map((g) => {
-                const faltan = g.mesas.filter((m) => !hechas.has(m.mesa_id)).length;
-                const abiertoEste = abierto === g.k || grupos.length === 1;
-                return (
-                  <div key={g.k} className="tarjeta puesto-e14">
-                    <button type="button" className="cabecera-puesto" aria-expanded={abiertoEste} onClick={() => setAbierto(abiertoEste ? null : g.k)}>
-                      <span><strong>{g.puesto}</strong><small>{g.localidad}</small></span>
-                      <span className={`insignia ${faltan ? 'sin_mesa' : 'completa'}`}>{faltan ? `${faltan} ${faltan === 1 ? 'mesa' : 'mesas'}` : '✓ listo'}</span>
-                    </button>
-                    {abiertoEste && g.mesas.map((m) => <FilaDigitar key={m.mesa_id} mesa={m} hecha={hechas.get(m.mesa_id)} onGuardar={(v) => guardar(m, v)} />)}
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
+      {pendientes && total === 0 ? <div className="tarjeta vacio">No te quedan mesas por digitar. ¡Bien hecho!</div> : (
+        <form className="tarjeta formulario" onSubmit={guardar} noValidate style={{ maxWidth: 720 }}>
+          <h2>Digitar una mesa</h2>
+          <p className="ayuda" style={{ margin: 0 }}>
+            Abre la foto del E14 y escribe <strong>los votos del candidato</strong> en esa mesa.
+            {eleccion.modo_digitacion === 'doble' && ' Otra persona digita la misma mesa sin ver tu número; si no coinciden, el administrador la revisa.'}
+          </p>
+          <label className="campo"><span>1. Localidad</span>
+            <select value={localidad} onChange={(e) => { setLocalidad(e.target.value); setPuesto(''); setMesaId(null); setBuscar(''); }}>
+              <option value="">Elige…</option>
+              {localidades.map(([n, c]) => <option key={n} value={n}>{n} ({c} {c === 1 ? 'mesa' : 'mesas'})</option>)}
+            </select>
+          </label>
+          {localidad && (
+            puesto ? (
+              <div className="campo"><span>2. Puesto</span>
+                <div className="elegido"><div><strong>{puesto}</strong><small>{mesas.length} {mesas.length === 1 ? 'mesa pendiente' : 'mesas pendientes'}</small></div>
+                  <button type="button" className="boton chico" onClick={() => { setPuesto(''); setMesaId(null); }}>Cambiar</button></div>
+              </div>
+            ) : (
+              <div className="campo"><span>2. Puesto</span>
+                <div className="buscador-lista">
+                  <input type="search" placeholder="Busca el puesto…" value={buscar} onChange={(e) => setBuscar(e.target.value)} aria-label="Buscar puesto" />
+                  <ul>
+                    {puestos.slice(0, 60).map(([n, c]) => (
+                      <li key={n}><button type="button" onClick={() => elegirPuesto(n)}>{n}<small>{c} {c === 1 ? 'mesa pendiente' : 'mesas pendientes'}</small></button></li>
+                    ))}
+                    {puestos.length === 0 && <li className="vacio">Ningún puesto coincide.</li>}
+                  </ul>
+                </div>
+              </div>
+            )
+          )}
+          {puesto && (
+            <fieldset>
+              <legend>3. Mesa</legend>
+              <div className="segmentos">
+                {mesas.map((m) => (
+                  <button type="button" key={m.mesa_id} className="opcion" aria-pressed={m.mesa_id === mesaId}
+                    onClick={() => { setMesaId(m.mesa_id); refVotos.current?.focus(); }}>Mesa {m.mesa}</button>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          {puesto && (
+            <label className="campo"><span>4. Votos del candidato{mesa ? ` en la mesa ${mesa.mesa}` : ''}</span>
+              <input ref={refVotos} type="number" inputMode="numeric" min={0} max={1000} value={votos} onChange={(e) => setVotos(e.target.value)}
+                placeholder="0" style={{ fontSize: '1.6rem', fontWeight: 700, maxWidth: 220 }} aria-invalid={!!error} />
+              <small>Si en la foto no hay votos para el candidato, escribe 0.</small>
+            </label>
+          )}
+          {error && <div className="aviso error" role="alert">{error}</div>}
+          {hecho && <div className="aviso ok" role="status">{hecho}</div>}
+          {puesto && <button className="boton primario" disabled={enviando || !mesa}>{enviando ? 'Guardando…' : 'Guardar y seguir'}</button>}
+        </form>
+      )}
 
       <div className="tarjeta" style={{ marginTop: '1rem' }}>
         <div className="encabezado" style={{ marginBottom: verMias ? '0.75rem' : 0 }}>
@@ -206,38 +253,6 @@ function Digitar({ eleccion, onCambio }: { eleccion: Eleccion; onCambio: () => v
         {verMias && <MisDigitaciones mias={mias} onCorregida={() => { cargar(); onCambio(); }} />}
       </div>
     </>
-  );
-}
-
-function FilaDigitar({ mesa, hecha, onGuardar }: { mesa: MesaPendiente; hecha?: number; onGuardar: (v: number) => Promise<void> }) {
-  const [valor, setValor] = useState('');
-  const [error, setError] = useState('');
-  const [enviando, setEnviando] = useState(false);
-  const ref = useRef<HTMLInputElement>(null);
-
-  async function enviar(e: FormEvent) {
-    e.preventDefault();
-    if (!/^\d{1,4}$/.test(valor) || Number(valor) > 1000) { setError('Escribe un número de 0 a 1000.'); return; }
-    setEnviando(true); setError('');
-    try {
-      await onGuardar(Number(valor));
-      // Pasa a la siguiente casilla, para digitar seguido con el teclado
-      const bloque = ref.current?.closest('.puesto-e14');
-      const todas = [...(bloque?.querySelectorAll<HTMLInputElement>('input:not([disabled])') ?? [])];
-      const i = todas.indexOf(ref.current!);
-      (todas[i + 1] ?? todas.find((x) => x !== ref.current))?.focus();
-    } catch (err) { setError(mensajeError(err)); } finally { setEnviando(false); }
-  }
-
-  if (hecha != null) return <div className="fila-e14 hecha"><span>Mesa {mesa.mesa}</span><span className="insignia completa">✓ {nVotos(hecha)}</span></div>;
-  return (
-    <form className="fila-e14" onSubmit={enviar} noValidate>
-      <label htmlFor={`m-${mesa.mesa_id}`}>Mesa {mesa.mesa}</label>
-      <input id={`m-${mesa.mesa_id}`} ref={ref} type="number" inputMode="numeric" min={0} max={1000} value={valor}
-        onChange={(e) => setValor(e.target.value)} aria-invalid={!!error} disabled={enviando} placeholder="Votos" />
-      <button className="boton chico primario" disabled={enviando || valor === ''}>Guardar</button>
-      {error && <span className="error-campo">{error}</span>}
-    </form>
   );
 }
 
