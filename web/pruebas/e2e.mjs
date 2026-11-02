@@ -451,7 +451,7 @@ console.log('Análisis y exportes (administrador)');
     await page.locator('tbody .enlace').first().click();
     await page.getByText(/puestos con simpatizantes$/).waitFor();
     await page.locator('tbody .enlace').first().click();
-    await page.getByRole('columnheader', { name: 'Votos E14' }).waitFor();
+    await page.locator('th', { hasText: 'Votos E14' }).first().waitFor();
     await page.screenshot({ path: join(capturas, '40-analisis-mesas.png'), fullPage: true });
     const { libro } = await leerDescarga(page, () => page.getByRole('button', { name: 'Exportar a Excel' }).click());
     assert.equal(libro.worksheets[0].getRow(1).getCell(1).value, 'Mesa');

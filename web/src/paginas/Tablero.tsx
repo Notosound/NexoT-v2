@@ -297,7 +297,7 @@ function Mapa({ filas, localidadId, puestos }: { filas: FilaPuesto[]; localidadI
 
   useEffect(() => {
     if (!contenedor.current || mapa.current) return;
-    const m = L.map(contenedor.current, { zoomControl: true, scrollWheelZoom: false, attributionControl: true })
+    const m = L.map(contenedor.current, { zoomControl: true, scrollWheelZoom: false, attributionControl: true, fadeAnimation: false, zoomAnimation: false, markerZoomAnimation: false })
       .setView([4.64, -74.1], 11);
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 18,
@@ -305,7 +305,7 @@ function Mapa({ filas, localidadId, puestos }: { filas: FilaPuesto[]; localidadI
     }).addTo(m);
     capa.current = L.layerGroup().addTo(m);
     mapa.current = m;
-    return () => { m.remove(); mapa.current = null; };
+    return () => { m.stop(); m.off(); m.remove(); mapa.current = null; capa.current = null; };
   }, []);
 
   useEffect(() => {
@@ -336,7 +336,7 @@ function Mapa({ filas, localidadId, puestos }: { filas: FilaPuesto[]; localidadI
     const base = localidadId != null
       ? puestos.filter((p) => p.localidad_id === localidadId && p.latitud != null && p.longitud != null)
       : conCoord.map((f) => f.puesto);
-    if (base.length) m.fitBounds(L.latLngBounds(base.map((p) => [p.latitud!, p.longitud!] as [number, number])), { padding: [24, 24], maxZoom: 15 });
+    if (base.length) m.fitBounds(L.latLngBounds(base.map((p) => [p.latitud!, p.longitud!] as [number, number])), { padding: [24, 24], maxZoom: 15, animate: false });
   }, [filas, localidadId, puestos]);
 
   return <div ref={contenedor} className="mapa" role="img" aria-label="Mapa de puestos de votación con simpatizantes" />;
