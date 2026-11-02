@@ -2,7 +2,7 @@
 // catálogo de puestos, que es el oficial y público). Sirve para ver y probar
 // el panel sin Supabase. Nunca se incluye en el build normal.
 import type {
-  Api, Demografia, FilaImportacion, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
+  Api, Demografia, FilaImportacion, PuestoCenso, Tendencia, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
   PersonaFila, Puesto, Rol, Sesion, Sexo, Sugerencia,
 } from './tipos';
 import { edadDesde, hoyISO, normalizar } from './utilidades';
@@ -16,8 +16,12 @@ const LOCALIDADES: Localidad[] = [
   'Rafael Uribe Uribe', 'Ciudad Bolívar', 'Sumapaz',
 ].map((nombre, i) => ({ id: i + 1, codigo: String(i + 1).padStart(2, '0'), nombre }));
 
-const PUESTOS: Puesto[] = (crudo as [number, number, string, string, number][])
+type Crudo = [number, number, string, string, number, number | null, number | null, number, number];
+const PUESTOS: Puesto[] = (crudo as Crudo[])
   .map(([id, loc, nombre, direccion, mesas]) => ({ id, localidad_id: loc, nombre, direccion, mesas_total: mesas }));
+const CENSO: PuestoCenso[] = (crudo as Crudo[]).map(([id, loc, nombre, , , lat, lon, m, h]) => ({
+  id, localidad_id: loc, nombre, latitud: lat, longitud: lon, censo_mujeres: m, censo_hombres: h, censo_total: m + h,
+}));
 
 interface PersonaDemo {
   id: string; liderId: string; cedula: string; nombres: string; apellidos: string; sexo: Sexo | null;
@@ -52,9 +56,9 @@ const alias = new Map<string, number>();
 const personas: PersonaDemo[] = [];
 
 const NOMBRES_ALTERNOS = ['Colegio de la 116', 'IED Sede B', 'Salón comunal', 'Coliseo del barrio'];
-for (let i = 0; i < 140; i++) {
+for (let i = 0; i < 600; i++) {
   const f = azar() < 0.55;
-  const loc = uno([1, 8, 8, 10, 11, 11, 18, 18, 18, 7, 9, 19]);
+  const loc = uno([1, 1, 2, 4, 5, 7, 8, 8, 8, 9, 10, 10, 11, 11, 11, 12, 13, 16, 18, 18, 18, 18, 19, 19, 6, 3, 15, 14]);
   const puestosLoc = PUESTOS.filter((p) => p.localidad_id === loc);
   const puesto = uno(puestosLoc);
   const caso = azar();
@@ -67,7 +71,7 @@ for (let i = 0; i < 140; i++) {
     localidadId: caso < 0.95 ? loc : null, puestoId: reportado || caso >= 0.95 ? null : puesto.id,
     puestoReportado: reportado, direccionReportada: null,
     mesa: reportado || caso >= 0.95 ? null : 1 + Math.floor(azar() * (puesto.mesas_total ?? 1)),
-    creadoEn: new Date(Date.now() - i * 3600_000 * 5).toISOString(), eliminada: false,
+    creadoEn: new Date(Date.now() - i * 3600_000 * 1.2).toISOString(), eliminada: false,
   });
 }
 
@@ -214,13 +218,29 @@ export const api: Api = {
     for (const p of personas.filter((x) => !x.eliminada)) {
       const e = edadDesde(p.fechaNacimiento, p.edad, p.edadEn);
       const rango = e == null ? 'sin dato' : e < 25 ? '18-24' : e < 35 ? '25-34' : e < 45 ? '35-44' : e < 55 ? '45-54' : e < 65 ? '55-64' : '65+';
-      const localidad = LOCALIDADES.find((l) => l.id === p.localidadId)?.nombre ?? 'Sin lugar de votación';
-      const k = `${localidad}|${rango}|${p.sexo}`;
-      const fila = m.get(k) ?? { localidad, rango_edad: rango, sexo: p.sexo ?? 'sin dato', personas: 0 };
+      const puesto = PUESTOS.find((x) => x.id === p.puestoId);
+      const loc = LOCALIDADES.find((l) => l.id === (puesto?.localidad_id ?? null));
+      const k = `${puesto?.id}|${rango}|${p.sexo}`;
+      const fila = m.get(k) ?? {
+        localidad_id: loc?.id ?? null, localidad: loc?.nombre ?? 'Sin lugar de votación',
+        puesto_id: puesto?.id ?? null, puesto: puesto?.nombre ?? null,
+        rango_edad: rango, sexo: p.sexo ?? 'sin dato', personas: 0,
+      };
       fila.personas++;
       m.set(k, fila);
     }
     return [...m.values()];
+  },
+  async censoPuestos() { await espera(80); return CENSO; },
+  async tendencia(): Promise<Tendencia[]> {
+    await espera(60);
+    const m = new Map<string, number>();
+    for (const p of personas.filter((x) => !x.eliminada)) {
+      const d = new Date(p.creadoEn);
+      const dia = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      m.set(dia, (m.get(dia) ?? 0) + 1);
+    }
+    return [...m.entries()].sort().map(([dia, nuevos]) => ({ dia, nuevos }));
   },
 
   async porRevisar(): Promise<GrupoRevision[]> {

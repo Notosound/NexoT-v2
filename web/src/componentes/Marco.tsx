@@ -5,6 +5,7 @@ import { ROLES, type Rol } from '../lib/tipos';
 
 const ENLACES: { a: string; texto: string; roles: Rol[] }[] = [
   { a: '/', texto: 'Inicio', roles: ['admin', 'coordinador', 'lider', 'candidato', 'digitador'] },
+  { a: '/tablero', texto: 'Tablero', roles: ['admin', 'coordinador'] },
   { a: '/registrar', texto: 'Registrar persona', roles: ['admin', 'coordinador', 'lider'] },
   { a: '/personas', texto: 'Personas', roles: ['admin', 'coordinador', 'lider'] },
   { a: '/revision', texto: 'Puestos por revisar', roles: ['admin'] },
@@ -38,7 +39,7 @@ export default function Marco({ children }: { children: ReactNode }) {
         <nav className="menu" aria-label="Secciones">
           {ENLACES.filter((e) => e.roles.includes(perfil.rol)).map((e) => (
             <NavLink key={e.a} to={e.a} end={e.a === '/'} className={({ isActive }) => (isActive ? 'activo' : '')}>
-              {perfil.rol === 'lider' && e.a === '/personas' ? 'Mis registrados' : e.texto}
+              {perfil.rol === 'lider' && e.a === '/personas' ? 'Mis registrados' : perfil.rol === 'candidato' && e.a === '/' ? 'Tablero' : e.texto}
               {e.a === '/revision' && porRevisar > 0 && <span className="contador">{porRevisar}</span>}
             </NavLink>
           ))}

@@ -61,10 +61,14 @@ async function paso(nombre, fn) {
   }
 }
 
-async function sesion(rol, viewport) {
+async function sesion(rol, viewport, encabezado = /^Hola/) {
   const ctx = await navegador.newContext({ viewport, locale: 'es-CO' });
   const page = await ctx.newPage();
-  page.on('console', (m) => m.type() === 'error' && erroresConsola.push(`[${rol}] ${m.text()}`));
+  page.on('console', (m) => {
+    if (m.type() !== 'error') return;
+    if (/Failed to load resource/.test(m.text()) && /openstreetmap/.test(m.location()?.url ?? '')) return;
+    erroresConsola.push(`[${rol}] ${m.text()} ${m.location()?.url ?? ''}`);
+  });
   page.on('pageerror', (e) => erroresConsola.push(`[${rol}] ${e.message}`));
   page.on('dialog', (d) => d.accept());
   await page.goto(base);
@@ -72,7 +76,7 @@ async function sesion(rol, viewport) {
   await page.getByLabel('Contraseña').fill('x');
   await page.getByLabel('Ver como').selectOption(rol);
   await page.getByRole('button', { name: 'Entrar' }).click();
-  await page.getByRole('heading', { name: /^Hola/ }).waitFor();
+  await page.getByRole('heading', { name: encabezado }).waitFor();
   return { ctx, page };
 }
 
@@ -253,20 +257,45 @@ console.log('Administrador (escritorio)');
 
 console.log('Candidato (móvil)');
 {
-  const { ctx, page } = await sesion('candidato', movil);
-  await paso('solo ve cifras agregadas', async () => {
-    await page.getByText('simpatizantes registrados', { exact: true }).waitFor();
-    await page.getByRole('heading', { name: 'Por edad' }).waitFor();
-    await page.locator('.barra-fila').first().waitFor();
-    assert.notEqual(await page.locator('.cifra .valor').first().innerText(), '0');
+  const { ctx, page } = await sesion('candidato', movil, 'Tablero');
+  await paso('el tablero es su pantalla de inicio y solo ve agregados', async () => {
     const menu = await page.getByRole('navigation', { name: 'Secciones' }).innerText();
     assert.doesNotMatch(menu, /Personas|Registrar|Líderes/);
-    await page.screenshot({ path: join(capturas, '20-candidato.png'), fullPage: true });
+    await page.locator('.leaflet-interactive').first().waitFor();
+    assert.ok(await page.locator('.leaflet-interactive').count() > 10, 'hay puestos en el mapa');
+    assert.equal(await page.locator('.piramide-fila').count(), 6);
+    await page.screenshot({ path: join(capturas, '20-candidato-tablero.png'), fullPage: true });
+  });
+  await paso('filtros: sexo y localidad cambian las cifras', async () => {
+    const total = async () => Number((await page.locator('.cifra .valor').first().innerText()).replace(/\D/g, ''));
+    const todos = await total();
+    await page.getByRole('button', { name: 'Mujeres', exact: true }).click();
+    const mujeres = await total();
+    assert.ok(mujeres > 0 && mujeres < todos, `${mujeres} < ${todos}`);
+    await page.getByLabel('Localidad').selectOption({ label: 'Kennedy' });
+    await page.getByRole('heading', { name: 'La localidad' }).waitFor();
+    const filas = await page.locator('.tarjeta', { has: page.getByRole('heading', { name: 'La localidad' }) }).locator('tbody tr').count();
+    assert.equal(filas, 1);
+    assert.ok(await total() < mujeres);
+    await page.screenshot({ path: join(capturas, '21-candidato-filtros.png'), fullPage: true });
+    await page.getByRole('button', { name: 'Quitar filtros' }).click();
+    assert.equal(await total(), todos);
   });
   await paso('no puede abrir el listado de personas', async () => {
     await page.goto(`${base}/personas`);
-    await page.getByText('simpatizantes registrados', { exact: true }).waitFor();
+    await page.getByRole('heading', { name: 'Tablero' }).waitFor();
     assert.equal(await page.getByRole('heading', { name: 'Personas' }).count(), 0);
+  });
+  await ctx.close();
+}
+
+console.log('Coordinador (escritorio)');
+{
+  const { ctx, page } = await sesion('coordinador', escritorio);
+  await paso('el coordinador abre el tablero desde el menú', async () => {
+    await page.getByRole('link', { name: 'Tablero' }).click();
+    await page.locator('.leaflet-interactive').first().waitFor();
+    await page.screenshot({ path: join(capturas, '22-tablero-escritorio.png'), fullPage: true });
   });
   await ctx.close();
 }

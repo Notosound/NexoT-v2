@@ -114,11 +114,21 @@ Está en `web/`. Es un solo panel para todos los roles: cada persona ve solo las
 
 | Rol | Secciones |
 |---|---|
-| Administrador | Inicio, Registrar, Personas, Puestos por revisar, Importar Excel, Líderes, Equipo |
-| Coordinador | Inicio, Registrar, Personas (de sus líderes), Líderes |
+| Administrador | Inicio, Tablero, Registrar, Personas, Puestos por revisar, Importar Excel, Líderes, Equipo |
+| Coordinador | Inicio, Tablero, Registrar, Personas (de sus líderes), Líderes |
 | Líder | Inicio, Registrar, Mis registrados |
-| Candidato | Inicio con cifras agregadas (sexo, edad, localidades) |
+| Candidato | Tablero: mapa de puestos, edad y sexo, localidades, tendencia (solo agregados) |
 | Digitador | Inicio (la digitación E14 llega en la siguiente fase) |
+
+### Tablero y app en el celular
+
+El tablero muestra dónde están los simpatizantes (mapa de puestos), su edad y sexo, el detalle por localidad y puesto comparado con el censo electoral, y los registros de los últimos 30 días. Se actualiza solo cada minuto y tiene filtros por sexo, edad y localidad.
+
+Se instala en el celular como app:
+- **Android (Chrome):** menú ⋮ → *Agregar a la pantalla principal*.
+- **iPhone (Safari):** botón Compartir → *Agregar a inicio*.
+
+El mapa usa OpenStreetMap, que es gratuito y adecuado para poco tráfico. Si en el futuro lo usan muchas personas, se cambia por un proveedor de mapas con cuenta.
 
 ### Verlo sin Supabase (modo demostración)
 

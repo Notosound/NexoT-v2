@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { useSesion } from './lib/sesion';
 import type { Rol } from './lib/tipos';
@@ -12,6 +13,10 @@ import Revision from './paginas/Revision';
 import Importar from './paginas/Importar';
 import Lideres from './paginas/Lideres';
 import Equipo from './paginas/Equipo';
+
+// El tablero carga el mapa (Leaflet): solo se descarga cuando se abre
+const Tablero = lazy(() => import('./paginas/Tablero'));
+const cargandoTablero = <div className="tarjeta vacio">Cargando tablero…</div>;
 
 function Solo({ roles, children }: { roles: Rol[]; children: JSX.Element }) {
   const { sesion } = useSesion();
@@ -35,7 +40,8 @@ export default function App() {
   return (
     <Marco>
       <Routes>
-        <Route path="/" element={<Inicio />} />
+        <Route path="/" element={sesion.perfil.rol === 'candidato' ? <Suspense fallback={cargandoTablero}><Tablero /></Suspense> : <Inicio />} />
+        <Route path="/tablero" element={<Solo roles={['admin', 'coordinador', 'candidato']}><Suspense fallback={cargandoTablero}><Tablero /></Suspense></Solo>} />
         <Route path="/registrar" element={<Solo roles={['admin', 'coordinador', 'lider']}><Registrar /></Solo>} />
         <Route path="/personas" element={<Solo roles={['admin', 'coordinador', 'lider']}><Personas /></Solo>} />
         <Route path="/revision" element={<Solo roles={['admin']}><Revision /></Solo>} />

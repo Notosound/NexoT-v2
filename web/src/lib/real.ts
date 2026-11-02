@@ -2,7 +2,7 @@
 // datos (permisos por fila); aquí solo se arman las consultas.
 import { createClient } from '@supabase/supabase-js';
 import type {
-  Api, Demografia, FilaImportacion, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
+  Api, Demografia, FilaImportacion, PuestoCenso, Tendencia, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
   PersonaFila, Puesto, Rol, Sesion, Sugerencia,
 } from './tipos';
 import { AVISO_VERSION } from './tipos';
@@ -225,7 +225,21 @@ export const api: Api = {
     return { personas, porRevisar, sinUbicacion };
   },
   async demografia(): Promise<Demografia[]> {
-    return todas((a, b) => sb.from('v_demografia').select('localidad, rango_edad, sexo, personas').range(a, b));
+    return todas((a, b) => sb.from('v_demografia')
+      .select('localidad_id, localidad, puesto_id, puesto, rango_edad, sexo, personas').range(a, b));
+  },
+  async censoPuestos(): Promise<PuestoCenso[]> {
+    const filas = await todas((a, b) => sb.from('puestos')
+      .select('id, localidad_id, nombre, latitud, longitud, censo_mujeres, censo_hombres, censo_total').order('id').range(a, b));
+    // numeric de Postgres llega como texto
+    return (filas as Record<string, unknown>[]).map((p) => ({
+      ...(p as unknown as PuestoCenso),
+      latitud: p.latitud == null ? null : Number(p.latitud),
+      longitud: p.longitud == null ? null : Number(p.longitud),
+    }));
+  },
+  async tendencia(): Promise<Tendencia[]> {
+    return todas((a, b) => sb.from('v_tendencia_diaria').select('dia, nuevos').order('dia').range(a, b));
   },
 
   async porRevisar(): Promise<GrupoRevision[]> {

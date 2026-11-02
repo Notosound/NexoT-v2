@@ -158,11 +158,27 @@ export interface Resumen {
 }
 
 export interface Demografia {
+  localidad_id: number | null;
   localidad: string;
+  puesto_id: number | null;
+  puesto: string | null;
   rango_edad: string;
   sexo: string;
   personas: number;
 }
+
+export interface PuestoCenso {
+  id: number;
+  localidad_id: number;
+  nombre: string;
+  latitud: number | null;
+  longitud: number | null;
+  censo_mujeres: number;
+  censo_hombres: number;
+  censo_total: number;
+}
+
+export interface Tendencia { dia: string; nuevos: number }
 
 export interface Api {
   modo: 'real' | 'demo';
@@ -187,6 +203,8 @@ export interface Api {
   eliminarPersona(id: string): Promise<void>;
   resumen(): Promise<Resumen>;
   demografia(): Promise<Demografia[]>;
+  censoPuestos(): Promise<PuestoCenso[]>;
+  tendencia(): Promise<Tendencia[]>;
   // revisión de puestos
   porRevisar(): Promise<GrupoRevision[]>;
   resolverUbicacion(personaId: string, puestoId: number): Promise<number>;
