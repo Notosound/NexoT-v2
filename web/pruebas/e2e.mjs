@@ -382,6 +382,7 @@ console.log('E14: digitador (móvil)');
   });
   await paso('digita como un formulario: localidad, puesto, mesa y votos', async () => {
     // Busca un puesto con al menos dos mesas pendientes para ver que pasa a la siguiente
+    await page.getByLabel('1. Localidad').locator('option').nth(1).waitFor({ state: 'attached' });
     const opciones = (await page.getByLabel('1. Localidad').locator('option').allInnerTexts()).filter((o) => /\(\d+ mesas?\)/.test(o))
       .sort((a, b) => Number(b.match(/\((\d+)/)[1]) - Number(a.match(/\((\d+)/)[1]));
     let puesto = null;
