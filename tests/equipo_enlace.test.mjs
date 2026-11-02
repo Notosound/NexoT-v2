@@ -103,3 +103,10 @@ test('límite por conexión', async () => {
       `select registrar_por_enlace('${t}', '${persona({ cedula: '4000001' })}'::jsonb)`),
     /Demasiados registros/);
 });
+
+test('sin sesión solo se puede usar el formulario público', async () => {
+  const filas = await base.sistema(`
+    select p.proname from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and has_function_privilege('anon', p.oid, 'execute') order by 1`);
+  assert.deepEqual(filas.map((f) => f.proname), ['antes_de_peticion', 'enlace_info', 'registrar_por_enlace']);
+});
