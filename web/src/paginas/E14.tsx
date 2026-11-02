@@ -3,15 +3,17 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useSesion } from '../lib/sesion';
+import E14Excel from './E14Excel';
 import type {
   AvanceE14, Eleccion, LiderE14, LocalidadE14, MesaE14, MesaEnRevision, MesaPendiente, MiDigitacion, ModoDigitacion, PuestoE14, Rol,
 } from '../lib/tipos';
 import { formatoNumero, hoyISO, mensajeError, normalizar } from '../lib/utilidades';
 
-type Vista = 'digitar' | 'revisar' | 'resultados' | 'elecciones';
+type Vista = 'digitar' | 'excel' | 'revisar' | 'resultados' | 'elecciones';
 const VISTAS: { id: Vista; texto: string; roles: Rol[] }[] = [
   { id: 'resultados', texto: 'Resultados', roles: ['admin', 'coordinador', 'candidato'] },
   { id: 'digitar', texto: 'Digitar', roles: ['admin', 'digitador'] },
+  { id: 'excel', texto: 'Subir Excel', roles: ['admin', 'digitador'] },
   { id: 'revisar', texto: 'Diferencias', roles: ['admin'] },
   { id: 'elecciones', texto: 'Elecciones', roles: ['admin'] },
 ];
@@ -84,6 +86,7 @@ export default function E14() {
           <>
             {avance && <Avance avance={avance} modo={eleccion.modo_digitacion} />}
             {vista === 'digitar' && <Digitar eleccion={eleccion} onCambio={cargarAvance} />}
+            {vista === 'excel' && <E14Excel eleccion={eleccion} onCambio={cargarAvance} />}
             {vista === 'revisar' && <Revisar eleccion={eleccion} onCambio={cargarAvance} />}
             {vista === 'resultados' && <Resultados eleccion={eleccion} />}
           </>

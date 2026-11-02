@@ -3,7 +3,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type {
   Api, Demografia, FilaImportacion, PuestoCenso, Tendencia,
-  AvanceE14, Eleccion, LiderE14, LocalidadE14, MesaE14, MesaEnRevision, MesaPendiente, MiDigitacion, PuestoE14, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
+  AvanceE14, Eleccion, CalidadLider, FilaPlantillaE14, PuestoCodigos, RegistrosMesa, ResultadoFilaE14, LiderE14, LocalidadE14, MesaE14, MesaEnRevision, MesaPendiente, MiDigitacion, PuestoE14, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
   PersonaFila, Puesto, Rol, Sesion, Sugerencia,
 } from './tipos';
 import { AVISO_VERSION } from './tipos';
@@ -61,6 +61,48 @@ async function municipioBogota(): Promise<number> {
     cacheMunicipio = m.id as number;
   }
   return cacheMunicipio;
+}
+
+type CrudoPersona = Record<string, unknown> & {
+  lider: { nombre: string } | null; puesto: { nombre: string } | null; localidad: { nombre: string } | null;
+};
+
+function consultaPersonas(textoLibre: string, estado: string) {
+  let q = sb.from('personas')
+    .select(`id, cedula, nombres, apellidos, sexo, fecha_nacimiento, edad_declarada, edad_declarada_en, telefono,
+             puesto_reportado, mesa_reportada, ubicacion_estado, creado_en,
+             lider:lideres(nombre), puesto:puestos(nombre),
+             localidad:localidades!localidad_votacion_id(nombre)`, { count: 'exact' })
+    .is('eliminado_en', null)
+    .order('creado_en', { ascending: false });
+  const texto = textoLibre.replace(/[^\p{L}\p{N} ]/gu, ' ').trim();
+  if (texto) {
+    const digitos = texto.replace(/\D/g, '');
+    q = digitos.length >= 3 && digitos.length === texto.replace(/\s/g, '').length
+      ? q.like('cedula', `${digitos}%`)
+      : q.or(texto.split(/\s+/).map((t) => `nombres.ilike.%${t}%,apellidos.ilike.%${t}%`).join(','));
+  }
+  if (estado) q = q.eq('ubicacion_estado', estado);
+  return q;
+}
+
+function aFila(x: CrudoPersona): PersonaFila {
+  return {
+    id: x.id as string,
+    cedula: x.cedula as string,
+    nombres: x.nombres as string,
+    apellidos: x.apellidos as string,
+    sexo: x.sexo as PersonaFila['sexo'],
+    edad: edadDesde(x.fecha_nacimiento as string | null, x.edad_declarada as number | null, x.edad_declarada_en as string | null),
+    telefono: x.telefono as string | null,
+    lider: x.lider?.nombre ?? null,
+    localidad: x.localidad?.nombre ?? null,
+    puesto: x.puesto?.nombre ?? null,
+    puesto_reportado: x.puesto_reportado as string | null,
+    mesa: x.mesa_reportada as number | null,
+    ubicacion_estado: x.ubicacion_estado as PersonaFila['ubicacion_estado'],
+    creado_en: x.creado_en as string,
+  };
 }
 
 export const api: Api = {
@@ -172,44 +214,13 @@ export const api: Api = {
   },
 
   async personas(f) {
-    let q = sb.from('personas')
-      .select(`id, cedula, nombres, apellidos, sexo, fecha_nacimiento, edad_declarada, edad_declarada_en, telefono,
-               puesto_reportado, mesa_reportada, ubicacion_estado, creado_en,
-               lider:lideres(nombre), puesto:puestos(nombre),
-               localidad:localidades!localidad_votacion_id(nombre)`, { count: 'exact' })
-      .is('eliminado_en', null)
-      .order('creado_en', { ascending: false })
-      .range(f.desde, f.desde + 49);
-    const texto = f.texto.replace(/[^\p{L}\p{N} ]/gu, ' ').trim();
-    if (texto) {
-      const digitos = texto.replace(/\D/g, '');
-      q = digitos.length >= 3 && digitos.length === texto.replace(/\s/g, '').length
-        ? q.like('cedula', `${digitos}%`)
-        : q.or(texto.split(/\s+/).map((t) => `nombres.ilike.%${t}%,apellidos.ilike.%${t}%`).join(','));
-    }
-    if (f.estado) q = q.eq('ubicacion_estado', f.estado);
-    const r = await q;
+    const r = await consultaPersonas(f.texto, f.estado).range(f.desde, f.desde + 49);
     if (r.error) throw r.error;
-    type Crudo = Record<string, unknown> & {
-      lider: { nombre: string } | null; puesto: { nombre: string } | null; localidad: { nombre: string } | null;
-    };
-    const filas = (r.data as unknown as Crudo[]).map((x): PersonaFila => ({
-      id: x.id as string,
-      cedula: x.cedula as string,
-      nombres: x.nombres as string,
-      apellidos: x.apellidos as string,
-      sexo: x.sexo as PersonaFila['sexo'],
-      edad: edadDesde(x.fecha_nacimiento as string | null, x.edad_declarada as number | null, x.edad_declarada_en as string | null),
-      telefono: x.telefono as string | null,
-      lider: x.lider?.nombre ?? null,
-      localidad: x.localidad?.nombre ?? null,
-      puesto: x.puesto?.nombre ?? null,
-      puesto_reportado: x.puesto_reportado as string | null,
-      mesa: x.mesa_reportada as number | null,
-      ubicacion_estado: x.ubicacion_estado as PersonaFila['ubicacion_estado'],
-      creado_en: x.creado_en as string,
-    }));
-    return { filas, total: r.count ?? filas.length };
+    return { filas: (r.data as unknown as CrudoPersona[]).map(aFila), total: r.count ?? 0 };
+  },
+  async personasTodas(f) {
+    const filas = await todas((a, b) => consultaPersonas(f.texto, f.estado).range(a, b));
+    return (filas as unknown as CrudoPersona[]).map(aFila);
   },
   async eliminarPersona(id) {
     ok(await sb.rpc('eliminar_persona', { p_id: id }));
@@ -340,6 +351,29 @@ export const api: Api = {
   async mesasE14(eleccionId, puestoId) {
     return lista(await sb.from('v_e14_mesas').select('mesa_id, mesa, puesto_id, estado, esperados, votos_reales, confirmados, faltantes, adicionales')
       .eq('eleccion_id', eleccionId).eq('puesto_id', puestoId).order('mesa')) as MesaE14[];
+  },
+
+  async plantillaE14(id) {
+    return todas((a, b) => sb.from('v_e14_plantilla').select('localidad, zona, codigo_puesto, puesto, mesa')
+      .eq('eleccion_id', id).order('localidad').order('puesto').order('mesa').range(a, b)) as Promise<FilaPlantillaE14[]>;
+  },
+  async puestosConCodigos() {
+    const filas = await todas((a, b) => sb.from('puestos')
+      .select('id, zona, codigo, nombre, direccion, mesas_total, localidad:localidades(nombre)').order('zona').order('codigo').range(a, b));
+    return (filas as unknown as (Omit<PuestoCodigos, 'localidad'> & { localidad: { nombre: string } })[])
+      .map((p) => ({ ...p, localidad: p.localidad.nombre }));
+  },
+  async importarE14(eleccionId, archivo, filas, confirmar) {
+    return lista(await sb.rpc('importar_e14', { p_eleccion: eleccionId, p_archivo: archivo, p_filas: filas, p_confirmar: confirmar })) as ResultadoFilaE14[];
+  },
+  async registrosMesa() {
+    return todas((a, b) => sb.from('v_registros_mesa').select('*').order('mesa_id').range(a, b)) as Promise<RegistrosMesa[]>;
+  },
+  async calidadLideres() {
+    return todas((a, b) => sb.from('v_calidad_lideres').select('*').order('nombre').range(a, b)) as Promise<CalidadLider[]>;
+  },
+  async registrarExportacion(tipo, filas, filtros = {}) {
+    sinError(await sb.rpc('registrar_exportacion', { p_tipo: tipo, p_filas: filas, p_filtros: filtros }));
   },
 
   async equipo(): Promise<MiembroEquipo[]> {

@@ -14,6 +14,7 @@ import Importar from './paginas/Importar';
 import Lideres from './paginas/Lideres';
 import Equipo from './paginas/Equipo';
 import E14 from './paginas/E14';
+import Analisis from './paginas/Analisis';
 
 // El tablero carga el mapa (Leaflet): solo se descarga cuando se abre
 const Tablero = lazy(() => import('./paginas/Tablero'));
@@ -49,6 +50,7 @@ export default function App() {
         <Route path="/importar" element={<Solo roles={['admin']}><Importar /></Solo>} />
         <Route path="/lideres" element={<Solo roles={['admin', 'coordinador']}><Lideres /></Solo>} />
         <Route path="/equipo" element={<Solo roles={['admin']}><Equipo /></Solo>} />
+        <Route path="/analisis" element={<Solo roles={['admin', 'coordinador', 'candidato']}><Analisis /></Solo>} />
         <Route path="/e14" element={<Solo roles={['admin', 'coordinador', 'candidato', 'digitador']}><E14 /></Solo>} />
         <Route path="/cambiar-clave" element={<CambiarClave />} />
         <Route path="*" element={<Navigate to="/" replace />} />

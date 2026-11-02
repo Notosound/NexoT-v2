@@ -114,11 +114,11 @@ Está en `web/`. Es un solo panel para todos los roles: cada persona ve solo las
 
 | Rol | Secciones |
 |---|---|
-| Administrador | Inicio, Tablero, Registrar, Personas, Puestos por revisar, Importar Excel, E14 (resultados, digitar, diferencias, elecciones), Líderes, Equipo |
-| Coordinador | Inicio, Tablero, Registrar, Personas (de sus líderes), E14 (resultados), Líderes |
+| Administrador | Inicio, Tablero, Análisis, Registrar, Personas (con exportación), Puestos por revisar, Importar Excel, E14 (resultados, digitar, subir Excel, diferencias, elecciones), Líderes, Equipo |
+| Coordinador | Inicio, Tablero, Análisis, Registrar, Personas (de sus líderes, con exportación), E14 (resultados), Líderes |
 | Líder | Inicio, Registrar, Mis registrados |
-| Candidato | Tablero y resultados E14 (solo agregados) |
-| Digitador | E14: digitar mesas y corregir lo propio (no ve personas ni esperados) |
+| Candidato | Tablero, Análisis y resultados E14 (solo agregados) |
+| Digitador | E14: digitar o subir Excel, y corregir lo propio (no ve personas ni esperados) |
 
 ### Tablero y app en el celular
 
@@ -185,6 +185,25 @@ npm run test:e2e
 ```
 
 Compila el modo demo y recorre los flujos principales con un navegador real: registro con validaciones, opción "Otro", duplicados, menores de edad, bandeja de revisión, importación, líderes, equipo y permisos por rol. Las capturas quedan en `web/pruebas/capturas/`. GitHub lo ejecuta en cada cambio del panel.
+
+## E14 desde Excel y doble verificación
+
+En **E14 → Subir Excel** se descarga una plantilla por elección, con las mesas oficiales y sus códigos (zona y puesto):
+- **Mesas con simpatizantes:** las que importan para el cumplimiento.
+- **Todas las mesas de Bogotá:** 18.156 filas, para cargar resultados completos.
+
+Se llena solo la columna "Votos E14". También sirve cualquier Excel con las columnas Localidad, Puesto, Mesa y Votos (o Zona y Código de puesto). Antes de guardar se ve una revisión fila por fila.
+
+**Doble verificación:** cada archivo cuenta como la digitación de **quien lo sube**. Una mesa queda verificada cuando **otra persona** (con su propio archivo o digitando) escribe el mismo número; si no coinciden, pasa a "Diferencias". Subir dos veces el mismo archivo no verifica nada. Cada digitación guarda si vino de Excel, de qué archivo y de qué fila.
+
+## Análisis
+
+- **Localidad → puesto → mesa:** simpatizantes, censo, por cada 1.000 votantes, cobertura de puestos y mesas y, si se elige una elección, confirmados y cumplimiento E14.
+- **Calidad de los datos:** por líder, cuántos están sin puesto, sin mesa, sin sexo, sin edad, sin teléfono o sin autorización.
+- **Rendimiento de líderes:** registrados, avance de la meta, % ubicados, último registro y cumplimiento E14.
+- **Simulación:** escenarios conservador, moderado, optimista y personalizado, con los mismos parámetros del piloto (crecimiento, recuperación de incompletos, movilización de líderes y territorial), fecha objetivo y ritmo diario necesario.
+
+Todo se exporta a Excel. Cada exportación queda en la auditoría: quién, qué, cuántas filas y con qué filtros.
 
 ## Ejecutar las pruebas
 

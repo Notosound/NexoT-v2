@@ -47,6 +47,15 @@ const excel = join(capturas, 'prueba.xlsx');
   await libro.xlsx.writeFile(excel);
 }
 
+async function leerDescarga(page, accion) {
+  const [descarga] = await Promise.all([page.waitForEvent('download'), accion()]);
+  const ruta = join(capturas, descarga.suggestedFilename());
+  await descarga.saveAs(ruta);
+  const libro = new ExcelJS.Workbook();
+  await libro.xlsx.readFile(ruta);
+  return { ruta, libro, nombre: descarga.suggestedFilename() };
+}
+
 const navegador = await chromium.launch();
 const erroresConsola = [];
 let pasos = 0;
@@ -307,7 +316,7 @@ console.log('E14: digitador (móvil)');
   await paso('el digitador solo ve la pestaña de digitar', async () => {
     await page.getByRole('link', { name: 'Ir a digitar' }).click();
     await page.getByRole('heading', { name: /^Avance:/ }).waitFor();
-    assert.equal(await page.getByRole('tablist').count(), 0, 'sin pestañas: solo digitar');
+    assert.deepEqual(await page.getByRole('tab').allInnerTexts(), ['Digitar', 'Subir Excel']);
     const menu = await page.getByRole('navigation', { name: 'Secciones' }).innerText();
     assert.doesNotMatch(menu, /Personas|Registrar|Tablero/);
   });
@@ -338,6 +347,53 @@ console.log('E14: digitador (móvil)');
     await page.getByLabel('Votos corregidos').fill('8');
     await page.getByRole('button', { name: 'Guardar' }).last().click();
     await page.getByRole('cell', { name: '8', exact: true }).first().waitFor();
+  });
+  await ctx.close();
+}
+
+console.log('E14 por Excel (digitador)');
+{
+  const { ctx, page } = await sesion('digitador', escritorio);
+  await page.goto(`${base}/e14?vista=excel`);
+  let plantilla;
+  await paso('descarga la plantilla con las mesas y sus códigos oficiales', async () => {
+    const { libro, nombre } = await leerDescarga(page, () => page.getByRole('button', { name: 'Plantilla: mesas con simpatizantes' }).click());
+    assert.match(nombre, /^Plantilla_E14_mesas_con_simpatizantes_/);
+    const hoja = libro.getWorksheet('E14');
+    assert.deepEqual(hoja.getRow(1).values.slice(1), ['Localidad', 'Zona', 'Código de puesto', 'Puesto', 'Mesa', 'Votos E14', 'Observación']);
+    assert.ok(hoja.rowCount > 20, `${hoja.rowCount} filas`);
+    assert.ok(libro.getWorksheet('Instrucciones'));
+    plantilla = libro;
+  });
+  await paso('sube la plantilla llena: revisión fila por fila y luego guarda', async () => {
+    const hoja = plantilla.getWorksheet('E14');
+    hoja.getRow(2).getCell(6).value = 3;
+    hoja.getRow(3).getCell(6).value = 0;
+    hoja.getRow(4).getCell(6).value = 'muchos';           // error
+    hoja.getRow(5).getCell(6).value = 2;
+    hoja.addRow(['Usaquén', '01', '01', 'x', 999, 4]);     // mesa inexistente (por códigos)
+    const ruta = join(capturas, 'e14-lleno.xlsx');
+    await plantilla.xlsx.writeFile(ruta);
+    await page.getByLabel('Archivo de Excel (.xlsx)').setInputFiles(ruta);
+    await page.getByText(/Votos E14 → votos/).waitFor();
+    await page.getByRole('button', { name: /^Revisar \d+ filas$/ }).click();
+    await page.getByRole('heading', { name: '3. Revisa y confirma' }).waitFor();
+    const cifra = async (t) => Number((await page.locator('.cifra', { hasText: t }).locator('.valor').innerText()).replace(/\D/g, ''));
+    assert.equal(await cifra('mesas nuevas'), 3);
+    assert.equal(await cifra('con error'), 2);
+    await page.getByText('votos inválidos: "muchos"').waitFor();
+    await page.getByText(/la mesa 999 no existe/).waitFor();
+    await page.screenshot({ path: join(capturas, '34-e14-excel-reporte.png'), fullPage: true });
+    await page.getByRole('button', { name: 'Guardar 3 mesas' }).click();
+    await page.getByText(/^Guardado\./).waitFor();
+  });
+  await paso('subir el mismo archivo otra vez no cuenta como segunda verificación', async () => {
+    await page.getByLabel('Archivo de Excel (.xlsx)').setInputFiles(join(capturas, 'e14-lleno.xlsx'));
+    await page.getByRole('button', { name: /^Revisar \d+ filas$/ }).click();
+    await page.getByRole('heading', { name: '3. Revisa y confirma' }).waitFor();
+    const nuevas = Number((await page.locator('.cifra', { hasText: 'mesas nuevas' }).locator('.valor').innerText()).replace(/\D/g, ''));
+    assert.equal(nuevas, 0);
+    assert.ok(await page.getByRole('button', { name: 'Guardar 0 mesas' }).isDisabled());
   });
   await ctx.close();
 }
@@ -382,6 +438,56 @@ console.log('E14: administrador (escritorio)');
     await page.getByRole('button', { name: 'Crear elección' }).click();
     await page.getByText('Elección “Cámara 2026 prueba” creada.').waitFor();
     await page.getByLabel('Elección').waitFor();
+  });
+  await ctx.close();
+}
+
+console.log('Análisis y exportes (administrador)');
+{
+  const { ctx, page } = await sesion('admin', escritorio);
+  await page.getByRole('link', { name: 'Análisis' }).click();
+  await paso('jerarquía: localidad → puesto → mesa, cruzado con E14', async () => {
+    await page.getByRole('navigation', { name: 'Nivel' }).waitFor();
+    await page.locator('tbody .enlace').first().click();
+    await page.getByText(/puestos con simpatizantes$/).waitFor();
+    await page.locator('tbody .enlace').first().click();
+    await page.getByRole('columnheader', { name: 'Votos E14' }).waitFor();
+    await page.screenshot({ path: join(capturas, '40-analisis-mesas.png'), fullPage: true });
+    const { libro } = await leerDescarga(page, () => page.getByRole('button', { name: 'Exportar a Excel' }).click());
+    assert.equal(libro.worksheets[0].getRow(1).getCell(1).value, 'Mesa');
+  });
+  await paso('calidad de datos y rendimiento de líderes', async () => {
+    await page.getByRole('tab', { name: 'Calidad de los datos' }).click();
+    await page.getByText(/con puesto y mesa confirmados/).waitFor();
+    await page.getByRole('tab', { name: 'Rendimiento de líderes' }).click();
+    await page.getByLabel('Ordenar por').selectOption('cumplimiento');
+    await page.screenshot({ path: join(capturas, '41-analisis-lideres.png'), fullPage: true });
+  });
+  await paso('simulación: el escenario cambia la proyección', async () => {
+    await page.getByRole('tab', { name: 'Simulación' }).click();
+    const proyectado = async () => Number((await page.locator('.cifra', { hasText: 'proyectados' }).locator('.valor').innerText()).replace(/\D/g, ''));
+    const moderado = await proyectado();
+    await page.getByRole('button', { name: 'Optimista' }).click();
+    assert.ok(await proyectado() > moderado);
+    await page.getByLabel('Crecimiento de la base (%)').fill('0');
+    assert.equal(await page.getByRole('button', { name: 'Personalizado' }).getAttribute('aria-pressed'), 'true');
+    const futuro = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+    await page.getByLabel(/Fecha objetivo/).fill(futuro);
+    await page.getByText(/al ritmo actual/).waitFor();
+    await page.screenshot({ path: join(capturas, '42-simulacion.png'), fullPage: true });
+  });
+  await paso('plantilla de registros con instrucciones y puestos oficiales', async () => {
+    await page.getByRole('link', { name: 'Importar Excel' }).click();
+    const { libro } = await leerDescarga(page, () => page.getByRole('button', { name: 'Descargar plantilla de registros' }).click());
+    assert.deepEqual(libro.worksheets.map((h) => h.name), ['Registros', 'Instrucciones', 'Puestos oficiales']);
+    assert.equal(libro.getWorksheet('Puestos oficiales').rowCount, 1084);
+  });
+  await paso('exportar personas a Excel', async () => {
+    await page.getByRole('link', { name: 'Personas' }).click();
+    await page.locator('tbody tr').first().waitFor();
+    const { libro } = await leerDescarga(page, () => page.getByRole('button', { name: 'Exportar a Excel' }).click());
+    assert.equal(libro.worksheets[0].getRow(1).getCell(1).value, 'Cédula');
+    assert.ok(libro.worksheets[0].rowCount > 100);
   });
   await ctx.close();
 }

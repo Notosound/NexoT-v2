@@ -192,6 +192,16 @@ export interface TotalesE14 { esperados: number; confirmados: number; faltantes:
 export interface LocalidadE14 extends TotalesE14 { localidad_id: number; localidad: string }
 export interface PuestoE14 extends TotalesE14 { puesto_id: number; puesto: string; localidad_id: number; localidad: string }
 export interface MesaE14 { mesa_id: number; mesa: number; puesto_id: number; estado: EstadoMesa; esperados: number; votos_reales: number | null; confirmados: number | null; faltantes: number | null; adicionales: number | null }
+export interface FilaPlantillaE14 { localidad: string; zona: string; codigo_puesto: string; puesto: string; mesa: number }
+export interface PuestoCodigos { id: number; localidad: string; zona: string; codigo: string; nombre: string; direccion: string | null; mesas_total: number }
+export interface ResultadoFilaE14 { fila: number; estado: 'nueva' | 'cambia' | 'sin_cambios' | 'vacia' | 'error'; mensaje: string | null; mesa_id: number | null; votos: number | null }
+export interface RegistrosMesa { localidad_id: number; localidad: string; puesto_id: number; puesto: string; mesa_id: number; mesa: number; personas: number }
+export interface CalidadLider {
+  lider_id: string; nombre: string; meta_votos: number; total: number; ubicados: number; sin_mesa: number; por_revisar: number;
+  sin_lugar: number; sin_sexo: number; sin_edad: number; sin_telefono: number; sin_consentimiento: number; importados: number;
+  ultimo_registro: string | null;
+}
+export interface PersonaExport extends PersonaFila { barrio: string | null; origen: string; mesa_confirmada: boolean }
 export interface LiderE14 { lider_id: string; nombre: string; esperados: number; esperados_verificados: number | null; confirmados: number; mesas_pendientes: number; cumplimiento: number | null }
 
 export interface Api {
@@ -241,6 +251,14 @@ export interface Api {
   resolverE14(eleccionId: string, mesaId: number, votos: number): Promise<void>;
   resultadosE14(eleccionId: string): Promise<{ localidades: LocalidadE14[]; puestos: PuestoE14[]; lideres: LiderE14[] }>;
   mesasE14(eleccionId: string, puestoId: number): Promise<MesaE14[]>;
+  plantillaE14(eleccionId: string): Promise<FilaPlantillaE14[]>;
+  puestosConCodigos(): Promise<PuestoCodigos[]>;
+  importarE14(eleccionId: string, archivo: string, filas: Record<string, string | number>[], confirmar: boolean): Promise<ResultadoFilaE14[]>;
+  // análisis y exportes
+  registrosMesa(): Promise<RegistrosMesa[]>;
+  calidadLideres(): Promise<CalidadLider[]>;
+  personasTodas(f: Omit<FiltroPersonas, 'desde'>): Promise<PersonaFila[]>;
+  registrarExportacion(tipo: string, filas: number, filtros?: Record<string, unknown>): Promise<void>;
   // equipo
   equipo(): Promise<MiembroEquipo[]>;
   vincularUsuario(email: string, nombre: string, rol: Rol, liderId: string | null): Promise<void>;

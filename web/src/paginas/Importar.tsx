@@ -4,6 +4,22 @@ import { CAMPOS, filaACanonica, filaVacia, mapearEncabezados } from '@compartido
 import { useSesion } from '../lib/sesion';
 import type { FilaImportacion, Importacion, Lider } from '../lib/tipos';
 import { formatoNumero, hoyISO, mensajeError } from '../lib/utilidades';
+import { descargarExcel } from '../lib/excel';
+
+const INSTRUCCIONES_REGISTROS = [
+  ['Cómo llenar la plantilla de registros'],
+  [''],
+  ['Obligatorios: Cédula (solo números) y Nombres. Lo demás es opcional, pero mientras más completo, mejor el análisis.'],
+  ['Sexo: Femenino, Masculino, Otro o No informa (también sirven F / M / Mujer / Hombre).'],
+  ['Edad: escribe la fecha de nacimiento (dd/mm/aaaa) o solo la edad en años. Deben ser mayores de 18.'],
+  ['Teléfono: 7 a 10 dígitos; el +57 se quita solo.'],
+  ['Lugar de votación: Localidad, Puesto y Mesa como aparecen en la hoja "Puestos oficiales".'],
+  ['  Si el puesto aparece con otro nombre, escríbelo igual y pon la Dirección del puesto: el sistema intentará ubicarlo y, si no puede, queda para revisión.'],
+  ['Cédula del líder: si cada fila es de un líder distinto. Si toda la lista es de un solo líder, déjala vacía y elígelo al importar.'],
+  [''],
+  ['Al subir el archivo verás un reporte fila por fila. Nada se guarda hasta que confirmes.'],
+  ['Las cédulas repetidas (en el archivo o ya registradas) no entran dos veces.'],
+];
 
 type Paso = 'archivo' | 'validando' | 'reporte' | 'confirmando' | 'listo';
 type Pestana = 'con_errores' | 'duplicada' | 'advertencias' | 'valida';
@@ -40,6 +56,30 @@ export default function Importar() {
   const [error, setError] = useState('');
 
   useEffect(() => { api.lideres().then(setLideres).catch(() => {}); }, [api]);
+
+  const [preparando, setPreparando] = useState(false);
+  async function plantillaRegistros() {
+    setPreparando(true); setError('');
+    try {
+      const puestos = await api.puestosConCodigos();
+      await descargarExcel('Plantilla_registros_NexoT.xlsx', [
+        {
+          nombre: 'Registros',
+          filas: [
+            ['Cédula', 'Nombres', 'Apellidos', 'Sexo', 'Fecha de nacimiento', 'Edad', 'Teléfono', 'Barrio', 'Localidad', 'Puesto', 'Dirección del puesto', 'Mesa', 'Cédula del líder'],
+            ['1020304050', 'Ejemplo', 'Borrar Esta Fila', 'Femenino', '21/05/1990', '', '3001234567', 'Cedritos', 'Usaquén', puestos.find((p) => p.localidad === 'Usaquén')?.nombre ?? '', '', 3, ''],
+          ],
+          anchos: [14, 18, 20, 11, 18, 7, 13, 16, 18, 36, 26, 7, 16],
+        },
+        { nombre: 'Instrucciones', filas: INSTRUCCIONES_REGISTROS, anchos: [120] },
+        {
+          nombre: 'Puestos oficiales',
+          filas: [['Localidad', 'Puesto', 'Dirección', 'Mesas'], ...puestos.map((p) => [p.localidad, p.nombre, p.direccion ?? '', p.mesas_total])],
+          anchos: [20, 44, 44, 8],
+        },
+      ]);
+    } catch (e) { setError(mensajeError(e)); } finally { setPreparando(false); }
+  }
 
   async function leer(archivo: File) {
     setError(''); setLeido(null);
@@ -105,10 +145,18 @@ export default function Importar() {
       {error && <div className="aviso error" role="alert" style={{ marginBottom: '1rem' }}>{error}</div>}
 
       {paso === 'archivo' && (
+        <div className="tarjeta" style={{ marginBottom: '1rem' }}>
+          <h2>Plantilla</h2>
+          <p className="ayuda">Trae las columnas que el sistema reconoce, instrucciones y el listado oficial de puestos. También puedes subir tus propios Excel: las columnas se reconocen por su nombre.</p>
+          <button className="boton" disabled={preparando} onClick={plantillaRegistros}>{preparando ? 'Preparando…' : 'Descargar plantilla de registros'}</button>
+        </div>
+      )}
+
+      {paso === 'archivo' && (
         <div className="tarjeta formulario">
           <label className="campo"><span>Archivo de Excel (.xlsx)</span>
             <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              onChange={(e) => e.target.files?.[0] && leer(e.target.files[0])} />
+              onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) leer(f); }} />
             <small>Se lee la primera hoja. La primera fila con datos se toma como encabezados.</small>
           </label>
 

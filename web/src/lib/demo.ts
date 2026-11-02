@@ -3,7 +3,7 @@
 // el panel sin Supabase. Nunca se incluye en el build normal.
 import type {
   Api, Demografia, FilaImportacion, PuestoCenso, Tendencia,
-  Eleccion, EstadoMesa, LiderE14, LocalidadE14, MesaE14, PuestoE14, TotalesE14, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
+  Eleccion, EstadoMesa, CalidadLider, PuestoCodigos, RegistrosMesa, ResultadoFilaE14, LiderE14, LocalidadE14, MesaE14, PuestoE14, TotalesE14, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
   PersonaFila, Puesto, Rol, Sesion, Sexo, Sugerencia,
 } from './tipos';
 import { edadDesde, hoyISO, normalizar } from './utilidades';
@@ -17,9 +17,10 @@ const LOCALIDADES: Localidad[] = [
   'Rafael Uribe Uribe', 'Ciudad Bolívar', 'Sumapaz',
 ].map((nombre, i) => ({ id: i + 1, codigo: String(i + 1).padStart(2, '0'), nombre }));
 
-type Crudo = [number, number, string, string, number, number | null, number | null, number, number];
+type Crudo = [number, number, string, string, number, number | null, number | null, number, number, string, string];
 const PUESTOS: Puesto[] = (crudo as Crudo[])
   .map(([id, loc, nombre, direccion, mesas]) => ({ id, localidad_id: loc, nombre, direccion, mesas_total: mesas }));
+const CODIGOS = new Map((crudo as Crudo[]).map((c) => [c[0], { zona: c[9], codigo: c[10] }]));
 const CENSO: PuestoCenso[] = (crudo as Crudo[]).map(([id, loc, nombre, , , lat, lon, m, h]) => ({
   id, localidad_id: loc, nombre, latitud: lat, longitud: lon, censo_mujeres: m, censo_hombres: h, censo_total: m + h,
 }));
@@ -194,6 +195,24 @@ function sugerir(loc: number | null, nombre: string, _dir: string): Sugerencia |
   };
 }
 
+function filtrarPersonas(texto: string, estadoFiltro: string) {
+  const t = normalizar(texto);
+  let lista = visibles();
+  if (t) lista = lista.filter((p) => p.cedula.startsWith(t) || normalizar(`${p.nombres} ${p.apellidos}`).includes(t));
+  if (estadoFiltro) lista = lista.filter((p) => estado(p) === estadoFiltro);
+  return lista;
+}
+function aFila(p: PersonaDemo): PersonaFila {
+  return {
+    id: p.id, cedula: p.cedula, nombres: p.nombres, apellidos: p.apellidos, sexo: p.sexo,
+    edad: edadDesde(p.fechaNacimiento, p.edad, p.edadEn), telefono: p.telefono, lider: lideres.find((l) => l.id === p.liderId)?.nombre ?? null,
+    localidad: LOCALIDADES.find((l) => l.id === p.localidadId)?.nombre ?? null,
+    puesto: PUESTOS.find((x) => x.id === p.puestoId)?.nombre ?? null, puesto_reportado: p.puestoReportado,
+    mesa: p.mesa, ubicacion_estado: estado(p), creado_en: p.creadoEn,
+  };
+}
+const exportaciones: { tipo: string; filas: number }[] = [];
+
 const importaciones = new Map<string, { imp: Importacion; filas: FilaImportacion[]; liderId: string | null }>();
 
 export const api: Api = {
@@ -261,20 +280,10 @@ export const api: Api = {
 
   async personas(f) {
     await espera();
-    const t = normalizar(f.texto);
-    let lista = visibles();
-    if (t) lista = lista.filter((p) => p.cedula.startsWith(t) || normalizar(`${p.nombres} ${p.apellidos}`).includes(t));
-    if (f.estado) lista = lista.filter((p) => estado(p) === f.estado);
-    const lider = new Map(lideres.map((l) => [l.id, l.nombre]));
-    const filas = lista.slice(f.desde, f.desde + 50).map((p): PersonaFila => ({
-      id: p.id, cedula: p.cedula, nombres: p.nombres, apellidos: p.apellidos, sexo: p.sexo,
-      edad: edadDesde(p.fechaNacimiento, p.edad, p.edadEn), telefono: p.telefono, lider: lider.get(p.liderId) ?? null,
-      localidad: LOCALIDADES.find((l) => l.id === p.localidadId)?.nombre ?? null,
-      puesto: PUESTOS.find((x) => x.id === p.puestoId)?.nombre ?? null, puesto_reportado: p.puestoReportado,
-      mesa: p.mesa, ubicacion_estado: estado(p), creado_en: p.creadoEn,
-    }));
-    return { filas, total: lista.length };
+    const lista = filtrarPersonas(f.texto, f.estado);
+    return { filas: lista.slice(f.desde, f.desde + 50).map(aFila), total: lista.length };
   },
+  async personasTodas(f) { await espera(); return filtrarPersonas(f.texto, f.estado).map(aFila); },
   async eliminarPersona(id) {
     await espera();
     const p = visibles().find((x) => x.id === id);
@@ -512,6 +521,87 @@ export const api: Api = {
       .map(({ mesa_id, mesa, puesto_id, estado, esperados, votos_reales, confirmados, faltantes, adicionales }) =>
         ({ mesa_id, mesa, puesto_id, estado, esperados, votos_reales, confirmados, faltantes, adicionales }));
   },
+
+  async plantillaE14(id) {
+    await espera();
+    if (!['admin', 'digitador'].includes(yo().rol)) return [];
+    return mesasCalc(id).filter((m) => m.esperados > 0).map((m) => ({
+      localidad: m.localidad, zona: CODIGOS.get(m.puesto_id)!.zona, codigo_puesto: CODIGOS.get(m.puesto_id)!.codigo, puesto: m.puesto, mesa: m.mesa,
+    })).sort((a, b) => a.localidad.localeCompare(b.localidad) || a.puesto.localeCompare(b.puesto) || a.mesa - b.mesa);
+  },
+  async puestosConCodigos(): Promise<PuestoCodigos[]> {
+    await espera();
+    return PUESTOS.map((p) => ({ id: p.id, localidad: LOCALIDADES.find((l) => l.id === p.localidad_id)!.nombre, zona: CODIGOS.get(p.id)!.zona,
+      codigo: CODIGOS.get(p.id)!.codigo, nombre: p.nombre, direccion: p.direccion, mesas_total: p.mesas_total ?? 0 }));
+  },
+  async importarE14(eleccionId, archivo, filas, confirmar) {
+    await espera(300);
+    if (!['admin', 'digitador'].includes(yo().rol)) throw new Error('Solo administradores y digitadores pueden subir E14');
+    const vistas = new Set<number>();
+    const salida: ResultadoFilaE14[] = [];
+    for (const r of filas) {
+      const fila = Number(r.fila);
+      const txt = String(r.votos ?? '').replace(/[\s.,]/g, '');
+      if (!txt) { salida.push({ fila, estado: 'vacia', mensaje: 'sin votos (se ignora)', mesa_id: null, votos: null }); continue; }
+      if (!/^\d{1,4}$/.test(txt) || Number(txt) > 1000) { salida.push({ fila, estado: 'error', mensaje: `votos inválidos: "${r.votos}"`, mesa_id: null, votos: null }); continue; }
+      const votos = Number(txt);
+      let puesto = r.zona && r.codigo_puesto
+        ? PUESTOS.find((p) => Number(CODIGOS.get(p.id)!.zona) === Number(String(r.zona).replace(/\D/g, '')) && Number(CODIGOS.get(p.id)!.codigo) === Number(String(r.codigo_puesto).replace(/\D/g, '')))
+        : undefined;
+      if (!puesto) {
+        const loc = LOCALIDADES.find((l) => normalizar(l.nombre) === normalizar(String(r.localidad ?? '')));
+        if (!loc) { salida.push({ fila, estado: 'error', mensaje: `localidad no encontrada: "${r.localidad ?? ''}"`, mesa_id: null, votos }); continue; }
+        puesto = PUESTOS.find((p) => p.localidad_id === loc.id && normalizar(p.nombre) === normalizar(String(r.puesto ?? '')));
+        if (!puesto) { salida.push({ fila, estado: 'error', mensaje: `puesto no encontrado en ${r.localidad}: "${r.puesto ?? ''}"`, mesa_id: null, votos }); continue; }
+      }
+      const num = Number(String(r.mesa ?? '').replace(/\D/g, ''));
+      if (!num || num > (puesto.mesas_total ?? 0)) { salida.push({ fila, estado: 'error', mensaje: `la mesa ${r.mesa} no existe en ese puesto`, mesa_id: null, votos }); continue; }
+      const m = mesaId(puesto.id, num);
+      if (vistas.has(m)) { salida.push({ fila, estado: 'error', mensaje: 'mesa repetida en el archivo', mesa_id: m, votos }); continue; }
+      vistas.add(m);
+      const previa = digitaciones.find((d) => d.eleccionId === eleccionId && d.mesaId === m && d.por === yo().id);
+      if (confirmar) {
+        if (previa) { if (previa.votos !== votos) { previa.votos = votos; consolidar(eleccionId, m); } }
+        else { digitaciones.push({ id: digitaciones.length + 1, eleccionId, mesaId: m, votos, por: yo().id, en: new Date().toISOString() }); consolidar(eleccionId, m); }
+      }
+      salida.push({ fila, mesa_id: m, votos, ...(previa == null ? { estado: 'nueva', mensaje: null }
+        : previa.votos === votos && !confirmar ? { estado: 'sin_cambios', mensaje: 'ya la habías registrado con el mismo valor' }
+        : previa.votos === votos ? { estado: 'sin_cambios', mensaje: 'ya la habías registrado con el mismo valor' }
+        : { estado: 'cambia', mensaje: `reemplaza tu valor anterior (${previa.votos})` }) } as ResultadoFilaE14);
+      void archivo;
+    }
+    return salida;
+  },
+  async registrosMesa(): Promise<RegistrosMesa[]> {
+    await espera();
+    if (!['admin', 'coordinador', 'candidato'].includes(yo().rol)) return [];
+    const m = new Map<number, RegistrosMesa>();
+    for (const p of personas) {
+      if (p.eliminada || !p.puestoId || !p.mesa) continue;
+      const puesto = PUESTOS.find((x) => x.id === p.puestoId)!;
+      const loc = LOCALIDADES.find((l) => l.id === puesto.localidad_id)!;
+      const id = mesaId(puesto.id, p.mesa);
+      const f = m.get(id) ?? { localidad_id: loc.id, localidad: loc.nombre, puesto_id: puesto.id, puesto: puesto.nombre, mesa_id: id, mesa: p.mesa, personas: 0 };
+      f.personas++; m.set(id, f);
+    }
+    return [...m.values()];
+  },
+  async calidadLideres(): Promise<CalidadLider[]> {
+    await espera();
+    const ls = yo().rol === 'candidato' ? lideres : misLideres();
+    return ls.map((l) => {
+      const ps = personas.filter((p) => !p.eliminada && p.liderId === l.id);
+      const c = (f: (p: PersonaDemo) => boolean) => ps.filter(f).length;
+      return {
+        lider_id: l.id, nombre: l.nombre, meta_votos: l.meta_votos, total: ps.length,
+        ubicados: c((p) => estado(p) === 'completa'), sin_mesa: c((p) => estado(p) === 'sin_mesa'),
+        por_revisar: c((p) => estado(p) === 'por_revisar'), sin_lugar: c((p) => estado(p) === 'sin_dato'),
+        sin_sexo: c((p) => !p.sexo), sin_edad: c((p) => !p.fechaNacimiento && p.edad == null), sin_telefono: c((p) => !p.telefono),
+        sin_consentimiento: 0, importados: 0, ultimo_registro: ps.map((p) => p.creadoEn).sort().pop() ?? null,
+      };
+    });
+  },
+  async registrarExportacion(tipo, filas) { await espera(30); exportaciones.push({ tipo, filas }); },
 
   async equipo() { await espera(); return yo().rol === 'admin' ? usuarios : []; },
   async vincularUsuario(email, nombre, rol, liderId) {

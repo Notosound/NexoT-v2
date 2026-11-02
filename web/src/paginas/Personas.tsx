@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useSesion } from '../lib/sesion';
 import { ESTADOS_UBICACION, SEXOS, type EstadoUbicacion, type PersonaFila } from '../lib/tipos';
 import { formatoNumero, mensajeError, nombreCompleto } from '../lib/utilidades';
+import { descargarExcel, fechaArchivo } from '../lib/excel';
 
 export default function Personas() {
   const { api, sesion } = useSesion();
@@ -32,6 +33,24 @@ export default function Personas() {
     return () => clearTimeout(t);
   }, [cargar]);
 
+  const [exportando, setExportando] = useState(false);
+  async function exportarExcel() {
+    if (!confirm(`Vas a descargar ${formatoNumero(total)} registros con datos personales. Quedará registrado quién los exportó. ¿Continuar?`)) return;
+    setExportando(true); setError('');
+    try {
+      const todas = await api.personasTodas({ texto, estado });
+      await api.registrarExportacion('personas', todas.length, { texto, estado });
+      await descargarExcel(`Personas_${fechaArchivo()}.xlsx`, [{
+        nombre: 'Personas',
+        filas: [
+          ['Cédula', 'Nombres', 'Apellidos', 'Sexo', 'Edad', 'Teléfono', 'Líder', 'Localidad', 'Puesto', 'Puesto reportado', 'Mesa', 'Estado', 'Registrado'],
+          ...todas.map((p) => [p.cedula, p.nombres, p.apellidos, p.sexo ? SEXOS[p.sexo] : '', p.edad ?? '', p.telefono ?? '', p.lider ?? '',
+            p.localidad ?? '', p.puesto ?? '', p.puesto_reportado ?? '', p.mesa ?? '', ESTADOS_UBICACION[p.ubicacion_estado], p.creado_en.slice(0, 10)]),
+        ],
+      }]);
+    } catch (e) { setError(mensajeError(e)); } finally { setExportando(false); }
+  }
+
   async function eliminar(p: PersonaFila) {
     if (!confirm(`¿Eliminar a ${nombreCompleto(p)} (${p.cedula})? Queda registro en la auditoría.`)) return;
     try {
@@ -47,7 +66,10 @@ export default function Personas() {
     <>
       <div className="encabezado">
         <div><h1>{rol === 'lider' ? 'Mis registrados' : 'Personas'}</h1><p>{formatoNumero(total)} en total</p></div>
-        <Link to="/registrar" className="boton primario">Registrar persona</Link>
+        <div className="acciones">
+          {rol !== 'lider' && total > 0 && <button className="boton" disabled={exportando} onClick={exportarExcel}>{exportando ? 'Exportando…' : 'Exportar a Excel'}</button>}
+          <Link to="/registrar" className="boton primario">Registrar persona</Link>
+        </div>
       </div>
       <div className="filtros">
         <input type="search" placeholder="Buscar por nombre o cédula" value={texto} onChange={(e) => setTexto(e.target.value)} aria-label="Buscar" />

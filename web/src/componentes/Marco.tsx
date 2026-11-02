@@ -6,6 +6,7 @@ import { ROLES, type Rol } from '../lib/tipos';
 const ENLACES: { a: string; texto: string; roles: Rol[] }[] = [
   { a: '/', texto: 'Inicio', roles: ['admin', 'coordinador', 'lider', 'candidato', 'digitador'] },
   { a: '/tablero', texto: 'Tablero', roles: ['admin', 'coordinador'] },
+  { a: '/analisis', texto: 'Análisis', roles: ['admin', 'coordinador', 'candidato'] },
   { a: '/registrar', texto: 'Registrar persona', roles: ['admin', 'coordinador', 'lider'] },
   { a: '/personas', texto: 'Personas', roles: ['admin', 'coordinador', 'lider'] },
   { a: '/revision', texto: 'Puestos por revisar', roles: ['admin'] },
