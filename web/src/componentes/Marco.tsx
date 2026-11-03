@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   BarChart3, ClipboardCheck, Eye, FileSpreadsheet, Home, LineChart, LogOut, MapPinned, Moon, QrCode,
-  Sun, UserPlus, Users, UsersRound, Vote, Contact, PhoneCall, CalendarCheck, ShieldCheck, type LucideIcon,
+  ChevronDown, Sun, UserPlus, Users, UsersRound, Vote, Contact, PhoneCall, CalendarCheck, ShieldCheck, type LucideIcon,
 } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
 import { ROLES, type Rol } from '../lib/tipos';
@@ -41,6 +41,11 @@ const SECCIONES: { titulo: string; tituloLider?: string; enlaces: Enlace[] }[] =
 ];
 
 // Tema claro/oscuro: se recuerda en este navegador (si se puede)
+// Secciones cerradas del menú: se recuerdan en este navegador (si se puede)
+function cerradasIniciales(): string[] {
+  try { return JSON.parse(localStorage.getItem('menu-cerradas') ?? '[]'); } catch { return []; }
+}
+
 function temaInicial(): 'claro' | 'oscuro' {
   try {
     const t = localStorage.getItem('tema');
@@ -56,6 +61,12 @@ export default function Marco({ children }: { children: ReactNode }) {
   const [porRevisar, setPorRevisar] = useState(0);
   const [tema, setTema] = useState(temaInicial);
   const [eligiendo, setEligiendo] = useState(false);
+  const [cerradas, setCerradas] = useState<string[]>(cerradasIniciales);
+  const alternar = (titulo: string) => setCerradas((c) => {
+    const n = c.includes(titulo) ? c.filter((x) => x !== titulo) : [...c, titulo];
+    try { localStorage.setItem('menu-cerradas', JSON.stringify(n)); } catch { /* */ }
+    return n;
+  });
   const ruta = useLocation().pathname;
   const ir = useNavigate();
 
@@ -106,9 +117,16 @@ export default function Marco({ children }: { children: ReactNode }) {
             const enlaces = sec.enlaces.filter((e) => e.roles.includes(perfil.rol));
             if (!enlaces.length) return null;
             const titulo = perfil.rol === 'lider' && sec.tituloLider ? sec.tituloLider : sec.titulo;
+            const aqui = enlaces.some((e) => (e.a === '/' ? ruta === '/' : ruta.startsWith(e.a)));
+            const abierta = aqui || !cerradas.includes(sec.titulo);
             return (
-              <div key={sec.titulo} className="menu-grupo" role="group" aria-label={titulo}>
-                <span className="menu-titulo">{titulo}</span>
+              <div key={sec.titulo} className={`menu-grupo${abierta ? '' : ' cerrada'}`} role="group" aria-label={titulo}>
+                <button type="button" className="menu-titulo" aria-expanded={abierta} onClick={() => alternar(sec.titulo)}
+                  title={aqui ? 'Estás en esta sección' : abierta ? 'Cerrar sección' : 'Abrir sección'}>
+                  <span>{titulo}</span>
+                  {!abierta && <span className="menu-cuenta">{enlaces.length}</span>}
+                  <ChevronDown className="menu-flecha" aria-hidden />
+                </button>
                 {enlaces.map((e) => (
                   <NavLink key={e.a} to={e.a} end={e.a === '/'} className={({ isActive }) => (isActive ? 'activo' : '')}>
                     <e.icono className="icono" aria-hidden />

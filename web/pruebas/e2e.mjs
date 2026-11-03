@@ -623,6 +623,14 @@ console.log('Campaña: seguimiento, Día D, testigos y alertas');
 }
 {
   const { ctx, page } = await sesion('admin', escritorio);
+  await paso('menú: las secciones se pueden cerrar y abrir', async () => {
+    const titulo = page.getByRole('button', { name: /Organización/ });
+    await titulo.click();
+    assert.equal(await page.getByRole('link', { name: 'Equipo' }).isVisible(), false);
+    await page.screenshot({ path: join(capturas, '44-menu-colapsado.png') });
+    await titulo.click();
+    assert.equal(await page.getByRole('link', { name: 'Equipo' }).isVisible(), true);
+  });
   await paso('testigos: cobertura de mesas visible', async () => {
     await page.getByRole('link', { name: 'Testigos' }).click();
     await page.getByRole('heading', { name: 'Testigos electorales' }).waitFor();
