@@ -666,6 +666,8 @@ console.log('Campaña: seguimiento, Día D, testigos y alertas');
     await page.getByLabel(/código de 6 dígitos/).fill('123456');
     await page.getByRole('button', { name: 'Confirmar' }).click();
     await page.getByText(/quedó activa/).waitFor();
+    await page.getByRole('button', { name: 'Enviármelo ahora' }).click();
+    await page.getByText(/Te enviamos el informe/).waitFor();
   });
   await paso('testigos: cobertura de mesas visible', async () => {
     await page.getByRole('link', { name: 'Testigos' }).click();

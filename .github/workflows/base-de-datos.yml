@@ -10,6 +10,8 @@
 #   Entorno "pruebas":         SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD
 #   Entorno "produccion":      SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD
 #                              (+ "Required reviewers" para aprobar cada despliegue)
+#   Opcional, en cada entorno: RESEND_API_KEY (para el informe semanal por correo)
+#                              y la variable PANEL_URL (enlace del panel en el correo)
 
 name: Base de datos
 
@@ -86,5 +88,27 @@ jobs:
           for f in supabase/functions/*/; do
             nombre=$(basename "$f")
             echo "Desplegando $nombre"
-            supabase functions deploy "$nombre" --project-ref "$PROJECT_REF" --use-api
+            # "informe" la llama la base de datos (pg_cron) con su propia clave, sin sesión
+            if [ "$nombre" = "informe" ]; then extra="--no-verify-jwt"; else extra=""; fi
+            supabase functions deploy "$nombre" --project-ref "$PROJECT_REF" --use-api $extra
           done
+      - name: Configurar el informe semanal
+        env:
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          PANEL_URL: ${{ vars.PANEL_URL }}
+        run: |
+          # Dirección de las funciones para la tarea programada (pg_cron)
+          consulta="insert into app.ajustes values ('url_funciones', 'https://$PROJECT_REF.supabase.co/functions/v1') on conflict (clave) do update set valor = excluded.valor"
+          codigo=$(curl -sS -o respuesta.json -w '%{http_code}' -X POST "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H "Content-Type: application/json" \
+            -d "$(jq -n --arg q "$consulta" '{query: $q}')")
+          if [ "$codigo" -ge 300 ]; then echo "::warning::No se pudo guardar la dirección de funciones ($codigo): $(head -c 300 respuesta.json)"; fi
+          if [ -n "$RESEND_API_KEY" ]; then
+            args="RESEND_API_KEY=$RESEND_API_KEY"
+            [ -n "$PANEL_URL" ] && args="$args PANEL_URL=$PANEL_URL"
+            supabase secrets set $args --project-ref "$PROJECT_REF" > /dev/null
+            echo "Clave de envío configurada"
+          else
+            echo "::notice::Sin RESEND_API_KEY en este entorno: el informe semanal no se enviará hasta agregarla."
+          fi

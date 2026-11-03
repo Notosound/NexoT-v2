@@ -194,6 +194,7 @@ const solicitudesDemo: SolicitudDatos[] = [];
 let sembradas = false;
 const accionesDemo: AccionSensible[] = [];
 const factoresDemo: FactorDosPasos[] = [];
+const recibeDemo = { valor: true };
 const fechasDemo: { inicio: string | null; fin: string | null } = { inicio: null, fin: null };
 // Resultados históricos inventados para la demostración: votos por puesto
 // con variación por localidad, para que el análisis de potencial tenga forma
@@ -1105,6 +1106,9 @@ export const api: Api = {
       soy_yo: vistaLider ? x.l.id === vistaLider : x.l.perfil_id === u.id, rn: i + 1,
     })).filter((x) => (x.rn <= 10 && x.registros > 0) || x.soy_yo).map(({ rn: _rn, ...r }) => r as RankingFila);
   },
+  async recibeInforme() { await espera(40); return recibeDemo.valor; },
+  async cambiarRecibeInforme(recibe) { await espera(); recibeDemo.valor = recibe; },
+  async probarInforme() { await espera(300); return `Te enviamos el informe a ${yo().email} (en la demostración no sale ningún correo).`; },
   async quitarDosPasosDe(id) {
     await espera(); soloLectura();
     const u = usuarios.find((x) => x.id === id)!;

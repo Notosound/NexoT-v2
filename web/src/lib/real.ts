@@ -33,7 +33,7 @@ const sb = createClient(url, llave, { auth: { persistSession: true, autoRefreshT
 /** RPC de solo lectura: en "Ver como" va por GET (la base rechaza POST) */
 const rpcLectura = (fn: string, args?: Record<string, unknown>) => sb.rpc(fn, args, { get: !!verComo });
 
-async function llamarFuncion(cuerpo: Record<string, unknown>): Promise<string> {
+async function llamarFuncion(cuerpo: Record<string, unknown>, funcion = 'equipo'): Promise<string> {
   // El servidor verifica la sesión: si ya no existe allá (venció o se cerró
   // desde otro lado), se intenta renovar; si no se puede, se pide entrar de nuevo.
   const sesionValida = async () => {
@@ -48,7 +48,7 @@ async function llamarFuncion(cuerpo: Record<string, unknown>): Promise<string> {
   };
   const session = await sesionValida();
   if (!session) throw new Error('Tu sesión se cerró. Vuelve a entrar con tu correo y contraseña.');
-  const { data, error } = await sb.functions.invoke('equipo', {
+  const { data, error } = await sb.functions.invoke(funcion, {
     headers: { Authorization: `Bearer ${session.access_token}` },
     body: { ...cuerpo, redirect: window.location.origin },
   });
@@ -649,5 +649,17 @@ export const api: Api = {
   },
   async rankingSemanal() {
     return lista(await rpcLectura('ranking_semanal')) as RankingFila[];
+  },
+
+  // ── Informe semanal ────────────────────────────────────────────────
+  async recibeInforme() {
+    const r = await sb.rpc('mi_recibe_informe');
+    return r.error ? false : r.data !== false;
+  },
+  async cambiarRecibeInforme(recibe) {
+    ok(await sb.rpc('cambiar_recibe_informe', { p_recibe: recibe }));
+  },
+  probarInforme() {
+    return llamarFuncion({ accion: 'probar' }, 'informe');
   },
 };

@@ -1,6 +1,6 @@
 // Mi cuenta: contraseña y verificación en dos pasos
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { KeyRound, ShieldCheck, ShieldAlert, Smartphone, Trash2 } from 'lucide-react';
+import { KeyRound, Mail, ShieldCheck, ShieldAlert, Smartphone, Trash2 } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
 import { ROLES, type FactorDosPasos } from '../lib/tipos';
 import { mensajeError } from '../lib/utilidades';
@@ -101,10 +101,13 @@ export default function MiCuenta() {
           )}
         </div>
 
-        <div className="tarjeta">
-          <div className="tarjeta-titulo"><h2><KeyRound className="icono" aria-hidden /> Contraseña</h2></div>
-          <p className="ayuda">Te enviamos un enlace al correo para que pongas una contraseña nueva.</p>
-          <BotonClave email={yo.email} />
+        <div style={{ display: 'grid', gap: '1rem' }}>
+          <div className="tarjeta">
+            <div className="tarjeta-titulo"><h2><KeyRound className="icono" aria-hidden /> Contraseña</h2></div>
+            <p className="ayuda">Te enviamos un enlace al correo para que pongas una contraseña nueva.</p>
+            <BotonClave email={yo.email} />
+          </div>
+          {(yo.perfil?.rol === 'admin' || yo.perfil?.rol === 'candidato') && <Informe />}
         </div>
       </div>
     </>
@@ -123,5 +126,37 @@ function BotonClave({ email }: { email: string }) {
       }}>{estado === 'listo' ? 'Revisa tu correo' : estado === 'enviando' ? 'Enviando…' : 'Cambiar contraseña'}</button>
       {error && <div className="aviso error" role="alert" style={{ marginTop: '0.5rem' }}>{error}</div>}
     </>
+  );
+}
+
+function Informe() {
+  const { api } = useSesion();
+  const [recibe, setRecibe] = useState<boolean | null>(null);
+  const [mensaje, setMensaje] = useState('');
+  const [error, setError] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  useEffect(() => { api.recibeInforme().then(setRecibe).catch(() => setRecibe(true)); }, [api]);
+  const cambiar = async (v: boolean) => {
+    setError(''); setMensaje('');
+    try { await api.cambiarRecibeInforme(v); setRecibe(v); } catch (e) { setError(mensajeError(e)); }
+  };
+  const probar = async () => {
+    setError(''); setMensaje(''); setEnviando(true);
+    try { setMensaje(await api.probarInforme()); } catch (e) { setError(mensajeError(e)); } finally { setEnviando(false); }
+  };
+  return (
+    <div className="tarjeta">
+      <div className="tarjeta-titulo"><h2><Mail className="icono" aria-hidden /> Informe semanal</h2></div>
+      <p className="ayuda">Cada lunes temprano llega al correo un resumen corto: cuánto creció la base, quién confirmó, qué líderes van atrasados y qué hay por atender. No trae datos de ninguna persona.</p>
+      {recibe != null && (
+        <label className="casilla" style={{ margin: '0.25rem 0 0.75rem' }}>
+          <input type="checkbox" checked={recibe} onChange={(e) => cambiar(e.target.checked)} />
+          <span>Quiero recibirlo</span>
+        </label>
+      )}
+      <button className="boton" onClick={probar} disabled={enviando}>{enviando ? 'Enviando…' : 'Enviármelo ahora'}</button>
+      {mensaje && <div className="aviso ok" role="status" style={{ marginTop: '0.5rem' }}>{mensaje}</div>}
+      {error && <div className="aviso error" role="alert" style={{ marginTop: '0.5rem' }}>{error}</div>}
+    </div>
   );
 }

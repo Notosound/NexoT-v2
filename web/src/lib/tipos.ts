@@ -403,5 +403,9 @@ export interface Api {
   configurarFechasMeta(inicio: string, fin: string): Promise<void>;
   cambiarMeta(liderId: string, meta: number): Promise<void>;
   rankingSemanal(): Promise<RankingFila[]>;
+  // informe semanal por correo
+  recibeInforme(): Promise<boolean>;
+  cambiarRecibeInforme(recibe: boolean): Promise<void>;
+  probarInforme(): Promise<string>;
   quitarDosPasosDe(usuarioId: string): Promise<string>;
 }
