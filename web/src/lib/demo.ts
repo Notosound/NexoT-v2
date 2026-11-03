@@ -5,7 +5,7 @@ import type {
   Api, Demografia, FilaImportacion, PuestoCenso, Tendencia,
   Eleccion, EstadoMesa, CalidadLider, PuestoCodigos, RegistrosMesa, ResultadoFilaE14, LiderE14, LocalidadE14, MesaE14, PuestoE14, TotalesE14, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
   PersonaFila, Puesto, Rol, Sesion, Sexo, Sugerencia, Compromiso, Testigo,
-  Politica, SolicitudDatos, AccionSensible, FactorDosPasos,
+  Politica, SolicitudDatos, AccionSensible, FactorDosPasos, Historico, PotencialPuesto, FilaHistoricoResultado,
 } from './tipos';
 import QRCode from 'qrcode';
 import { edadDesde, hoyISO, normalizar } from './utilidades';
@@ -194,6 +194,24 @@ const solicitudesDemo: SolicitudDatos[] = [];
 let sembradas = false;
 const accionesDemo: AccionSensible[] = [];
 const factoresDemo: FactorDosPasos[] = [];
+// Resultados históricos inventados para la demostración: votos por puesto
+// con variación por localidad, para que el análisis de potencial tenga forma
+const historicosDemo: { h: Historico; puestos: Map<number, { votos: number; validos: number }> }[] = [];
+function sembrarHistorico() {
+  if (historicosDemo.length) return;
+  const puestos = new Map<number, { votos: number; validos: number }>();
+  let semilla = 7;
+  const azarH = () => { semilla = (semilla * 16807) % 2147483647; return semilla / 2147483647; };
+  for (const pu of PUESTOS) {
+    const habil = CENSO.find((c) => c.id === pu.id)?.censo_total || 3000;
+    const validos = Math.round(habil * (0.38 + azarH() * 0.2));
+    const fuerza = 0.004 + ((pu.localidad_id * 37) % 11) / 800 + azarH() * 0.01;
+    puestos.set(pu.id, { votos: Math.round(validos * fuerza), validos });
+  }
+  const votos = [...puestos.values()].reduce((a, x) => a + x.votos, 0);
+  const validos = [...puestos.values()].reduce((a, x) => a + x.validos, 0);
+  historicosDemo.push({ h: { id: 'h-2022', nombre: 'Senado 2022 (demo)', anio: 2022, cargado_en: new Date().toISOString(), puestos: puestos.size, votos, validos }, puestos });
+}
 
 // "Ver como" en demostración: cambia quién soy y prohíbe escribir
 let vista: MiembroEquipo | null = null;
@@ -979,6 +997,62 @@ export const api: Api = {
     await espera(60);
     return Object.fromEntries(usuarios.map((u) => [u.id, u.id === actual?.usuario.id && factoresDemo.some((f) => f.verificado)]));
   },
+  async historicos() {
+    await espera(80);
+    if (!['admin', 'coordinador', 'candidato'].includes(yo().rol)) return [];
+    sembrarHistorico();
+    return historicosDemo.map((x) => ({ ...x.h }));
+  },
+  async potencial(id) {
+    await espera();
+    const x = historicosDemo.find((y) => y.h.id === id);
+    if (!x) return [];
+    const hoy = new Map<number, { s: number; c: number }>();
+    for (const p of visibles()) {
+      if (!p.puestoId) continue;
+      const v = hoy.get(p.puestoId) ?? { s: 0, c: 0 };
+      v.s++; if (p.compromiso === 'confirmado') v.c++;
+      hoy.set(p.puestoId, v);
+    }
+    const ids = new Set([...x.puestos.keys(), ...hoy.keys()]);
+    return [...ids].map((pid) => {
+      const pu = PUESTOS.find((q) => q.id === pid)!;
+      const loc = LOCALIDADES.find((l) => l.id === pu.localidad_id)!;
+      const hp = x.puestos.get(pid);
+      return { historico_id: id, localidad_id: loc.id, localidad: loc.nombre, puesto_id: pid, puesto: pu.nombre, habilitados: CENSO.find((c) => c.id === pid)?.censo_total ?? null,
+        votos_antes: hp?.votos ?? 0, validos_antes: hp?.validos ?? null, simpatizantes: hoy.get(pid)?.s ?? 0, confirmados: hoy.get(pid)?.c ?? 0 } as PotencialPuesto;
+    });
+  },
+  async importarHistorico(nombre, anio, filas, confirmar) {
+    await espera(300);
+    if (yo().rol !== 'admin') throw new Error('Solo un administrador carga resultados históricos');
+    if (!nombre.trim()) throw new Error('Ponle un nombre a la carga (por ejemplo: Senado 2022)');
+    const puestos = new Map<number, { votos: number; validos: number }>();
+    const r: FilaHistoricoResultado[] = filas.map((f, i) => {
+      const fila = Number(f.fila ?? i + 2);
+      const votos = Number(String(f.votos ?? '').replace(/[\s.,]/g, ''));
+      if (!String(f.votos ?? '').trim()) return { fila, estado: 'vacia', mensaje: 'sin votos (se ignora)', puesto_id: null, votos: null };
+      if (!Number.isFinite(votos)) return { fila, estado: 'error', mensaje: `votos inválidos: "${f.votos}"`, puesto_id: null, votos: null };
+      const pu = PUESTOS.find((q) => normalizar(q.nombre) === normalizar(f.puesto ?? ''));
+      if (!pu) return { fila, estado: 'error', mensaje: `puesto no encontrado: "${f.puesto ?? ''}" en "${f.localidad ?? ''}"`, puesto_id: null, votos };
+      const v = puestos.get(pu.id) ?? { votos: 0, validos: 0 };
+      v.votos += votos; v.validos += Number(String(f.validos ?? '').replace(/[\s.,]/g, '')) || 0;
+      puestos.set(pu.id, v);
+      return { fila, estado: 'ok', mensaje: null, puesto_id: pu.id, votos };
+    });
+    if (confirmar) {
+      const votos = [...puestos.values()].reduce((a, x) => a + x.votos, 0);
+      const i = historicosDemo.findIndex((x) => x.h.nombre === nombre.trim());
+      const h = { id: i >= 0 ? historicosDemo[i].h.id : `h-${Date.now()}`, nombre: nombre.trim(), anio, cargado_en: new Date().toISOString(), puestos: puestos.size, votos, validos: null };
+      if (i >= 0) historicosDemo[i] = { h, puestos }; else historicosDemo.unshift({ h, puestos });
+    }
+    return r;
+  },
+  async eliminarHistorico(id) {
+    await espera();
+    const i = historicosDemo.findIndex((x) => x.h.id === id);
+    if (i >= 0) historicosDemo.splice(i, 1);
+  },
   async quitarDosPasosDe(id) {
     await espera(); soloLectura();
     const u = usuarios.find((x) => x.id === id)!;
@@ -1001,7 +1075,7 @@ for (const k of ['registrarPersona', 'resolverUbicacion', 'confirmarImportacion'
 const ESCRITURAS: (keyof Api)[] = ['crearLider', 'registrarPersona', 'eliminarPersona', 'resolverUbicacion', 'crearImportacion', 'cargarFilas',
   'confirmarImportacion', 'cancelarImportacion', 'crearEleccion', 'digitarE14', 'corregirDigitacion', 'resolverE14', 'importarE14',
   'vincularUsuario', 'desactivarUsuario', 'reactivarUsuario', 'cambiarRol', 'invitarUsuario', 'reenviarAcceso',
-  'configurarPolitica', 'atenderSolicitud', 'quitarDosPasosDe', 'inscribirDosPasos', 'confirmarDosPasos', 'quitarDosPasos'];
+  'configurarPolitica', 'atenderSolicitud', 'importarHistorico', 'eliminarHistorico', 'quitarDosPasosDe', 'inscribirDosPasos', 'confirmarDosPasos', 'quitarDosPasos'];
 for (const k of ESCRITURAS) {
   const original = api[k] as (...a: unknown[]) => Promise<unknown>;
   (api as unknown as Record<string, unknown>)[k] = async (...a: unknown[]) => {

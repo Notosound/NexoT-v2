@@ -673,6 +673,17 @@ console.log('Campaña: seguimiento, Día D, testigos y alertas');
     await page.locator('.cifra-tarjeta', { hasText: 'mesas sin testigo' }).locator('text=/^[1-9]/').first().waitFor();
     await page.screenshot({ path: join(capturas, '42-testigos.png'), fullPage: true });
   });
+  await paso('análisis: potencial por puesto frente a una elección anterior', async () => {
+    await page.getByRole('link', { name: 'Análisis' }).click();
+    await page.getByRole('tab', { name: 'Potencial' }).click();
+    await page.getByRole('heading', { name: /Dónde hay más votos por ganar/ }).waitFor();
+    await page.locator('.barras-h').first().waitFor();
+    await page.screenshot({ path: join(capturas, '48-potencial.png'), fullPage: true });
+    await page.getByRole('button', { name: 'Subir resultados' }).click();
+    await page.getByRole('dialog').getByText('Descargar plantilla').waitFor();
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Cancelar' }).click();
+  });
   await paso('análisis: alertas de datos sospechosos', async () => {
     await page.getByRole('link', { name: 'Análisis' }).click();
     await page.getByRole('tab', { name: 'Calidad' }).click();

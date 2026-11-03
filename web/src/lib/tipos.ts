@@ -65,6 +65,14 @@ export interface AccionSensible {
   id: number; en: string; accion: 'EXPORT' | 'VER_COMO' | 'SUPRESION' | 'UPDATE'; tabla: string; registro_id: string | null;
   detalle: Record<string, unknown> | null; usuario: string;
 }
+// Resultados históricos y potencial por puesto
+export interface Historico { id: string; nombre: string; anio: number | null; cargado_en: string; puestos: number; votos: number; validos: number | null }
+export interface PotencialPuesto {
+  historico_id: string; localidad_id: number; localidad: string; puesto_id: number; puesto: string; habilitados: number | null;
+  votos_antes: number; validos_antes: number | null; simpatizantes: number; confirmados: number;
+}
+export interface FilaHistoricoResultado { fila: number; estado: 'ok' | 'error' | 'vacia'; mensaje: string | null; puesto_id: number | null; votos: number | null }
+
 export interface FactorDosPasos { id: string; nombre: string; verificado: boolean; creado: string }
 
 export interface Localidad { id: number; codigo: string; nombre: string }
@@ -375,5 +383,10 @@ export interface Api {
   /** Al entrar: escribe el código de la app */
   verificarCodigo(codigo: string): Promise<void>;
   equipoDosPasos(): Promise<Record<string, boolean>>;
+  // resultados históricos
+  historicos(): Promise<Historico[]>;
+  potencial(historicoId: string): Promise<PotencialPuesto[]>;
+  importarHistorico(nombre: string, anio: number | null, filas: Record<string, string>[], confirmar: boolean): Promise<FilaHistoricoResultado[]>;
+  eliminarHistorico(id: string): Promise<void>;
   quitarDosPasosDe(usuarioId: string): Promise<string>;
 }

@@ -6,7 +6,7 @@ import type {
   AvanceE14, Eleccion, CalidadLider, FilaPlantillaE14, PuestoCodigos, RegistrosMesa, ResultadoFilaE14, LiderE14, LocalidadE14, MesaE14, MesaEnRevision, MesaPendiente, MiDigitacion, PuestoE14, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
   PersonaFila, Puesto, Rol, Sesion, Sugerencia, OpcionVerComo, EnlaceLider,
   SeguimientoLider, DiaDFila, Testigo, CoberturaMesa, AlertaCalidad,
-  Politica, SolicitudDatos, DatoTitular, AccionSensible,
+  Politica, SolicitudDatos, DatoTitular, AccionSensible, Historico, PotencialPuesto, FilaHistoricoResultado,
 } from './tipos';
 import { AVISO_VERSION } from './tipos';
 import { edadDesde, hoyISO } from './utilidades';
@@ -80,11 +80,15 @@ function sinError(r: { error: unknown }): void {
 
 // PostgREST devuelve como máximo 1.000 filas por consulta: se pagina.
 async function todas<T>(consulta: (desde: number, hasta: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> {
+  // Se piden 4 páginas a la vez: con 40.000 registros son 4 veces menos esperas
   const salida: T[] = [];
-  for (let desde = 0; ; desde += 1000) {
-    const lote = ok(await consulta(desde, desde + 999)) ?? [];
-    salida.push(...lote);
-    if (lote.length < 1000) return salida;
+  for (let desde = 0; ; desde += 4000) {
+    const lotes = await Promise.all([0, 1, 2, 3].map((k) => consulta(desde + k * 1000, desde + k * 1000 + 999)));
+    for (const r of lotes) {
+      const lote = ok(r) ?? [];
+      salida.push(...lote);
+      if (lote.length < 1000) return salida;
+    }
   }
 }
 
@@ -503,7 +507,7 @@ export const api: Api = {
     ok(await sb.rpc('quitar_testigo', { p_id: id }));
   },
   async alertasCalidad() {
-    return lista(await sb.from('v_alertas_calidad').select('*').order('personas', { ascending: false })) as AlertaCalidad[];
+    return lista(await sb.from('v_alertas_calidad').select('*').order('personas', { ascending: false }).limit(100)) as AlertaCalidad[];
   },
   async personasPorIds(ids) {
     if (!ids.length) return [];
@@ -612,5 +616,19 @@ export const api: Api = {
   },
   quitarDosPasosDe(id) {
     return llamarFuncion({ accion: 'quitar_2fa', usuario_id: id });
+  },
+
+  // ── Resultados históricos ──────────────────────────────────────────
+  async historicos() {
+    return lista(await sb.from('v_historicos').select('*').order('cargado_en', { ascending: false })) as Historico[];
+  },
+  async potencial(id) {
+    return todas((a, b) => sb.from('v_potencial_puestos').select('*').eq('historico_id', id).order('puesto_id').range(a, b)) as Promise<PotencialPuesto[]>;
+  },
+  async importarHistorico(nombre, anio, filas, confirmar) {
+    return lista(await sb.rpc('importar_historico', { p_nombre: nombre, p_anio: anio, p_filas: filas, p_confirmar: confirmar })) as FilaHistoricoResultado[];
+  },
+  async eliminarHistorico(id) {
+    ok(await sb.rpc('eliminar_historico', { p_id: id }));
   },
 };

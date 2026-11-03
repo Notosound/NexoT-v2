@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useEnVivo } from '../lib/enVivo';
 import EnVivo from '../componentes/EnVivo';
 import Alertas from '../componentes/Alertas';
+import Potencial from '../componentes/Potencial';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle, CalendarClock, CheckCircle2, Download, MapPin, MapPinOff, Phone, Target, TrendingDown, TrendingUp, Users, Vote,
@@ -19,8 +20,8 @@ import type {
 import { descargarExcel, fechaArchivo, type Celda } from '../lib/excel';
 import { formatoNumero, mensajeError } from '../lib/utilidades';
 
-type Pestana = 'resumen' | 'jerarquia' | 'calidad' | 'lideres' | 'simulacion';
-const PESTANAS: [Pestana, string][] = [['resumen', 'Resumen'], ['jerarquia', 'Territorio'], ['lideres', 'Líderes'], ['calidad', 'Calidad de los datos'], ['simulacion', 'Simulación']];
+type Pestana = 'resumen' | 'jerarquia' | 'potencial' | 'calidad' | 'lideres' | 'simulacion';
+const PESTANAS: [Pestana, string][] = [['resumen', 'Resumen'], ['jerarquia', 'Territorio'], ['potencial', 'Potencial'], ['lideres', 'Líderes'], ['calidad', 'Calidad de los datos'], ['simulacion', 'Simulación']];
 const pct = (a: number, b: number) => (b > 0 ? Math.round((100 * a) / b) : null);
 const pct0 = (a: number, b: number) => pct(a, b) ?? 0;
 const porMil = (a: number, b: number) => (b > 0 ? Math.round((10000 * a) / b) / 10 : 0);
@@ -96,6 +97,7 @@ export default function Analisis() {
         <>
           {pestana === 'resumen' && <Resumen datos={datos} e14={eleccionId ? e14 : null} eleccion={datos.elecciones.find((e) => e.id === eleccionId)} esAdmin={rol === 'admin'} irA={setPestana} />}
           {pestana === 'jerarquia' && <Jerarquia datos={datos} e14={eleccionId ? e14 : null} eleccionId={eleccionId} exportar={exportar} />}
+          {pestana === 'potencial' && <Potencial exportar={exportar} />}
           {pestana === 'calidad' && <Calidad datos={datos} esAdmin={rol === 'admin'} exportar={exportar} />}
           {pestana === 'lideres' && <Lideres datos={datos} e14={eleccionId ? e14 : null} exportar={exportar} />}
           {pestana === 'simulacion' && <Simulacion datos={datos} exportar={exportar} />}
