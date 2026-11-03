@@ -5,7 +5,9 @@ import type {
   Api, Demografia, FilaImportacion, PuestoCenso, Tendencia,
   Eleccion, EstadoMesa, CalidadLider, PuestoCodigos, RegistrosMesa, ResultadoFilaE14, LiderE14, LocalidadE14, MesaE14, PuestoE14, TotalesE14, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
   PersonaFila, Puesto, Rol, Sesion, Sexo, Sugerencia, Compromiso, Testigo,
+  Politica, SolicitudDatos, AccionSensible, FactorDosPasos,
 } from './tipos';
+import QRCode from 'qrcode';
 import { edadDesde, hoyISO, normalizar } from './utilidades';
 import crudo from './demo-puestos.json';
 import { codigoOficial } from './mapeoE14';
@@ -178,6 +180,21 @@ const oyentesDatos = new Set<(t: 'registros' | 'e14') => void>();
 // Enlace de registro: fijo en la demostración (cada carga empieza de cero)
 const tokenDemo = (liderId: string) => `demo${liderId.replace(/\W/g, '')}enlace`;
 
+// Protección de datos y verificación en dos pasos (demostración)
+const politicaDemo: Politica = {
+  campana: 'Campaña de demostración', responsable: 'Campaña de demostración', documento: null,
+  correo: 'datos@campana-demo.co', telefono: null, direccion: null, actualizada: null,
+};
+function habiles(n: number) {
+  const d = new Date();
+  for (let k = 0; k < n;) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) k++; }
+  return d.toISOString().slice(0, 10);
+}
+const solicitudesDemo: SolicitudDatos[] = [];
+let sembradas = false;
+const accionesDemo: AccionSensible[] = [];
+const factoresDemo: FactorDosPasos[] = [];
+
 // "Ver como" en demostración: cambia quién soy y prohíbe escribir
 let vista: MiembroEquipo | null = null;
 let vistaLider: string | null = null;
@@ -240,7 +257,7 @@ function aFila(p: PersonaDemo): PersonaFila {
     compromiso: p.compromiso ?? 'sin_contactar', contactos_n: p.contactosN ?? 0, lider_id: p.liderId,
   };
 }
-const exportaciones: { tipo: string; filas: number }[] = [];
+const exportaciones: { tipo: string; filas: number; en?: string; usuario?: string }[] = [];
 
 const importaciones = new Map<string, { imp: Importacion; filas: FilaImportacion[]; liderId: string | null }>();
 
@@ -635,7 +652,7 @@ export const api: Api = {
       };
     });
   },
-  async registrarExportacion(tipo, filas) { await espera(30); exportaciones.push({ tipo, filas }); },
+  async registrarExportacion(tipo, filas) { await espera(30); exportaciones.push({ tipo, filas, en: new Date().toISOString(), usuario: yo().nombre }); },
 
   async equipo() { await espera(); return yo().rol === 'admin' ? usuarios : []; },
   async vincularUsuario(email, nombre, rol, liderId) {
@@ -840,7 +857,7 @@ export const api: Api = {
   async enlaceInfo(token) {
     await espera();
     const l = lideres.find((x) => (x.token ?? tokenDemo(x.id)) === token && x.enlaceActivo !== false);
-    return l ? { lider: l.nombre, campana: 'Campaña de demostración' } : null;
+    return l ? { lider: l.nombre, campana: 'Campaña de demostración', slug: 'demo' } : null;
   },
   async registrarPorEnlace(token, d) {
     await espera(200);
@@ -859,6 +876,114 @@ export const api: Api = {
       mesa: d.mesa ? Number(d.mesa) : null, creadoEn: new Date().toISOString(), eliminada: false, origen: 'formulario',
     });
   },
+  // ── Protección de datos (demostración) ─────────────────────────────
+  async politica(slug) {
+    await espera(80);
+    return slug === 'demo' ? { ...politicaDemo } : null;
+  },
+  async miPolitica() { await espera(80); return { ...politicaDemo, slug: 'demo' }; },
+  async configurarPolitica(d) {
+    await espera(); soloLectura();
+    if (yo().rol !== 'admin') throw new Error('Solo un administrador puede cambiar estos datos');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(d.correo.trim())) throw new Error('Escribe un correo válido para que los titulares puedan escribir');
+    Object.assign(politicaDemo, { responsable: d.responsable || politicaDemo.campana, documento: d.documento || null, correo: d.correo.trim().toLowerCase(),
+      telefono: d.telefono || null, direccion: d.direccion || null, actualizada: hoyISO() });
+  },
+  async solicitarDatos(slug, d) {
+    await espera(200);
+    if (slug !== 'demo') throw new Error('No encontramos esta campaña.');
+    const ced = d.cedula.replace(/\D/g, '');
+    if (!/^\d{5,10}$/.test(ced)) throw new Error('Revisa la cédula: solo números, entre 5 y 10 dígitos.');
+    if (d.nombre.trim().length < 3) throw new Error('Escribe tu nombre completo.');
+    if (d.contacto.trim().length < 7) throw new Error('Escribe un celular o correo para responderte.');
+    const radicado = Math.random().toString(16).slice(2, 10).toUpperCase();
+    solicitudesDemo.unshift({ id: `s-${solicitudesDemo.length + 1}`, radicado, tipo: d.tipo, cedula: ced, nombre: d.nombre.trim(), contacto: d.contacto.trim(),
+      detalle: d.detalle.trim() || null, estado: 'pendiente', respuesta: null, personas_suprimidas: null, creado_en: new Date().toISOString(),
+      vence_en: habiles(d.tipo === 'consulta' ? 10 : 15), atendida_en: null });
+    return radicado;
+  },
+  async solicitudesDatos() {
+    await espera();
+    if (!sembradas) {
+      sembradas = true;
+      const p = personas[7];
+      solicitudesDemo.push({ id: 's-ejemplo', radicado: 'A1B2C3D4', tipo: 'supresion', cedula: p.cedula, nombre: `${p.nombres} ${p.apellidos}`,
+        contacto: p.telefono ?? '3000000000', detalle: 'Ya no quiero que me llamen.', estado: 'pendiente', respuesta: null, personas_suprimidas: null,
+        creado_en: new Date(Date.now() - 9 * 86_400_000).toISOString(), vence_en: habiles(5), atendida_en: null });
+    }
+    return yo().rol === 'admin' ? solicitudesDemo.map((x) => ({ ...x })) : [];
+  },
+  async datosDelTitular(id) {
+    await espera();
+    const s = solicitudesDemo.find((x) => x.id === id);
+    if (!s || yo().rol !== 'admin') return [];
+    return personas.filter((p) => p.cedula === s.cedula).map((p) => ({
+      persona_id: p.id, nombres: p.nombres, apellidos: p.apellidos, telefono: p.telefono, lider: lideres.find((l) => l.id === p.liderId)?.nombre ?? '',
+      puesto: PUESTOS.find((x) => x.id === p.puestoId)?.nombre ?? null, origen: p.origen ?? 'manual', creado_en: p.creadoEn,
+      autorizacion_en: p.creadoEn, autorizacion_canal: p.origen === 'importacion' ? 'importacion' : 'presencial', eliminado: p.eliminada,
+    }));
+  },
+  async atenderSolicitud(id, estado, respuesta, suprimir) {
+    await espera(); soloLectura();
+    if (yo().rol !== 'admin') throw new Error('Solo un administrador atiende solicitudes');
+    const s = solicitudesDemo.find((x) => x.id === id)!;
+    if (s.estado !== 'pendiente') throw new Error('Esta solicitud ya fue atendida');
+    if (respuesta.trim().length < 10) throw new Error('Escribe la respuesta que se le dio al titular (mínimo 10 caracteres).');
+    if (suprimir && (estado !== 'atendida' || !['supresion', 'revocatoria'].includes(s.tipo))) throw new Error('Solo se suprimen datos en solicitudes de supresión o revocatoria atendidas');
+    let n = 0;
+    if (suprimir) {
+      for (const p of personas.filter((x) => x.cedula === s.cedula)) {
+        Object.assign(p, { nombres: 'Titular', apellidos: 'suprimido', telefono: null, cedula: `0${Math.floor(Math.random() * 1e9)}`, eliminada: true });
+        n++;
+      }
+      accionesDemo.unshift({ id: Date.now(), en: new Date().toISOString(), accion: 'SUPRESION', tabla: 'solicitudes_datos', registro_id: s.radicado,
+        detalle: { tipo: 'supresion', radicado: s.radicado, personas: n }, usuario: yo().nombre });
+    }
+    Object.assign(s, { estado, respuesta: respuesta.trim(), atendida_en: new Date().toISOString(), personas_suprimidas: suprimir ? n : null });
+    return n;
+  },
+  async accionesSensibles() {
+    await espera();
+    if (yo().rol !== 'admin') return [];
+    const exp = exportaciones.map((e, i) => ({ id: -i - 1, en: e.en ?? new Date().toISOString(), accion: 'EXPORT' as const, tabla: 'exportacion',
+      registro_id: e.tipo, detalle: { tipo: e.tipo, filas: e.filas }, usuario: e.usuario ?? 'Admin Demo' }));
+    return [...accionesDemo, ...exp].sort((a, b) => b.en.localeCompare(a.en));
+  },
+
+  // ── Verificación en dos pasos (demostración: cualquier código de 6 dígitos sirve) ──
+  async factoresDosPasos() { await espera(60); return factoresDemo.map((f) => ({ ...f })); },
+  async inscribirDosPasos() {
+    await espera();
+    for (let i = factoresDemo.length - 1; i >= 0; i--) if (!factoresDemo[i].verificado) factoresDemo.splice(i, 1);
+    const secreto = 'DEMO' + Math.random().toString(36).slice(2, 14).toUpperCase();
+    const f = { id: `f-${Date.now()}`, nombre: `Celular ${factoresDemo.length + 1}`, verificado: false, creado: new Date().toISOString() };
+    factoresDemo.push(f);
+    const qr = await QRCode.toDataURL(`otpauth://totp/NexoT:demo?secret=${secreto}&issuer=NexoT`, { margin: 1, width: 220 });
+    return { factorId: f.id, qr, secreto };
+  },
+  async confirmarDosPasos(factorId, codigo) {
+    await espera();
+    if (!/^\d{6}$/.test(codigo.replace(/\D/g, ''))) throw new Error('El código no es correcto o ya cambió. Escribe el que aparece ahora en la app.');
+    factoresDemo.find((f) => f.id === factorId)!.verificado = true;
+  },
+  async quitarDosPasos(factorId) {
+    await espera();
+    const i = factoresDemo.findIndex((f) => f.id === factorId);
+    if (i >= 0) factoresDemo.splice(i, 1);
+  },
+  async verificarCodigo(codigo) {
+    await espera();
+    if (!/^\d{6}$/.test(codigo.replace(/\D/g, ''))) throw new Error('El código no es correcto o ya cambió. Escribe el que aparece ahora en la app.');
+  },
+  async equipoDosPasos() {
+    await espera(60);
+    return Object.fromEntries(usuarios.map((u) => [u.id, u.id === actual?.usuario.id && factoresDemo.some((f) => f.verificado)]));
+  },
+  async quitarDosPasosDe(id) {
+    await espera(); soloLectura();
+    const u = usuarios.find((x) => x.id === id)!;
+    return `${u.nombre} ya puede entrar solo con su contraseña (en la demostración no cambia nada).`;
+  },
 };
 
 // En vivo (demostración): cada escritura avisa a las pantallas abiertas
@@ -875,7 +1000,8 @@ for (const k of ['registrarPersona', 'resolverUbicacion', 'confirmarImportacion'
 // En "Ver como" ninguna escritura pasa (igual que en la base real)
 const ESCRITURAS: (keyof Api)[] = ['crearLider', 'registrarPersona', 'eliminarPersona', 'resolverUbicacion', 'crearImportacion', 'cargarFilas',
   'confirmarImportacion', 'cancelarImportacion', 'crearEleccion', 'digitarE14', 'corregirDigitacion', 'resolverE14', 'importarE14',
-  'vincularUsuario', 'desactivarUsuario', 'reactivarUsuario', 'cambiarRol', 'invitarUsuario', 'reenviarAcceso'];
+  'vincularUsuario', 'desactivarUsuario', 'reactivarUsuario', 'cambiarRol', 'invitarUsuario', 'reenviarAcceso',
+  'configurarPolitica', 'atenderSolicitud', 'quitarDosPasosDe', 'inscribirDosPasos', 'confirmarDosPasos', 'quitarDosPasos'];
 for (const k of ESCRITURAS) {
   const original = api[k] as (...a: unknown[]) => Promise<unknown>;
   (api as unknown as Record<string, unknown>)[k] = async (...a: unknown[]) => {

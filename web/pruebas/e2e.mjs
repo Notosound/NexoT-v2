@@ -331,6 +331,17 @@ console.log('Enlace del líder y formulario público (móvil)');
     await p.getByRole('button', { name: 'Registrarme' }).click();
     await p.getByText('¡Gracias! Tu registro quedó listo.').waitFor();
   });
+  await paso('política de datos pública: el titular radica una solicitud', async () => {
+    await p.goto(base + '/privacidad/demo');
+    await p.getByRole('heading', { name: 'Tus derechos' }).waitFor();
+    await p.getByRole('button', { name: 'Que borren mis datos' }).click();
+    await p.getByLabel('Cédula').fill('99999996');
+    await p.getByLabel('Nombre completo').fill('Persona Del Enlace');
+    await p.getByLabel(/Celular o correo/).fill('3001234571');
+    await p.screenshot({ path: join(capturas, '19-privacidad.png'), fullPage: true });
+    await p.getByRole('button', { name: 'Enviar solicitud' }).click();
+    assert.match(await p.locator('.radicado').innerText(), /^[0-9A-F]{8}$/);
+  });
   await publico.close();
 }
 
@@ -630,6 +641,31 @@ console.log('Campaña: seguimiento, Día D, testigos y alertas');
     await page.screenshot({ path: join(capturas, '44-menu-colapsado.png') });
     await titulo.click();
     assert.equal(await page.getByRole('link', { name: 'Equipo' }).isVisible(), true);
+  });
+  await paso('datos personales: atender una solicitud de supresión', async () => {
+    await page.getByRole('link', { name: 'Datos personales' }).click();
+    await page.locator('.solicitud').first().waitFor();
+    await page.screenshot({ path: join(capturas, '45-datos-personales.png'), fullPage: true });
+    await page.getByRole('button', { name: 'Atender', exact: true }).first().click();
+    await page.locator('.titular-datos li').first().waitFor();
+    await page.getByRole('button', { name: 'Usar texto sugerido' }).click();
+    await page.getByRole('button', { name: /Borrar y marcar atendida/ }).click();
+    await page.getByRole('alert').filter({ hasText: 'Confirma que entiendes' }).waitFor();  // exige confirmar
+    await page.getByLabel(/no se puede deshacer/).check();
+    await page.screenshot({ path: join(capturas, '46-atender-solicitud.png') });
+    await page.getByRole('button', { name: /Borrar y marcar atendida/ }).click();
+    await page.getByText('No hay solicitudes por atender.').waitFor();
+    await page.getByRole('tab', { name: 'Registro de acciones' }).click();
+    await page.getByText(/Borró los datos de un titular/).waitFor();
+  });
+  await paso('mi cuenta: activar la verificación en dos pasos', async () => {
+    await page.getByRole('link', { name: 'Mi cuenta' }).first().click();
+    await page.getByRole('button', { name: 'Activar verificación en dos pasos' }).click();
+    await page.locator('.qr-2fa').waitFor();
+    await page.screenshot({ path: join(capturas, '47-dos-pasos.png'), fullPage: true });
+    await page.getByLabel(/código de 6 dígitos/).fill('123456');
+    await page.getByRole('button', { name: 'Confirmar' }).click();
+    await page.getByText(/quedó activa/).waitFor();
   });
   await paso('testigos: cobertura de mesas visible', async () => {
     await page.getByRole('link', { name: 'Testigos' }).click();

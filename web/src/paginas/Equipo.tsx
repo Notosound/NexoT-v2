@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Eye, Mail, MailCheck, RotateCcw, ShieldCheck, UserMinus, UserPlus, Users } from 'lucide-react';
+import { Eye, Mail, MailCheck, RotateCcw, ShieldCheck, ShieldOff, Smartphone, UserMinus, UserPlus, Users } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
 import { ROLES, type Lider, type MiembroEquipo, type Rol } from '../lib/tipos';
 import { mensajeError } from '../lib/utilidades';
@@ -21,10 +21,12 @@ export default function Equipo() {
   const [error, setError] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [ocupado, setOcupado] = useState<string | null>(null);
+  const [dosPasos, setDosPasos] = useState<Record<string, boolean>>({});
 
   const cargar = useCallback(() => {
     api.equipo().then(setEquipo).catch((e) => setError(mensajeError(e)));
     api.lideres().then(setLideres).catch(() => {});
+    api.equipoDosPasos().then(setDosPasos).catch(() => {});
   }, [api]);
   useEffect(cargar, [cargar]);
 
@@ -49,7 +51,9 @@ export default function Equipo() {
         <Cifra icono={Users} valor={equipo ? activos.length : null} etiqueta="personas con acceso" />
         <Cifra icono={MailCheck} valor={equipo ? pendientes : null} etiqueta="invitaciones sin aceptar" tono={pendientes ? 'aviso' : undefined}
           detalle={pendientes ? 'Puedes reenviarles el correo' : undefined} />
-        <Cifra icono={ShieldCheck} valor={equipo ? activos.filter((m) => m.rol === 'lider').length : null} etiqueta="líderes con usuario" tono="ok" />
+        <Cifra icono={ShieldCheck} valor={equipo ? activos.filter((m) => dosPasos[m.id]).length : null} etiqueta="con verificación en dos pasos"
+          tono={activos.some((m) => (m.rol === 'admin' || m.rol === 'coordinador') && !dosPasos[m.id]) ? 'aviso' : 'ok'}
+          detalle={activos.some((m) => (m.rol === 'admin' || m.rol === 'coordinador') && !dosPasos[m.id]) ? 'Hay administradores o coordinadores sin activarla' : 'Todos los que ven datos sensibles la tienen'} />
       </div>
 
       {equipo && (
@@ -84,6 +88,9 @@ export default function Equipo() {
                         : m.acepto ? <span className="estado activo" title={m.ultimo_ingreso ? `Último ingreso: ${fecha(m.ultimo_ingreso)}` : ''}>Activo</span>
                         : <span className="estado pendiente">Invitación enviada</span>}
                       {m.activo && m.ultimo_ingreso && <small>Entró el {fecha(m.ultimo_ingreso)}</small>}
+                      {m.activo && (dosPasos[m.id]
+                        ? <small className="dos-pasos si"><Smartphone aria-hidden />Dos pasos activa</small>
+                        : (m.rol === 'admin' || m.rol === 'coordinador') && <small className="dos-pasos no">Sin dos pasos</small>)}
                     </td>
                     <td data-etiqueta="Acciones">
                       {!soyYo && (
@@ -92,6 +99,13 @@ export default function Equipo() {
                             <button className="boton chico" disabled={ocupado === m.id} onClick={() => accion(m.id, () => api.reenviarAcceso(m.id), '')}
                               title={m.acepto ? 'Enviarle un enlace para poner contraseña nueva' : 'Reenviar el correo de invitación'}>
                               <Mail className="icono" aria-hidden />{m.acepto ? 'Nueva contraseña' : 'Reenviar'}
+                            </button>
+                          )}
+                          {m.activo && dosPasos[m.id] && (
+                            <button className="boton chico" disabled={ocupado === m.id} title="Si perdió el celular: podrá entrar solo con su contraseña y activarla de nuevo"
+                              onClick={() => confirm(`¿Quitarle la verificación en dos pasos a ${m.nombre}? Hazlo solo si perdió el celular y confirmaste que es él o ella.`) &&
+                                accion(m.id, () => api.quitarDosPasosDe(m.id), '')}>
+                              <ShieldOff className="icono" aria-hidden />Quitar dos pasos
                             </button>
                           )}
                           {m.activo && m.rol !== 'admin' && (

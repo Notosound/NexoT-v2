@@ -7,6 +7,7 @@
 //
 //   POST { accion: 'invitar', email, nombre, rol, lider_id?, redirect }
 //   POST { accion: 'reenviar', usuario_id, redirect }
+//   POST { accion: 'quitar_2fa', usuario_id }   (perdió el celular)
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 
 const URL_SB = Deno.env.get('SUPABASE_URL')!;
@@ -98,6 +99,26 @@ Deno.serve(async (req) => {
     const r = await comoUsuario.auth.resetPasswordForEmail(miembro.email, { redirectTo });
     if (r.error) return fallo(`No se pudo enviar: ${r.error.message}`);
     return responder({ ok: true, mensaje: `Le enviamos a ${miembro.email} un enlace para poner una contraseña nueva.` });
+  }
+
+  if (cuerpo.accion === 'quitar_2fa') {
+    const id = String(cuerpo.usuario_id ?? '');
+    if (id === user.id) return fallo('Tu propia verificación se quita desde "Mi cuenta"');
+    const { data: equipo, error } = await comoUsuario.rpc('equipo');
+    if (error) return fallo(error.message);
+    const miembro = (equipo as { id: string; nombre: string }[]).find((m) => m.id === id);
+    if (!miembro) return fallo('Usuario no encontrado', 404);
+    const { data: f, error: e3 } = await servicio.auth.admin.mfa.listFactors({ userId: id });
+    if (e3) return fallo(e3.message);
+    for (const factor of f?.factors ?? []) {
+      const { error: e4 } = await servicio.auth.admin.mfa.deleteFactor({ id: factor.id, userId: id });
+      if (e4) return fallo(`No se pudo quitar: ${e4.message}`);
+    }
+    await servicio.from('auditoria').insert({
+      organizacion_id: yo.organizacion_id, tabla: 'perfiles', registro_id: id, accion: 'UPDATE',
+      cambios: ['verificacion_dos_pasos'], despues: { verificacion_dos_pasos: 'quitada' }, usuario_id: user.id,
+    });
+    return responder({ ok: true, mensaje: `${miembro.nombre} ya puede entrar solo con su contraseña. Pídele que active de nuevo la verificación.` });
   }
 
   return fallo('Acción desconocida');

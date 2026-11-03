@@ -36,7 +36,36 @@ export interface Sesion {
   email: string;
   perfil: { nombre: string; rol: Rol; organizacionId: string } | null;
   organizacion: string | null;
+  /** Inició sesión con contraseña pero le falta el código de verificación */
+  faltaCodigo?: boolean;
 }
+
+// Protección de datos (Ley 1581)
+export type TipoSolicitud = 'consulta' | 'correccion' | 'supresion' | 'revocatoria';
+export const TIPOS_SOLICITUD: Record<TipoSolicitud, string> = {
+  consulta: 'Saber qué datos tienen de mí',
+  correccion: 'Corregir o actualizar mis datos',
+  supresion: 'Que borren mis datos',
+  revocatoria: 'Retirar la autorización que di',
+};
+export interface Politica {
+  campana: string; responsable: string; documento: string | null; correo: string | null;
+  telefono: string | null; direccion: string | null; actualizada: string | null;
+}
+export interface SolicitudDatos {
+  id: string; radicado: string; tipo: TipoSolicitud; cedula: string; nombre: string; contacto: string;
+  detalle: string | null; estado: 'pendiente' | 'atendida' | 'rechazada'; respuesta: string | null;
+  personas_suprimidas: number | null; creado_en: string; vence_en: string; atendida_en: string | null;
+}
+export interface DatoTitular {
+  persona_id: string; nombres: string; apellidos: string; telefono: string | null; lider: string; puesto: string | null;
+  origen: string; creado_en: string; autorizacion_en: string | null; autorizacion_canal: string | null; eliminado: boolean;
+}
+export interface AccionSensible {
+  id: number; en: string; accion: 'EXPORT' | 'VER_COMO' | 'SUPRESION' | 'UPDATE'; tabla: string; registro_id: string | null;
+  detalle: Record<string, unknown> | null; usuario: string;
+}
+export interface FactorDosPasos { id: string; nombre: string; verificado: boolean; creado: string }
 
 export interface Localidad { id: number; codigo: string; nombre: string }
 
@@ -325,6 +354,26 @@ export interface Api {
   // enlace de registro del líder
   enlaceLider(liderId: string): Promise<EnlaceLider>;
   configurarEnlace(liderId: string, activo: boolean, regenerar: boolean): Promise<void>;
-  enlaceInfo(token: string): Promise<{ lider: string; campana: string } | null>;
+  enlaceInfo(token: string): Promise<{ lider: string; campana: string; slug: string } | null>;
   registrarPorEnlace(token: string, d: DatosFormularioPublico): Promise<void>;
+  // protección de datos
+  politica(slug: string): Promise<Politica | null>;
+  /** Datos del responsable de la organización actual (para configurarlos) */
+  miPolitica(): Promise<Politica & { slug: string }>;
+  configurarPolitica(d: { responsable: string; documento: string; correo: string; telefono: string; direccion: string }): Promise<void>;
+  /** Radica una solicitud del titular; devuelve el número de radicado */
+  solicitarDatos(slug: string, d: { tipo: TipoSolicitud; cedula: string; nombre: string; contacto: string; detalle: string }): Promise<string>;
+  solicitudesDatos(): Promise<SolicitudDatos[]>;
+  datosDelTitular(solicitudId: string): Promise<DatoTitular[]>;
+  atenderSolicitud(id: string, estado: 'atendida' | 'rechazada', respuesta: string, suprimir: boolean): Promise<number>;
+  accionesSensibles(): Promise<AccionSensible[]>;
+  // verificación en dos pasos
+  factoresDosPasos(): Promise<FactorDosPasos[]>;
+  inscribirDosPasos(): Promise<{ factorId: string; qr: string; secreto: string }>;
+  confirmarDosPasos(factorId: string, codigo: string): Promise<void>;
+  quitarDosPasos(factorId: string): Promise<void>;
+  /** Al entrar: escribe el código de la app */
+  verificarCodigo(codigo: string): Promise<void>;
+  equipoDosPasos(): Promise<Record<string, boolean>>;
+  quitarDosPasosDe(usuarioId: string): Promise<string>;
 }

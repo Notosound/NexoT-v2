@@ -21,6 +21,10 @@ import RegistroPublico from './paginas/RegistroPublico';
 import Seguimiento from './paginas/Seguimiento';
 import DiaD from './paginas/DiaD';
 import Testigos from './paginas/Testigos';
+import Privacidad from './paginas/Privacidad';
+import DatosPersonales from './paginas/DatosPersonales';
+import MiCuenta from './paginas/MiCuenta';
+import CodigoDosPasos from './paginas/CodigoDosPasos';
 
 // El tablero carga el mapa (Leaflet): solo se descarga cuando se abre
 const Tablero = lazy(() => import('./paginas/Tablero'));
@@ -39,6 +43,10 @@ export default function App() {
   if (ruta.startsWith('/r/')) {
     return <Routes><Route path="/r/:token" element={<RegistroPublico />} /></Routes>;
   }
+  // Política de datos y solicitudes de los titulares: pública
+  if (ruta.startsWith('/privacidad/')) {
+    return <Routes><Route path="/privacidad/:slug" element={<Privacidad />} /></Routes>;
+  }
 
   if (!sesion) {
     return (
@@ -48,6 +56,7 @@ export default function App() {
       </Routes>
     );
   }
+  if (sesion.faltaCodigo) return <CodigoDosPasos />;
   if (debeCambiarClave) return <CambiarClave />;
   if (!sesion.perfil) return <SinAcceso />;
 
@@ -69,6 +78,8 @@ export default function App() {
         <Route path="/equipo" element={<Solo roles={['admin']}><Equipo /></Solo>} />
         <Route path="/analisis" element={<Solo roles={['admin', 'coordinador', 'candidato']}><Analisis /></Solo>} />
         <Route path="/e14" element={<Solo roles={['admin', 'coordinador', 'candidato', 'digitador']}><E14 /></Solo>} />
+        <Route path="/datos-personales" element={<Solo roles={['admin']}><DatosPersonales /></Solo>} />
+        <Route path="/cuenta" element={<MiCuenta />} />
         <Route path="/cambiar-clave" element={<CambiarClave />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

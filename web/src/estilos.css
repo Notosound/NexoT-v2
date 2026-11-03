@@ -573,3 +573,51 @@ details.plegable-simple[open] > summary { margin-bottom: 0.6rem; }
 /* Aviso de versión nueva */
 .nueva-version { display: flex; align-items: center; gap: 0.6rem; justify-content: center; flex-wrap: wrap; padding: 0.55rem 1rem; background: var(--info-suave, #eef2ff); color: var(--texto); border-bottom: 1px solid var(--borde); font-size: 0.92rem; }
 .nueva-version button { border: 0; border-radius: 999px; padding: 0.3rem 0.9rem; font-weight: 600; background: var(--degradado); color: #fff; cursor: pointer; }
+
+/* Datos personales */
+.politica h2 { font-size: 1.05rem; margin: 1.25rem 0 0.4rem; }
+.politica h2:first-child { margin-top: 0; }
+.politica p, .politica li { line-height: 1.55; color: var(--texto-2); }
+.politica ul { padding-left: 1.2rem; margin: 0.3rem 0; }
+.publico .tarjeta { max-width: 640px; margin: 0 auto 1rem; }
+.publico .tarjeta:first-of-type { margin-top: -2rem; }
+.opciones-solicitud { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.5rem; }
+.opciones-solicitud .opcion { justify-content: flex-start; text-align: left; }
+.radicado { font-size: 2rem; font-weight: 800; letter-spacing: 0.15em; color: var(--marca-fuerte); margin: 0.25rem 0 0.5rem; font-variant-numeric: tabular-nums; }
+.enlace-politica { grid-column: span 2; }
+@media (max-width: 599px) { .enlace-politica { grid-column: auto; } }
+.lista-solicitudes { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+.solicitud { display: grid; grid-template-columns: 1fr auto; gap: 0.6rem 1rem; align-items: center; padding: 0.8rem 1rem;
+  border: 1px solid var(--borde); border-left-width: 4px; border-radius: 12px; background: var(--superficie); }
+.solicitud.vencida { border-left-color: var(--error); }
+.solicitud.pronto { border-left-color: var(--aviso); }
+.solicitud.a-tiempo { border-left-color: var(--marca); }
+.solicitud.cerrada { border-left-color: var(--borde-fuerte); opacity: 0.85; }
+.solicitud-tipo { font-weight: 600; font-size: 0.92rem; margin-top: 0.15rem; }
+.solicitud-estado { display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem; }
+.plazo { font-size: 0.78rem; font-weight: 700; padding: 0.15rem 0.6rem; border-radius: 999px; background: var(--pista); color: var(--texto-2); white-space: nowrap; }
+.plazo.vencida { background: var(--error-suave); color: var(--error-texto); }
+.plazo.pronto { background: var(--aviso-suave); color: var(--aviso-texto); }
+.plazo.cerrada { background: var(--ok-suave); color: var(--ok-texto); }
+@media (max-width: 599px) { .solicitud { grid-template-columns: 1fr; } .solicitud-estado { flex-direction: row; justify-content: space-between; align-items: center; } }
+.titular-datos { margin: 0; padding-left: 1.1rem; font-size: 0.9rem; display: grid; gap: 0.3rem; }
+.ventana textarea, .formulario textarea { width: 100%; font: inherit; padding: 0.6rem 0.75rem; border: 1px solid var(--borde-fuerte); border-radius: 10px; background: var(--superficie); color: var(--texto); resize: vertical; }
+
+/* Verificación en dos pasos */
+.codigo-2fa { font-size: 1.6rem !important; letter-spacing: 0.4em; text-align: center; font-variant-numeric: tabular-nums; }
+.qr-2fa { width: 200px; height: 200px; display: block; margin: 0.25rem auto; background: #fff; padding: 8px; border-radius: 12px; border: 1px solid var(--borde); }
+.secreto-2fa { display: block; word-break: break-all; background: var(--pista); padding: 0.5rem 0.75rem; border-radius: 8px; font-size: 0.95rem; letter-spacing: 0.08em; }
+.inscripcion-2fa ol { padding-left: 1.2rem; margin: 0.25rem 0; line-height: 1.5; }
+.factores { list-style: none; padding: 0; margin: 0 0 0.75rem; display: grid; gap: 0.4rem; }
+.factores li { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.75rem; border: 1px solid var(--borde); border-radius: 10px; }
+.factores li span { flex: 1; }
+.rejilla.dos { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; }
+.dos-pasos { display: flex !important; align-items: center; gap: 0.25rem; font-weight: 600; }
+.dos-pasos svg { width: 13px; height: 13px; }
+.dos-pasos.si { color: var(--ok-texto); }
+.dos-pasos.no { color: var(--aviso-texto); }
+.barra a.usuario { color: inherit; text-decoration: none; border-radius: 8px; padding: 0.2rem 0.4rem; }
+.barra a.usuario:hover { background: rgb(255 255 255 / 0.12); }
+.aviso-accion { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; }
+.aviso-accion span { flex: 1; }
+.aviso-accion .boton { white-space: nowrap; }

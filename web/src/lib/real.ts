@@ -6,6 +6,7 @@ import type {
   AvanceE14, Eleccion, CalidadLider, FilaPlantillaE14, PuestoCodigos, RegistrosMesa, ResultadoFilaE14, LiderE14, LocalidadE14, MesaE14, MesaEnRevision, MesaPendiente, MiDigitacion, PuestoE14, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
   PersonaFila, Puesto, Rol, Sesion, Sugerencia, OpcionVerComo, EnlaceLider,
   SeguimientoLider, DiaDFila, Testigo, CoberturaMesa, AlertaCalidad,
+  Politica, SolicitudDatos, DatoTitular, AccionSensible,
 } from './tipos';
 import { AVISO_VERSION } from './tipos';
 import { edadDesde, hoyISO } from './utilidades';
@@ -161,6 +162,12 @@ export const api: Api = {
     const { data } = await sb.auth.getSession();
     const usuario = data.session?.user;
     if (!usuario) { cacheSesion = null; return null; }
+    // Verificación en dos pasos: si tiene la app activada y aún no escribió el código
+    const nivel = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (nivel.data && nivel.data.nextLevel === 'aal2' && nivel.data.currentLevel !== 'aal2') {
+      cacheSesion = null;
+      return { usuarioId: usuario.id, email: usuario.email ?? '', perfil: null, organizacion: null, faltaCodigo: true };
+    }
     const perfil = ok(await sb.from('perfiles').select('nombre, rol, organizacion_id, activo').eq('id', usuario.id).maybeSingle());
     if (!perfil || !perfil.activo) {
       cacheSesion = null;
@@ -521,10 +528,89 @@ export const api: Api = {
     ok(await sb.rpc('configurar_enlace', { p_lider: liderId, p_activo: activo, p_regenerar: regenerar }));
   },
   async enlaceInfo(token) {
-    const r = lista(await sb.rpc('enlace_info', { p_token: token })) as { lider: string; campana: string }[];
+    const r = lista(await sb.rpc('enlace_info', { p_token: token })) as { lider: string; campana: string; slug: string }[];
     return r[0] ?? null;
   },
   async registrarPorEnlace(token, d) {
     sinError(await sb.rpc('registrar_por_enlace', { p_token: token, p: { ...d, aviso_version: AVISO_VERSION } }));
+  },
+
+  // ── Protección de datos ────────────────────────────────────────────
+  async politica(slug) {
+    const r = lista(await sb.rpc('politica_info', { p_slug: slug })) as Politica[];
+    return r[0] ?? null;
+  },
+  async miPolitica() {
+    const { orgId } = await contexto();
+    const o = uno(await sb.from('organizaciones').select('slug').eq('id', orgId).single());
+    const p = await api.politica(o.slug as string);
+    return { ...(p as Politica), slug: o.slug as string };
+  },
+  async configurarPolitica(d) {
+    sinError(await sb.rpc('configurar_politica', { p: d }));
+  },
+  async solicitarDatos(slug, d) {
+    const r = await sb.rpc('solicitar_datos', { p_slug: slug, p: d });
+    sinError(r);
+    return r.data as string;
+  },
+  async solicitudesDatos() {
+    return lista(await sb.from('solicitudes_datos').select('*').order('creado_en', { ascending: false }).limit(500)) as SolicitudDatos[];
+  },
+  async datosDelTitular(id) {
+    return lista(await rpcLectura('datos_del_titular', { p_solicitud: id })) as DatoTitular[];
+  },
+  async atenderSolicitud(id, estado, respuesta, suprimir) {
+    const r = await sb.rpc('atender_solicitud', { p_id: id, p_estado: estado, p_respuesta: respuesta, p_suprimir: suprimir });
+    sinError(r);
+    return Number(r.data ?? 0);
+  },
+  async accionesSensibles() {
+    return lista(await sb.from('v_acciones_sensibles').select('*').order('en', { ascending: false }).limit(300)) as AccionSensible[];
+  },
+
+  // ── Verificación en dos pasos ──────────────────────────────────────
+  async factoresDosPasos() {
+    const { data, error } = await sb.auth.mfa.listFactors();
+    if (error) throw new Error(error.message);
+    return (data?.all ?? []).filter((f) => f.factor_type === 'totp').map((f) => ({
+      id: f.id, nombre: f.friendly_name ?? 'App de códigos', verificado: f.status === 'verified', creado: f.created_at,
+    }));
+  },
+  async inscribirDosPasos() {
+    // Si quedó una inscripción a medias, se descarta para empezar limpio
+    const { data: lf } = await sb.auth.mfa.listFactors();
+    for (const f of lf?.all ?? []) if (f.status !== 'verified') await sb.auth.mfa.unenroll({ factorId: f.id });
+    const n = (lf?.totp?.length ?? 0) + 1;
+    const { data, error } = await sb.auth.mfa.enroll({ factorType: 'totp', friendlyName: `Celular ${n} · ${new Date().toLocaleDateString('es-CO')}`, issuer: 'NexoT' });
+    if (error) throw new Error(error.message);
+    return { factorId: data.id, qr: data.totp.qr_code, secreto: data.totp.secret };
+  },
+  async confirmarDosPasos(factorId, codigo) {
+    const { error } = await sb.auth.mfa.challengeAndVerify({ factorId, code: codigo.replace(/\D/g, '') });
+    if (error) throw new Error(/invalid|expired/i.test(error.message) ? 'El código no es correcto o ya cambió. Escribe el que aparece ahora en la app.' : error.message);
+  },
+  async quitarDosPasos(factorId) {
+    const { error } = await sb.auth.mfa.unenroll({ factorId });
+    if (error) throw new Error(/aal2/i.test(error.message) ? 'Para quitarla, sal y vuelve a entrar con el código.' : error.message);
+  },
+  async verificarCodigo(codigo) {
+    const { data } = await sb.auth.mfa.listFactors();
+    const factor = data?.totp?.[0];
+    if (!factor) throw new Error('No encontramos tu app de códigos.');
+    let ultimo: unknown;
+    for (const f of data!.totp) {
+      const { error } = await sb.auth.mfa.challengeAndVerify({ factorId: f.id, code: codigo.replace(/\D/g, '') });
+      if (!error) { cacheSesion = null; return; }
+      ultimo = error;
+    }
+    throw new Error(/invalid|expired/i.test(String((ultimo as Error)?.message)) ? 'El código no es correcto o ya cambió. Escribe el que aparece ahora en la app.' : String((ultimo as Error)?.message));
+  },
+  async equipoDosPasos() {
+    const r = lista(await rpcLectura('equipo_2fa')) as { perfil_id: string; activa: boolean }[];
+    return Object.fromEntries(r.map((x) => [x.perfil_id, x.activa]));
+  },
+  quitarDosPasosDe(id) {
+    return llamarFuncion({ accion: 'quitar_2fa', usuario_id: id });
   },
 };

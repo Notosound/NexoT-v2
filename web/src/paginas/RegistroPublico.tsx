@@ -20,7 +20,7 @@ const AVISO_PUBLICO =
 export default function RegistroPublico() {
   const { token = '' } = useParams();
   const { api } = useSesion();
-  const [info, setInfo] = useState<{ lider: string; campana: string } | null | undefined>(undefined);
+  const [info, setInfo] = useState<{ lider: string; campana: string; slug: string } | null | undefined>(undefined);
   const [localidades, setLocalidades] = useState<Localidad[]>([]);
   const [d, setD] = useState(VACIO);
   const [puesto, setPuesto] = useState<Puesto | null>(null);
@@ -157,7 +157,7 @@ export default function RegistroPublico() {
         </fieldset>
         <label className="casilla">
           <input type="checkbox" checked={d.acepta} onChange={(e) => poner('acepta', e.target.checked)} />
-          <span>{AVISO_PUBLICO}</span>
+          <span>{AVISO_PUBLICO} {info.slug && <a href={`/privacidad/${info.slug}`} target="_blank" rel="noreferrer">Leer la política de datos</a>}</span>
         </label>
         {error && <div className="aviso error" role="alert">{error}</div>}
         <button className="boton primario bloque" disabled={enviando}>{enviando ? 'Enviando…' : 'Registrarme'}</button>

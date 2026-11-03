@@ -13,6 +13,7 @@ const SUPABASE_MINIMO = `
   create role authenticated nologin;
   create schema auth;
   create table auth.users (id uuid primary key, email text unique, last_sign_in_at timestamptz);
+  create table auth.mfa_factors (id uuid primary key default gen_random_uuid(), user_id uuid not null, status text not null, factor_type text not null default 'totp');
   create function auth.uid() returns uuid language sql stable as
     $$ select coalesce(nullif(current_setting('request.jwt.claim.sub', true), ''),
                      nullif(current_setting('request.jwt.claims', true), '')::jsonb ->> 'sub')::uuid $$;
@@ -56,12 +57,12 @@ class Base {
 
   // Imita una petición HTTP a PostgREST: encabezados, método y el gancho
   // public.antes_de_peticion() dentro de la misma transacción.
-  async peticion(usuarioId, { metodo = 'GET', encabezados = {} }, sql, params) {
+  async peticion(usuarioId, { metodo = 'GET', encabezados = {}, aal = 'aal1' }, sql, params) {
     await this.db.exec(`reset role; select set_config('request.jwt.claim.sub', '', false);`);
     return this.db.transaction(async (tx) => {
       await tx.query(`select set_config('request.jwt.claims', $1, true), set_config('request.headers', $2, true), set_config('request.method', $3, true)`,
-        [JSON.stringify({ sub: usuarioId, role: 'authenticated' }), JSON.stringify(encabezados), metodo]);
-      await tx.exec('set local role authenticated;');
+        [JSON.stringify({ sub: usuarioId, role: usuarioId ? 'authenticated' : 'anon', aal }), JSON.stringify(encabezados), metodo]);
+      await tx.exec(`set local role ${usuarioId ? 'authenticated' : 'anon'};`);
       await tx.query('select public.antes_de_peticion()');
       return (await tx.query(sql, params)).rows;
     });

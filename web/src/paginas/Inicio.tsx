@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useEnVivo } from '../lib/enVivo';
 import EnVivo from '../componentes/EnVivo';
 import { Link } from 'react-router-dom';
 import {
-  AlertTriangle, BarChart3, PhoneCall, ClipboardCheck, Contact, Flag, LineChart, MapPinOff, QrCode, Target, UserPlus, Users, UsersRound, Vote,
+  AlertTriangle, BarChart3, Inbox, PhoneCall, ShieldAlert, ClipboardCheck, Contact, Flag, LineChart, MapPinOff, QrCode, Target, UserPlus, Users, UsersRound, Vote,
 } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
 import type { Demografia, Lider, Resumen, Tendencia } from '../lib/tipos';
@@ -112,6 +112,14 @@ function InicioEquipo() {
   const [tendencia, setTendencia] = useState<Tendencia[]>([]);
   const [lideres, setLideres] = useState<Lider[]>([]);
   const [error, setError] = useState('');
+  const [sinDosPasos, setSinDosPasos] = useState(false);
+  const [solicitudes, setSolicitudes] = useState(0);
+  const { vista } = useSesion();
+  useEffect(() => {
+    if (vista || (rol !== 'admin' && rol !== 'coordinador')) return;
+    api.factoresDosPasos().then((f) => setSinDosPasos(!f.some((x) => x.verificado))).catch(() => {});
+    if (rol === 'admin') api.solicitudesDatos().then((s) => setSolicitudes(s.filter((x) => x.estado === 'pendiente').length)).catch(() => {});
+  }, [api, rol, vista]);
 
   const vivo = useEnVivo(() => {
     const t: Promise<unknown>[] = [api.demografia().then(setDemo), api.tendencia().then(setTendencia)];
@@ -137,6 +145,20 @@ function InicioEquipo() {
         {rol !== 'candidato' && <Link to="/registrar" className="boton primario"><UserPlus className="icono" aria-hidden />Registrar persona</Link>}
       </div>
       {error && <div className="aviso error">{error}</div>}
+      {sinDosPasos && (
+        <div className="aviso atencion aviso-accion">
+          <ShieldAlert className="icono" aria-hidden />
+          <span>Tu cuenta ve datos de muchas personas y todavía entra solo con contraseña. Activa la verificación en dos pasos: toma 2 minutos.</span>
+          <Link to="/cuenta" className="boton chico">Activar</Link>
+        </div>
+      )}
+      {solicitudes > 0 && (
+        <div className="aviso info aviso-accion">
+          <Inbox className="icono" aria-hidden />
+          <span>{solicitudes === 1 ? 'Hay 1 solicitud' : `Hay ${solicitudes} solicitudes`} de datos personales por atender. La ley da 10 a 15 días hábiles.</span>
+          <Link to="/datos-personales" className="boton chico">Ver</Link>
+        </div>
+      )}
 
       <div className="cifras">
         <Cifra icono={Users} valor={r?.total} etiqueta={rol === 'coordinador' ? 'registrados por tus líderes' : 'personas registradas'}

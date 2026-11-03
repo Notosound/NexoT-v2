@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   BarChart3, ClipboardCheck, Eye, FileSpreadsheet, Home, LineChart, LogOut, MapPinned, Moon, QrCode,
-  ChevronDown, Sun, UserPlus, Users, UsersRound, Vote, Contact, PhoneCall, CalendarCheck, ShieldCheck, type LucideIcon,
+  ChevronDown, Lock, UserCog, Sun, UserPlus, Users, UsersRound, Vote, Contact, PhoneCall, CalendarCheck, ShieldCheck, type LucideIcon,
 } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
 import { ROLES, type Rol } from '../lib/tipos';
@@ -37,6 +37,10 @@ const SECCIONES: { titulo: string; tituloLider?: string; enlaces: Enlace[] }[] =
   { titulo: 'Organización', enlaces: [
     { a: '/lideres', texto: 'Líderes', icono: UsersRound, roles: ['admin', 'coordinador'] },
     { a: '/equipo', texto: 'Equipo', icono: Users, roles: ['admin'] },
+    { a: '/datos-personales', texto: 'Datos personales', icono: Lock, roles: ['admin'] },
+  ] },
+  { titulo: 'Cuenta', enlaces: [
+    { a: '/cuenta', texto: 'Mi cuenta', icono: UserCog, roles: ['admin', 'coordinador', 'lider', 'digitador', 'candidato'] },
   ] },
 ];
 
@@ -89,7 +93,7 @@ export default function Marco({ children }: { children: ReactNode }) {
         <NavLink to="/" className="marca"><img src="/icono.svg" alt="" />NexoT</NavLink>
         <span className="org">{sesion!.organizacion}</span>
         <span className="espacio" />
-        <span className="usuario">{sesionReal!.perfil!.nombre}<small>{ROLES[sesionReal!.perfil!.rol]}</small></span>
+        <NavLink to="/cuenta" className="usuario" title="Mi cuenta">{sesionReal!.perfil!.nombre}<small>{ROLES[sesionReal!.perfil!.rol]}</small></NavLink>
         {esAdminReal && !vista && (
           <button className="boton-barra" onClick={() => setEligiendo(true)} title="Ver el panel como otro rol o persona" aria-label="Ver como">
             <Eye className="icono" aria-hidden /><span className="rotulo">Ver como</span>
