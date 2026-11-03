@@ -32,7 +32,13 @@ const sb = createClient(url, llave, { auth: { persistSession: true, autoRefreshT
 const rpcLectura = (fn: string, args?: Record<string, unknown>) => sb.rpc(fn, args, { get: !!verComo });
 
 async function llamarFuncion(cuerpo: Record<string, unknown>): Promise<string> {
-  const { data, error } = await sb.functions.invoke('equipo', { body: { ...cuerpo, redirect: window.location.origin } });
+  // Se manda explícitamente el token de la sesión: así la función sabe quién pide
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) throw new Error('Tu sesión se cerró: vuelve a entrar.');
+  const { data, error } = await sb.functions.invoke('equipo', {
+    headers: { Authorization: `Bearer ${session.access_token}` },
+    body: { ...cuerpo, redirect: window.location.origin },
+  });
   if (error) {
     let mensaje = error.message;
     try { const j = await (error as { context?: Response }).context?.json(); if (j?.error) mensaje = j.error; } catch { /* sin cuerpo */ }
