@@ -6,6 +6,10 @@ import { cargarApi } from './lib/api';
 import { ProveedorSesion } from './lib/sesion';
 import App from './App';
 import './estilos.css';
+import { recargarPorVersion } from './lib/version';
+
+// Pestaña abierta antes de publicar una versión nueva: recargar y seguir
+window.addEventListener('vite:preloadError', (e) => { if (recargarPorVersion()) e.preventDefault(); });
 
 const raiz = createRoot(document.getElementById('raiz')!);
 

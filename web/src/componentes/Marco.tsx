@@ -8,6 +8,7 @@ import { useSesion } from '../lib/sesion';
 import { ROLES, type Rol } from '../lib/tipos';
 import SelectorVerComo from './VerComo';
 import Protector from './Protector';
+import NuevaVersion from './NuevaVersion';
 
 const ENLACES: { a: string; texto: string; icono: LucideIcon; roles: Rol[]; textoLider?: string }[] = [
   { a: '/', texto: 'Inicio', icono: Home, roles: ['admin', 'coordinador', 'lider', 'digitador'] },
@@ -86,6 +87,7 @@ export default function Marco({ children }: { children: ReactNode }) {
           <button onClick={salirDeVista}>Volver a mi panel</button>
         </div>
       )}
+      <NuevaVersion />
       <div className="cuerpo">
         <nav className="menu" aria-label="Secciones">
           {ENLACES.filter((e) => e.roles.includes(perfil.rol)).map((e) => (
