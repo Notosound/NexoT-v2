@@ -18,6 +18,9 @@ import Analisis from './paginas/Analisis';
 import MisEstadisticas from './paginas/MisEstadisticas';
 import MiEnlace from './paginas/MiEnlace';
 import RegistroPublico from './paginas/RegistroPublico';
+import Seguimiento from './paginas/Seguimiento';
+import DiaD from './paginas/DiaD';
+import Testigos from './paginas/Testigos';
 
 // El tablero carga el mapa (Leaflet): solo se descarga cuando se abre
 const Tablero = lazy(() => import('./paginas/Tablero'));
@@ -54,6 +57,9 @@ export default function App() {
         <Route path="/" element={sesion.perfil.rol === 'candidato' ? <Navigate to="/tablero" replace /> : <Inicio />} />
         <Route path="/estadisticas" element={<Solo roles={['lider']}><MisEstadisticas /></Solo>} />
         <Route path="/mi-enlace" element={<Solo roles={['lider']}><MiEnlace /></Solo>} />
+        <Route path="/seguimiento" element={<Solo roles={['admin', 'coordinador', 'lider']}><Seguimiento /></Solo>} />
+        <Route path="/dia-d" element={<Solo roles={['admin', 'coordinador', 'lider', 'candidato']}><DiaD /></Solo>} />
+        <Route path="/testigos" element={<Solo roles={['admin', 'coordinador']}><Testigos /></Solo>} />
         <Route path="/tablero" element={<Solo roles={['admin', 'coordinador', 'candidato']}><Suspense fallback={cargandoTablero}><Tablero /></Suspense></Solo>} />
         <Route path="/registrar" element={<Solo roles={['admin', 'coordinador', 'lider']}><Registrar /></Solo>} />
         <Route path="/personas" element={<Solo roles={['admin', 'coordinador', 'lider']}><Personas /></Solo>} />

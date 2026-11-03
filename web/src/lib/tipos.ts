@@ -104,13 +104,30 @@ export interface PersonaFila {
   mesa: number | null;
   ubicacion_estado: EstadoUbicacion;
   creado_en: string;
+  compromiso: Compromiso;
+  contactos_n: number;
+  lider_id: string | null;
 }
 
 export interface FiltroPersonas {
   texto: string;
   estado: EstadoUbicacion | '';
   desde: number;
+  compromiso?: Compromiso | '';
+  liderId?: string;
 }
+
+// ── Seguimiento, Día D, testigos y alertas ──
+export type Compromiso = 'sin_contactar' | 'confirmado' | 'dudoso' | 'no_apoya' | 'numero_errado';
+export type ResultadoContacto = Exclude<Compromiso, 'sin_contactar'> | 'no_contesta';
+export const COMPROMISOS: Record<Compromiso, string> = {
+  sin_contactar: 'Sin contactar', confirmado: 'Confirmado', dudoso: 'Dudoso', no_apoya: 'No apoya', numero_errado: 'Número equivocado',
+};
+export interface SeguimientoLider { lider_id: string; nombre: string; total: number; sin_contactar: number; confirmados: number; dudosos: number; no_apoya: number; numero_errado: number; contactados: number }
+export interface DiaDFila { lider_id: string; lider: string; localidad_id: number | null; localidad: string; personas: number; votaron: number }
+export interface Testigo { id: number; persona_id: string; nombres: string; apellidos: string; cedula: string; telefono: string | null; puesto_id: number; puesto: string; localidad: string; mesas: number[]; lider: string | null }
+export interface CoberturaMesa { localidad_id: number; localidad: string; puesto_id: number; puesto: string; mesa: number; simpatizantes: number; cubierta: boolean }
+export interface AlertaCalidad { tipo: 'celular_repetido' | 'nombre_repetido' | 'rafaga'; titulo: string; lideres: string; personas: number; persona_ids: string[] }
 
 export interface GrupoRevision {
   localidad_id: number | null;
@@ -288,6 +305,21 @@ export interface Api {
   opcionesVerComo(): Promise<OpcionVerComo[]>;
   /** Activa o quita la vista de solo lectura; null = volver a ser admin */
   usarVistaComo(objetivo: string | null): Promise<void>;
+  // seguimiento
+  registrarContacto(personaId: string, resultado: ResultadoContacto, canal: 'llamada' | 'whatsapp' | 'visita' | 'otro', nota?: string): Promise<void>;
+  seguimientoLideres(): Promise<SeguimientoLider[]>;
+  // día D
+  votosMarcados(eleccionId: string): Promise<Set<string>>;
+  marcarVoto(eleccionId: string, personaId: string, voto: boolean): Promise<void>;
+  diaD(eleccionId: string): Promise<DiaDFila[]>;
+  // testigos
+  testigos(eleccionId: string): Promise<Testigo[]>;
+  coberturaTestigos(eleccionId: string): Promise<CoberturaMesa[]>;
+  asignarTestigo(eleccionId: string, personaId: string, puestoId: number, mesas: number[]): Promise<void>;
+  quitarTestigo(id: number): Promise<void>;
+  // alertas de calidad
+  alertasCalidad(): Promise<AlertaCalidad[]>;
+  personasPorIds(ids: string[]): Promise<PersonaFila[]>;
   // en vivo: avisa cuando cambian registros o E14 en la organización
   alCambiarDatos(cb: (tema: 'registros' | 'e14') => void, alConectar?: (ok: boolean) => void): () => void;
   // enlace de registro del líder

@@ -14,6 +14,14 @@ begin;
 alter table personas disable trigger personas_sin_borrado;
 alter table lideres  disable trigger lideres_sin_borrado;
 
+-- Seguimiento, Día D y testigos ligados a datos de prueba
+delete from contactos       where persona_id in (select id from personas where cedula like '99000%');
+delete from votos_marcados  where persona_id in (select id from personas where cedula like '99000%')
+   or eleccion_id in (select id from elecciones where nombre like '%PRUEBA%');
+delete from testigos        where persona_id in (select id from personas where cedula like '99000%')
+   or eleccion_id in (select id from elecciones where nombre like '%PRUEBA%');
+delete from app.enlace_intentos where en < now() - interval '1 hour';
+
 -- E14 de las elecciones de prueba
 delete from e14_resultados   where eleccion_id in (select id from elecciones where nombre like '%PRUEBA%');
 delete from e14_digitaciones where eleccion_id in (select id from elecciones where nombre like '%PRUEBA%');

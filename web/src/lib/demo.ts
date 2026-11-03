@@ -4,7 +4,7 @@
 import type {
   Api, Demografia, FilaImportacion, PuestoCenso, Tendencia,
   Eleccion, EstadoMesa, CalidadLider, PuestoCodigos, RegistrosMesa, ResultadoFilaE14, LiderE14, LocalidadE14, MesaE14, PuestoE14, TotalesE14, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
-  PersonaFila, Puesto, Rol, Sesion, Sexo, Sugerencia,
+  PersonaFila, Puesto, Rol, Sesion, Sexo, Sugerencia, Compromiso, Testigo,
 } from './tipos';
 import { edadDesde, hoyISO, normalizar } from './utilidades';
 import crudo from './demo-puestos.json';
@@ -31,6 +31,7 @@ interface PersonaDemo {
   fechaNacimiento: string | null; edad: number | null; edadEn: string | null; telefono: string | null;
   localidadId: number | null; puestoId: number | null; puestoReportado: string | null; direccionReportada: string | null;
   mesa: number | null; creadoEn: string; eliminada: boolean; origen?: string;
+  compromiso?: Compromiso; contactosN?: number;
 }
 
 // Generador pseudoaleatorio con semilla: los mismos datos en cada carga
@@ -139,6 +140,13 @@ function sumar<K extends string>(filas: ReturnType<typeof mesasCalc>, k: (f: Ret
   return [...m.values()];
 }
 
+// Datos de ejemplo: parte de la gente ya fue contactada; dos comparten celular
+{
+  const estados: Compromiso[] = ['confirmado', 'confirmado', 'confirmado', 'dudoso', 'no_apoya', 'numero_errado'];
+  personas.forEach((p, i) => { if (i % 3 === 0) { p.compromiso = estados[i % estados.length]; p.contactosN = 1 + (i % 2); } });
+  if (personas.length > 12 && personas[12].telefono) personas[11].telefono = personas[12].telefono;
+}
+
 // Datos de ejemplo: parte de las mesas ya digitadas por dos personas
 {
   let n = 0;
@@ -163,6 +171,8 @@ try {
 const oyentes = new Set<() => void>();
 const avisar = () => oyentes.forEach((f) => f());
 
+const votos = new Map<string, Set<string>>();
+const testigosDemo: { id: number; eleccion: string; persona_id: string; puesto_id: number; mesas: number[] }[] = [];
 const oyentesDatos = new Set<(t: 'registros' | 'e14') => void>();
 
 // Enlace de registro: fijo en la demostración (cada carga empieza de cero)
@@ -211,9 +221,11 @@ function sugerir(loc: number | null, nombre: string, _dir: string): Sugerencia |
   };
 }
 
-function filtrarPersonas(texto: string, estadoFiltro: string) {
+function filtrarPersonas(texto: string, estadoFiltro: string, compromiso = '', liderId = '') {
   const t = normalizar(texto);
   let lista = visibles();
+  if (compromiso) lista = lista.filter((p) => (p.compromiso ?? 'sin_contactar') === compromiso);
+  if (liderId) lista = lista.filter((p) => p.liderId === liderId);
   if (t) lista = lista.filter((p) => p.cedula.startsWith(t) || normalizar(`${p.nombres} ${p.apellidos}`).includes(t));
   if (estadoFiltro) lista = lista.filter((p) => estado(p) === estadoFiltro);
   return lista;
@@ -225,6 +237,7 @@ function aFila(p: PersonaDemo): PersonaFila {
     localidad: LOCALIDADES.find((l) => l.id === p.localidadId)?.nombre ?? null,
     puesto: PUESTOS.find((x) => x.id === p.puestoId)?.nombre ?? null, puesto_reportado: p.puestoReportado,
     mesa: p.mesa, ubicacion_estado: estado(p), creado_en: p.creadoEn,
+    compromiso: p.compromiso ?? 'sin_contactar', contactos_n: p.contactosN ?? 0, lider_id: p.liderId,
   };
 }
 const exportaciones: { tipo: string; filas: number }[] = [];
@@ -297,10 +310,10 @@ export const api: Api = {
 
   async personas(f) {
     await espera();
-    const lista = filtrarPersonas(f.texto, f.estado);
+    const lista = filtrarPersonas(f.texto, f.estado, f.compromiso ?? '', f.liderId ?? '');
     return { filas: lista.slice(f.desde, f.desde + 50).map(aFila), total: lista.length };
   },
-  async personasTodas(f) { await espera(); return filtrarPersonas(f.texto, f.estado).map(aFila); },
+  async personasTodas(f) { await espera(); return filtrarPersonas(f.texto, f.estado, f.compromiso ?? '', f.liderId ?? '').map(aFila); },
   async eliminarPersona(id) {
     await espera();
     const p = visibles().find((x) => x.id === id);
@@ -690,6 +703,118 @@ export const api: Api = {
       if (!u) throw new Error('Esa persona no es de tu organización');
       vista = u;
     }
+  },
+
+  async registrarContacto(personaId, resultado) {
+    await espera(80); soloLectura();
+    if (!['admin', 'coordinador', 'lider'].includes(yo().rol)) throw new Error('Tu rol no puede registrar contactos');
+    const p = visibles().find((x) => x.id === personaId);
+    if (!p) throw new Error('Esa persona no está en tu lista');
+    p.contactosN = (p.contactosN ?? 0) + 1;
+    if (resultado !== 'no_contesta') p.compromiso = resultado;
+    setTimeout(() => oyentesDatos.forEach((f) => f('registros')), 0);
+  },
+  async seguimientoLideres() {
+    await espera();
+    const ls = yo().rol === 'candidato' ? lideres : misLideres();
+    return ls.map((l) => {
+      const ps = personas.filter((p) => !p.eliminada && p.liderId === l.id);
+      const c = (k: Compromiso) => ps.filter((p) => (p.compromiso ?? 'sin_contactar') === k).length;
+      return { lider_id: l.id, nombre: l.nombre, total: ps.length, sin_contactar: c('sin_contactar'), confirmados: c('confirmado'), dudosos: c('dudoso'),
+        no_apoya: c('no_apoya'), numero_errado: c('numero_errado'), contactados: ps.filter((p) => (p.contactosN ?? 0) > 0).length };
+    });
+  },
+  async votosMarcados(eleccionId) {
+    await espera(60);
+    const ids = new Set(visibles().map((p) => p.id));
+    return new Set([...(votos.get(eleccionId) ?? [])].filter((x) => ids.has(x)));
+  },
+  async marcarVoto(eleccionId, personaId, voto) {
+    await espera(60); soloLectura();
+    if (!['admin', 'coordinador', 'lider'].includes(yo().rol)) throw new Error('Tu rol no puede marcar votos');
+    if (!visibles().some((p) => p.id === personaId)) throw new Error('Esa persona no está en tu lista');
+    const s = votos.get(eleccionId) ?? new Set<string>();
+    if (voto) s.add(personaId); else s.delete(personaId);
+    votos.set(eleccionId, s);
+    setTimeout(() => oyentesDatos.forEach((f) => f('registros')), 0);
+  },
+  async diaD(eleccionId) {
+    await espera();
+    const base = yo().rol === 'candidato' ? personas.filter((p) => !p.eliminada) : visibles();
+    const s = votos.get(eleccionId) ?? new Set<string>();
+    const m = new Map<string, { lider_id: string; lider: string; localidad_id: number | null; localidad: string; personas: number; votaron: number }>();
+    for (const p of base) {
+      const puesto = PUESTOS.find((x) => x.id === p.puestoId);
+      const loc = puesto ? LOCALIDADES.find((l) => l.id === puesto.localidad_id) : undefined;
+      const k = `${p.liderId}|${loc?.id ?? ''}`;
+      const f = m.get(k) ?? { lider_id: p.liderId, lider: lideres.find((l) => l.id === p.liderId)?.nombre ?? '', localidad_id: loc?.id ?? null, localidad: loc?.nombre ?? 'Sin lugar de votación', personas: 0, votaron: 0 };
+      f.personas++; if (s.has(p.id)) f.votaron++;
+      m.set(k, f);
+    }
+    return [...m.values()];
+  },
+  async testigos(eleccionId) {
+    await espera();
+    if (!['admin', 'coordinador'].includes(yo().rol)) return [];
+    return testigosDemo.filter((t) => t.eleccion === eleccionId).map((t) => {
+      const p = personas.find((x) => x.id === t.persona_id)!;
+      const pu = PUESTOS.find((x) => x.id === t.puesto_id)!;
+      return { id: t.id, persona_id: p.id, nombres: p.nombres, apellidos: p.apellidos, cedula: p.cedula, telefono: p.telefono, puesto_id: pu.id, puesto: pu.nombre,
+        localidad: LOCALIDADES.find((l) => l.id === pu.localidad_id)?.nombre ?? '', mesas: t.mesas, lider: lideres.find((l) => l.id === p.liderId)?.nombre ?? null } as Testigo;
+    });
+  },
+  async coberturaTestigos(eleccionId) {
+    await espera();
+    const m = new Map<string, { localidad_id: number; localidad: string; puesto_id: number; puesto: string; mesa: number; simpatizantes: number; cubierta: boolean }>();
+    for (const p of personas) {
+      if (p.eliminada || !p.puestoId || !p.mesa) continue;
+      const pu = PUESTOS.find((x) => x.id === p.puestoId)!;
+      const k = `${pu.id}|${p.mesa}`;
+      const loc = LOCALIDADES.find((l) => l.id === pu.localidad_id)!;
+      const f = m.get(k) ?? { localidad_id: loc.id, localidad: loc.nombre, puesto_id: pu.id, puesto: pu.nombre, mesa: p.mesa, simpatizantes: 0, cubierta: false };
+      f.simpatizantes++;
+      f.cubierta = testigosDemo.some((t) => t.eleccion === eleccionId && t.puesto_id === pu.id && (t.mesas.length === 0 || t.mesas.includes(p.mesa!)));
+      m.set(k, f);
+    }
+    return [...m.values()];
+  },
+  async asignarTestigo(eleccionId, personaId, puestoId, mesas) {
+    await espera(); soloLectura();
+    if (!['admin', 'coordinador'].includes(yo().rol)) throw new Error('Solo administradores y coordinadores asignan testigos');
+    const p = visibles().find((x) => x.id === personaId);
+    if (!p) throw new Error('Esa persona no está registrada o no es de tus líderes');
+    if (!p.telefono) throw new Error('El testigo necesita un celular para coordinarlo el día de la elección');
+    const pu = PUESTOS.find((x) => x.id === puestoId);
+    if (!pu) throw new Error('Puesto no encontrado');
+    if (mesas.some((m) => m < 1 || m > (pu.mesas_total ?? 0))) throw new Error(`Ese puesto tiene mesas de la 1 a la ${pu.mesas_total}`);
+    const previo = testigosDemo.find((t) => t.eleccion === eleccionId && t.persona_id === personaId);
+    if (previo) Object.assign(previo, { puesto_id: puestoId, mesas: [...new Set(mesas)].sort((a, b) => a - b) });
+    else testigosDemo.push({ id: testigosDemo.length + 1, eleccion: eleccionId, persona_id: personaId, puesto_id: puestoId, mesas: [...new Set(mesas)].sort((a, b) => a - b) });
+  },
+  async quitarTestigo(id) {
+    await espera(); soloLectura();
+    const i = testigosDemo.findIndex((t) => t.id === id);
+    if (i < 0) throw new Error('Testigo no encontrado');
+    testigosDemo.splice(i, 1);
+  },
+  async alertasCalidad() {
+    await espera();
+    if (!['admin', 'coordinador'].includes(yo().rol)) return [];
+    const ps = visibles();
+    const grupos = new Map<string, PersonaDemo[]>();
+    for (const p of ps) if (p.telefono) grupos.set(p.telefono, [...(grupos.get(p.telefono) ?? []), p]);
+    const nombreLider = (g: PersonaDemo[]) => [...new Set(g.map((p) => lideres.find((l) => l.id === p.liderId)?.nombre ?? ''))].join(', ');
+    const salida = [...grupos.entries()].filter(([, g]) => g.length >= 2).map(([tel, g]) => ({
+      tipo: 'celular_repetido' as const, titulo: `El celular ${tel} está en ${g.length} personas`, lideres: nombreLider(g), personas: g.length, persona_ids: g.map((p) => p.id) }));
+    const nombres = new Map<string, PersonaDemo[]>();
+    for (const p of ps) if (p.puestoId) { const k = `${p.puestoId}|${normalizar(`${p.nombres} ${p.apellidos}`)}`; nombres.set(k, [...(nombres.get(k) ?? []), p]); }
+    for (const [k, g] of nombres) if (g.length >= 2) salida.push({ tipo: 'nombre_repetido' as never, titulo: `Mismo nombre en ${PUESTOS.find((x) => x.id === Number(k.split('|')[0]))?.nombre}: ${g[0].nombres} ${g[0].apellidos}`, lideres: nombreLider(g), personas: g.length, persona_ids: g.map((p) => p.id) });
+    return salida.sort((a, b) => b.personas - a.personas);
+  },
+  async personasPorIds(ids) {
+    await espera(60);
+    const s = new Set(ids);
+    return visibles().filter((p) => s.has(p.id)).map(aFila);
   },
 
   alCambiarDatos(cb, alConectar) {

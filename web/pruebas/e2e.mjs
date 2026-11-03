@@ -596,6 +596,48 @@ console.log('E14: candidato');
   await ctx.close();
 }
 
+console.log('Campaña: seguimiento, Día D, testigos y alertas');
+{
+  const { ctx, page } = await sesion('lider', movil);
+  await paso('el líder anota que una persona confirmó su apoyo', async () => {
+    await page.getByRole('link', { name: 'Seguimiento', exact: true }).click();
+    const primero = page.locator('.contacto').first();
+    await primero.waitFor();
+    const nombre = (await primero.locator('strong').textContent()).split(' ')[0];
+    await primero.getByRole('button', { name: 'Anotar' }).click();
+    await page.screenshot({ path: join(capturas, '40-seguimiento.png') });
+    await primero.getByRole('button', { name: 'Confirmó' }).click();
+    await page.locator('.aviso.ok', { hasText: nombre }).waitFor();
+  });
+  await paso('Día D: el líder marca que alguien votó', async () => {
+    await page.getByRole('link', { name: 'Día D' }).click();
+    const boton = page.getByRole('button', { name: /Marcar que votó/ }).first();
+    await boton.waitFor();
+    await boton.click();
+    await page.locator('.aviso.ok', { hasText: 'ya votó' }).waitFor();
+    await page.getByRole('button', { name: 'Ya votaron' }).click();
+    await page.getByRole('button', { name: /Ya votó/ }).first().waitFor();
+    await page.screenshot({ path: join(capturas, '41-dia-d.png'), fullPage: true });
+  });
+  await ctx.close();
+}
+{
+  const { ctx, page } = await sesion('admin', escritorio);
+  await paso('testigos: cobertura de mesas visible', async () => {
+    await page.getByRole('link', { name: 'Testigos' }).click();
+    await page.getByRole('heading', { name: 'Testigos electorales' }).waitFor();
+    await page.locator('.cifra-tarjeta', { hasText: 'mesas sin testigo' }).locator('text=/^[1-9]/').first().waitFor();
+    await page.screenshot({ path: join(capturas, '42-testigos.png'), fullPage: true });
+  });
+  await paso('análisis: alertas de datos sospechosos', async () => {
+    await page.getByRole('link', { name: 'Análisis' }).click();
+    await page.getByRole('tab', { name: 'Calidad' }).click();
+    await page.getByRole('heading', { name: /Datos sospechosos/ }).waitFor();
+    await page.screenshot({ path: join(capturas, '43-alertas.png'), fullPage: true });
+  });
+  await ctx.close();
+}
+
 await paso('sin errores en la consola del navegador', async () => {
   if (erroresConsola.length) console.log(erroresConsola.join('\n'));
   assert.deepEqual(erroresConsola, []);

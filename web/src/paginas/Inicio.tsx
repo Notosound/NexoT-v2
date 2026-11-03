@@ -3,7 +3,7 @@ import { useEnVivo } from '../lib/enVivo';
 import EnVivo from '../componentes/EnVivo';
 import { Link } from 'react-router-dom';
 import {
-  AlertTriangle, BarChart3, ClipboardCheck, Contact, Flag, LineChart, MapPinOff, QrCode, Target, UserPlus, Users, UsersRound, Vote,
+  AlertTriangle, BarChart3, PhoneCall, ClipboardCheck, Contact, Flag, LineChart, MapPinOff, QrCode, Target, UserPlus, Users, UsersRound, Vote,
 } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
 import type { Demografia, Lider, Resumen, Tendencia } from '../lib/tipos';
@@ -59,6 +59,11 @@ function InicioLider() {
           <span className="ficha-icono"><Contact aria-hidden /></span>
           <h3>Mis registros</h3>
           <p>Busca, revisa y exporta las personas que registraste</p>
+        </Link>
+        <Link to="/seguimiento" className="accion-grande">
+          <span className="ficha-icono"><PhoneCall aria-hidden /></span>
+          <h3>Seguimiento</h3>
+          <p>Llama o escribe a tu gente y anota quién confirma</p>
         </Link>
         <Link to="/estadisticas" className="accion-grande">
           <span className="ficha-icono"><LineChart aria-hidden /></span>

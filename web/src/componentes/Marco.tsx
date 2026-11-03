@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   BarChart3, ClipboardCheck, Eye, FileSpreadsheet, Home, LineChart, LogOut, MapPinned, Moon, QrCode,
-  Sun, UserPlus, Users, UsersRound, Vote, Contact, type LucideIcon,
+  Sun, UserPlus, Users, UsersRound, Vote, Contact, PhoneCall, CalendarCheck, ShieldCheck, type LucideIcon,
 } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
 import { ROLES, type Rol } from '../lib/tipos';
@@ -15,11 +15,14 @@ const ENLACES: { a: string; texto: string; icono: LucideIcon; roles: Rol[]; text
   { a: '/analisis', texto: 'Análisis', icono: BarChart3, roles: ['admin', 'coordinador', 'candidato'] },
   { a: '/registrar', texto: 'Registrar persona', icono: UserPlus, roles: ['admin', 'coordinador', 'lider'] },
   { a: '/personas', texto: 'Personas', textoLider: 'Mis registros', icono: Contact, roles: ['admin', 'coordinador', 'lider'] },
+  { a: '/seguimiento', texto: 'Seguimiento', icono: PhoneCall, roles: ['admin', 'coordinador', 'lider'] },
+  { a: '/dia-d', texto: 'Día D', icono: CalendarCheck, roles: ['admin', 'coordinador', 'lider', 'candidato'] },
   { a: '/estadisticas', texto: 'Mis estadísticas', icono: LineChart, roles: ['lider'] },
   { a: '/mi-enlace', texto: 'Mi enlace y QR', icono: QrCode, roles: ['lider'] },
   { a: '/revision', texto: 'Puestos por revisar', icono: ClipboardCheck, roles: ['admin'] },
   { a: '/importar', texto: 'Importar Excel', icono: FileSpreadsheet, roles: ['admin'] },
   { a: '/e14', texto: 'E14', icono: Vote, roles: ['admin', 'coordinador', 'candidato', 'digitador'] },
+  { a: '/testigos', texto: 'Testigos', icono: ShieldCheck, roles: ['admin', 'coordinador'] },
   { a: '/lideres', texto: 'Líderes', icono: UsersRound, roles: ['admin', 'coordinador'] },
   { a: '/equipo', texto: 'Equipo', icono: Users, roles: ['admin'] },
 ];

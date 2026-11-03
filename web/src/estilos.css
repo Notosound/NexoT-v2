@@ -523,3 +523,30 @@ details.plegable-simple[open] > summary { margin-bottom: 0.6rem; }
 .ejecutivo .boton.primario, .ejecutivo .opcion[aria-pressed=true] { background: var(--marca); box-shadow: none; }
 .ejecutivo .tarjeta, .ejecutivo .cifra-tarjeta { border-radius: 12px; }
 .ejecutivo h1 { font-weight: 700; }
+
+/* Seguimiento y Día D */
+.lista-contactos { list-style: none; margin: 0.5rem 0 1rem; padding: 0; display: grid; gap: 0.6rem; }
+.contacto { display: grid; grid-template-columns: 1fr auto; gap: 0.6rem 1rem; padding: 0.85rem 1rem; border: 1px solid var(--borde); border-radius: 12px; background: var(--superficie); }
+.contacto-datos { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.6rem; min-width: 0; }
+.contacto-datos small { flex-basis: 100%; color: var(--texto-3); }
+.contacto-canales { display: flex; gap: 0.4rem; align-items: flex-start; flex-wrap: wrap; justify-content: flex-end; }
+.contacto-resultado { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.contacto-resultado .boton.si, .boton.votado { background: var(--ok-suave); border-color: var(--ok-borde); color: var(--ok-texto); }
+.contacto { padding: 0.65rem 0.9rem; align-items: center; }
+.contacto-canales { align-items: center; flex-wrap: nowrap; }
+@media (max-width: 599px) {
+  .contacto-canales .rotulo { display: none; }
+  .contacto-canales .boton { padding-inline: 0.6rem; }
+  .contacto-resultado .boton { flex: 1 1 calc(50% - 0.4rem); justify-content: center; }
+}
+.chip-compromiso { font-size: 0.75rem; font-weight: 600; padding: 0.1rem 0.55rem; border-radius: 999px; background: var(--pista); color: var(--texto-2); }
+.chip-compromiso.confirmado { background: var(--ok-suave); color: var(--ok-texto); }
+.chip-compromiso.dudoso { background: var(--aviso-suave); color: var(--aviso-texto); }
+.chip-compromiso.no_apoya, .chip-compromiso.numero_errado { background: var(--error-suave); color: var(--error-texto); }
+.voto-fila { display: grid; grid-template-columns: 1fr auto; gap: 0.5rem 1rem; align-items: center; padding: 0.75rem 1rem; border: 1px solid var(--borde); border-radius: 12px; background: var(--superficie); }
+.voto-fila.ya { background: var(--ok-suave); border-color: var(--ok-borde); }
+.voto-fila small { display: block; color: var(--texto-3); }
+.voto-fila .acciones { justify-content: flex-end; }
+.mesas-elegibles { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.mesas-elegibles .opcion { min-height: 36px; padding: 0.3rem 0.7rem; }
+.mesas-elegibles .opcion.con-gente { border-color: var(--marca); }

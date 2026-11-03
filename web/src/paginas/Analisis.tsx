@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useEnVivo } from '../lib/enVivo';
 import EnVivo from '../componentes/EnVivo';
+import Alertas from '../componentes/Alertas';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle, CalendarClock, CheckCircle2, Download, MapPin, MapPinOff, Phone, Target, TrendingDown, TrendingUp, Users, Vote,
@@ -419,6 +420,8 @@ const PROBLEMAS: { k: keyof CalidadLider; texto: string }[] = [
 ];
 
 function Calidad({ datos, esAdmin, exportar }: { datos: Datos; esAdmin: boolean; exportar: Exportar }) {
+  const { sesion } = useSesion();
+  const rol = sesion!.perfil!.rol;
   const t = datos.calidad.reduce((s, l) => {
     for (const k of ['total', 'ubicados', ...PROBLEMAS.map((p) => p.k)] as (keyof CalidadLider)[]) s[k] = (s[k] ?? 0) + Number(l[k] ?? 0);
     return s;
@@ -432,6 +435,7 @@ function Calidad({ datos, esAdmin, exportar }: { datos: Datos; esAdmin: boolean;
         <Cifra icono={MapPinOff} valor={(t.sin_lugar ?? 0) + (t.sin_mesa ?? 0)} etiqueta="sin lugar o sin mesa" tono="info" />
         <Cifra icono={Phone} valor={t.sin_telefono ?? 0} etiqueta="sin teléfono" detalle="Difícil contactarlos el día de la elección" />
       </div>
+      {(rol === 'admin' || rol === 'coordinador') && <Alertas />}
       <div className="tarjeta" style={{ marginBottom: '1rem' }}>
         <div className="tarjeta-titulo">
           <h2>¿Se pueden contar con el E14? <QueEs>Para cruzar un registro con el E14 hace falta saber en qué puesto y en qué mesa vota la persona.

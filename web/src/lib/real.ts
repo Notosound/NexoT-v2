@@ -5,6 +5,7 @@ import type {
   Api, Demografia, FilaImportacion, PuestoCenso, Tendencia,
   AvanceE14, Eleccion, CalidadLider, FilaPlantillaE14, PuestoCodigos, RegistrosMesa, ResultadoFilaE14, LiderE14, LocalidadE14, MesaE14, MesaEnRevision, MesaPendiente, MiDigitacion, PuestoE14, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
   PersonaFila, Puesto, Rol, Sesion, Sugerencia, OpcionVerComo, EnlaceLider,
+  SeguimientoLider, DiaDFila, Testigo, CoberturaMesa, AlertaCalidad,
 } from './tipos';
 import { AVISO_VERSION } from './tipos';
 import { edadDesde, hoyISO } from './utilidades';
@@ -109,10 +110,10 @@ type CrudoPersona = Record<string, unknown> & {
   lider: { nombre: string } | null; puesto: { nombre: string } | null; localidad: { nombre: string } | null;
 };
 
-function consultaPersonas(textoLibre: string, estado: string) {
+function consultaPersonas(textoLibre: string, estado: string, extra: { compromiso?: string; liderId?: string; ids?: string[] } = {}) {
   let q = sb.from('personas')
     .select(`id, cedula, nombres, apellidos, sexo, fecha_nacimiento, edad_declarada, edad_declarada_en, telefono,
-             puesto_reportado, mesa_reportada, ubicacion_estado, creado_en,
+             puesto_reportado, mesa_reportada, ubicacion_estado, creado_en, compromiso, contactos_n, lider_id,
              lider:lideres(nombre), puesto:puestos(nombre),
              localidad:localidades!localidad_votacion_id(nombre)`, { count: 'exact' })
     .is('eliminado_en', null)
@@ -125,6 +126,9 @@ function consultaPersonas(textoLibre: string, estado: string) {
       : q.or(texto.split(/\s+/).map((t) => `nombres.ilike.%${t}%,apellidos.ilike.%${t}%`).join(','));
   }
   if (estado) q = q.eq('ubicacion_estado', estado);
+  if (extra.compromiso) q = q.eq('compromiso', extra.compromiso);
+  if (extra.liderId) q = q.eq('lider_id', extra.liderId);
+  if (extra.ids) q = q.in('id', extra.ids);
   return q;
 }
 
@@ -144,6 +148,9 @@ function aFila(x: CrudoPersona): PersonaFila {
     mesa: x.mesa_reportada as number | null,
     ubicacion_estado: x.ubicacion_estado as PersonaFila['ubicacion_estado'],
     creado_en: x.creado_en as string,
+    compromiso: (x.compromiso ?? 'sin_contactar') as PersonaFila['compromiso'],
+    contactos_n: Number(x.contactos_n ?? 0),
+    lider_id: (x.lider_id as string | null) ?? null,
   };
 }
 
@@ -256,12 +263,12 @@ export const api: Api = {
   },
 
   async personas(f) {
-    const r = await consultaPersonas(f.texto, f.estado).range(f.desde, f.desde + 49);
+    const r = await consultaPersonas(f.texto, f.estado, { compromiso: f.compromiso || undefined, liderId: f.liderId }).range(f.desde, f.desde + 49);
     if (r.error) throw r.error;
     return { filas: (r.data as unknown as CrudoPersona[]).map(aFila), total: r.count ?? 0 };
   },
   async personasTodas(f) {
-    const filas = await todas((a, b) => consultaPersonas(f.texto, f.estado).range(a, b));
+    const filas = await todas((a, b) => consultaPersonas(f.texto, f.estado, { compromiso: f.compromiso || undefined, liderId: f.liderId }).range(a, b));
     return (filas as unknown as CrudoPersona[]).map(aFila);
   },
   async eliminarPersona(id) {
@@ -458,6 +465,44 @@ export const api: Api = {
       sinError(await sb.rpc('registrar_ver_como', { p_objetivo: objetivo }));
     }
     verComo = objetivo;
+  },
+
+  async registrarContacto(personaId, resultado, canal, nota) {
+    ok(await sb.rpc('registrar_contacto', { p_persona: personaId, p_resultado: resultado, p_canal: canal, p_nota: nota ?? null }));
+  },
+  async seguimientoLideres() {
+    return todas((a, b) => sb.from('v_seguimiento_lideres').select('*').order('nombre').range(a, b)) as Promise<SeguimientoLider[]>;
+  },
+  async votosMarcados(eleccionId) {
+    const filas = await todas((a, b) => sb.from('votos_marcados').select('persona_id').eq('eleccion_id', eleccionId).range(a, b)) as { persona_id: string }[];
+    return new Set(filas.map((f) => f.persona_id));
+  },
+  async marcarVoto(eleccionId, personaId, voto) {
+    ok(await sb.rpc('marcar_voto', { p_eleccion: eleccionId, p_persona: personaId, p_voto: voto }));
+  },
+  async diaD(eleccionId) {
+    return todas((a, b) => sb.from('v_dia_d').select('*').eq('eleccion_id', eleccionId).range(a, b)) as Promise<DiaDFila[]>;
+  },
+  async testigos(eleccionId) {
+    return todas((a, b) => sb.from('v_testigos').select('*').eq('eleccion_id', eleccionId).order('localidad').range(a, b)) as Promise<Testigo[]>;
+  },
+  async coberturaTestigos(eleccionId) {
+    return todas((a, b) => sb.from('v_testigos_cobertura').select('*').eq('eleccion_id', eleccionId).range(a, b)) as Promise<CoberturaMesa[]>;
+  },
+  async asignarTestigo(eleccionId, personaId, puestoId, mesas) {
+    ok(await sb.rpc('asignar_testigo', { p_eleccion: eleccionId, p_persona: personaId, p_puesto: puestoId, p_mesas: mesas }));
+  },
+  async quitarTestigo(id) {
+    ok(await sb.rpc('quitar_testigo', { p_id: id }));
+  },
+  async alertasCalidad() {
+    return lista(await sb.from('v_alertas_calidad').select('*').order('personas', { ascending: false })) as AlertaCalidad[];
+  },
+  async personasPorIds(ids) {
+    if (!ids.length) return [];
+    const r = await consultaPersonas('', '', { ids: ids.slice(0, 200) });
+    if (r.error) throw r.error;
+    return (r.data as unknown as CrudoPersona[]).map(aFila);
   },
 
   alCambiarDatos(cb, alConectar) {
