@@ -25,6 +25,7 @@ import Privacidad from './paginas/Privacidad';
 import DatosPersonales from './paginas/DatosPersonales';
 import MiCuenta from './paginas/MiCuenta';
 import CodigoDosPasos from './paginas/CodigoDosPasos';
+import Metas from './paginas/Metas';
 
 // El tablero carga el mapa (Leaflet): solo se descarga cuando se abre
 const Tablero = lazy(() => import('./paginas/Tablero'));
@@ -78,6 +79,7 @@ export default function App() {
         <Route path="/equipo" element={<Solo roles={['admin']}><Equipo /></Solo>} />
         <Route path="/analisis" element={<Solo roles={['admin', 'coordinador', 'candidato']}><Analisis /></Solo>} />
         <Route path="/e14" element={<Solo roles={['admin', 'coordinador', 'candidato', 'digitador']}><E14 /></Solo>} />
+        <Route path="/metas" element={<Solo roles={['admin', 'coordinador', 'candidato']}><Metas /></Solo>} />
         <Route path="/datos-personales" element={<Solo roles={['admin']}><DatosPersonales /></Solo>} />
         <Route path="/cuenta" element={<MiCuenta />} />
         <Route path="/cambiar-clave" element={<CambiarClave />} />

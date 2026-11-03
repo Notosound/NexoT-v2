@@ -73,6 +73,15 @@ export interface PotencialPuesto {
 }
 export interface FilaHistoricoResultado { fila: number; estado: 'ok' | 'error' | 'vacia'; mensaje: string | null; puesto_id: number | null; votos: number | null }
 
+// Metas por líder
+export type Semaforo = 'verde' | 'amarillo' | 'rojo' | 'cumplida' | 'sin_meta';
+export interface MetaLider {
+  lider_id: string; nombre: string; meta: number; coordinador: string; registrados: number; confirmados: number;
+  esta_semana: number; semana_anterior: number; ultimo_registro: string | null; esperado_hoy: number | null; semaforo: Semaforo;
+}
+export interface FechasMeta { inicio: string | null; fin: string | null; esperado: number | null }
+export interface RankingFila { posicion: number; lider_id: string; nombre: string; registros: number; soy_yo: boolean }
+
 export interface FactorDosPasos { id: string; nombre: string; verificado: boolean; creado: string }
 
 export interface Localidad { id: number; codigo: string; nombre: string }
@@ -388,5 +397,11 @@ export interface Api {
   potencial(historicoId: string): Promise<PotencialPuesto[]>;
   importarHistorico(nombre: string, anio: number | null, filas: Record<string, string>[], confirmar: boolean): Promise<FilaHistoricoResultado[]>;
   eliminarHistorico(id: string): Promise<void>;
+  // metas
+  metasLideres(): Promise<MetaLider[]>;
+  fechasMeta(): Promise<FechasMeta>;
+  configurarFechasMeta(inicio: string, fin: string): Promise<void>;
+  cambiarMeta(liderId: string, meta: number): Promise<void>;
+  rankingSemanal(): Promise<RankingFila[]>;
   quitarDosPasosDe(usuarioId: string): Promise<string>;
 }

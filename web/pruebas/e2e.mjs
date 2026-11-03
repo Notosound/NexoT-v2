@@ -673,6 +673,23 @@ console.log('Campaña: seguimiento, Día D, testigos y alertas');
     await page.locator('.cifra-tarjeta', { hasText: 'mesas sin testigo' }).locator('text=/^[1-9]/').first().waitFor();
     await page.screenshot({ path: join(capturas, '42-testigos.png'), fullPage: true });
   });
+  await paso('metas: fechas, semáforo, cambiar meta y ranking', async () => {
+    await page.getByRole('link', { name: 'Metas' }).click();
+    await page.locator('.meta-fila').first().waitFor();
+    await page.getByRole('button', { name: 'Definir fechas' }).click();
+    const hoy = new Date();
+    const iso = (d) => d.toISOString().slice(0, 10);
+    await page.getByLabel('Desde').fill(iso(new Date(hoy.getTime() - 60 * 86400000)));
+    await page.getByLabel('Hasta').fill(iso(new Date(hoy.getTime() + 60 * 86400000)));
+    await page.getByRole('button', { name: 'Guardar' }).click();
+    await page.getByText(/hoy cada líder debería llevar el/).waitFor();
+    await page.getByRole('button', { name: /Cambiar la meta de Germán Ríos/ }).click();
+    await page.getByLabel(/Nueva meta de Germán Ríos/).fill('900');
+    await page.getByRole('button', { name: 'Guardar' }).click();
+    await page.locator('.meta-fila', { hasText: 'Germán Ríos' }).getByText('de 900').waitFor();
+    await page.locator('.lista-ranking li').first().waitFor();
+    await page.screenshot({ path: join(capturas, '49-metas.png'), fullPage: true });
+  });
   await paso('análisis: potencial por puesto frente a una elección anterior', async () => {
     await page.getByRole('link', { name: 'Análisis' }).click();
     await page.getByRole('tab', { name: 'Potencial' }).click();

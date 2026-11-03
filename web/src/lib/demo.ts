@@ -5,7 +5,7 @@ import type {
   Api, Demografia, FilaImportacion, PuestoCenso, Tendencia,
   Eleccion, EstadoMesa, CalidadLider, PuestoCodigos, RegistrosMesa, ResultadoFilaE14, LiderE14, LocalidadE14, MesaE14, PuestoE14, TotalesE14, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
   PersonaFila, Puesto, Rol, Sesion, Sexo, Sugerencia, Compromiso, Testigo,
-  Politica, SolicitudDatos, AccionSensible, FactorDosPasos, Historico, PotencialPuesto, FilaHistoricoResultado,
+  Politica, SolicitudDatos, AccionSensible, FactorDosPasos, Historico, PotencialPuesto, FilaHistoricoResultado, MetaLider, RankingFila, Semaforo,
 } from './tipos';
 import QRCode from 'qrcode';
 import { edadDesde, hoyISO, normalizar } from './utilidades';
@@ -58,9 +58,9 @@ const usuarios: MiembroEquipo[] = [
   miembro('u-dig2', 'Segunda Digitadora', 'digitador', 'digitadora2@demo.co', false),
 ];
 const lideres: (Omit<Lider, 'registrados'> & { token?: string; enlaceActivo?: boolean })[] = [
-  { id: 'l-1', nombre: 'Líder Demo', cedula: '900001', telefono: '3001112233', meta_votos: 60, coordinador_id: 'u-coord', perfil_id: 'u-lider' },
-  { id: 'l-2', nombre: 'Marcela Pinto', cedula: '900002', telefono: null, meta_votos: 40, coordinador_id: 'u-coord', perfil_id: null },
-  { id: 'l-3', nombre: 'Germán Ríos', cedula: '900003', telefono: null, meta_votos: 80, coordinador_id: null, perfil_id: null },
+  { id: 'l-1', nombre: 'Líder Demo', cedula: '900001', telefono: '3001112233', meta_votos: 250, coordinador_id: 'u-coord', perfil_id: 'u-lider' },
+  { id: 'l-2', nombre: 'Marcela Pinto', cedula: '900002', telefono: null, meta_votos: 450, coordinador_id: 'u-coord', perfil_id: null },
+  { id: 'l-3', nombre: 'Germán Ríos', cedula: '900003', telefono: null, meta_votos: 180, coordinador_id: null, perfil_id: null },
 ];
 const alias = new Map<string, number>();
 const personas: PersonaDemo[] = [];
@@ -194,6 +194,7 @@ const solicitudesDemo: SolicitudDatos[] = [];
 let sembradas = false;
 const accionesDemo: AccionSensible[] = [];
 const factoresDemo: FactorDosPasos[] = [];
+const fechasDemo: { inicio: string | null; fin: string | null } = { inicio: null, fin: null };
 // Resultados históricos inventados para la demostración: votos por puesto
 // con variación por localidad, para que el análisis de potencial tenga forma
 const historicosDemo: { h: Historico; puestos: Map<number, { votos: number; validos: number }> }[] = [];
@@ -1053,6 +1054,57 @@ export const api: Api = {
     const i = historicosDemo.findIndex((x) => x.h.id === id);
     if (i >= 0) historicosDemo.splice(i, 1);
   },
+  async metasLideres() {
+    await espera();
+    const u = yo();
+    const ls = u.rol === 'candidato' ? lideres : misLideres();
+    const f = await api.fechasMeta();
+    const semana = Date.now() - 7 * 86_400_000, dos = Date.now() - 14 * 86_400_000;
+    return ls.map((l) => {
+      const ps = personas.filter((p) => p.liderId === l.id && !p.eliminada);
+      const n = ps.length, meta = l.meta_votos;
+      const esperado = meta > 0 && f.esperado != null ? Math.ceil(meta * f.esperado) : null;
+      const semaforo: Semaforo = meta === 0 ? 'sin_meta' : n >= meta ? 'cumplida'
+        : esperado != null ? (n >= meta * f.esperado! ? 'verde' : n >= 0.7 * meta * f.esperado! ? 'amarillo' : 'rojo')
+        : (n >= 0.75 * meta ? 'verde' : n >= 0.4 * meta ? 'amarillo' : 'rojo');
+      const t = (p: PersonaDemo) => new Date(p.creadoEn).getTime();
+      return {
+        lider_id: l.id, nombre: l.nombre, meta, coordinador: usuarios.find((x) => x.id === l.coordinador_id)?.nombre ?? '',
+        registrados: n, confirmados: ps.filter((p) => p.compromiso === 'confirmado').length,
+        esta_semana: ps.filter((p) => t(p) >= semana).length, semana_anterior: ps.filter((p) => t(p) >= dos && t(p) < semana).length,
+        ultimo_registro: ps.reduce<string | null>((a, p) => (!a || p.creadoEn > a ? p.creadoEn : a), null), esperado_hoy: esperado, semaforo,
+      } as MetaLider;
+    });
+  },
+  async fechasMeta() {
+    await espera(40);
+    if (!fechasDemo.inicio || !fechasDemo.fin) return { ...fechasDemo, esperado: null };
+    const ini = new Date(fechasDemo.inicio).getTime(), fin = new Date(fechasDemo.fin).getTime();
+    return { ...fechasDemo, esperado: Math.min(1, Math.max(0, (Date.now() - ini) / (fin - ini))) };
+  },
+  async configurarFechasMeta(inicio, fin) {
+    await espera(); soloLectura();
+    if (yo().rol !== 'admin') throw new Error('Solo un administrador define las fechas');
+    if (!inicio || !fin || fin <= inicio) throw new Error('La fecha final debe ser posterior a la inicial');
+    Object.assign(fechasDemo, { inicio, fin });
+  },
+  async cambiarMeta(liderId, meta) {
+    await espera(); soloLectura();
+    const l = misLideres().find((x) => x.id === liderId);
+    if (!l || !['admin', 'coordinador'].includes(yo().rol)) throw new Error('No tienes permiso para cambiar la meta de este líder');
+    l.meta_votos = meta;
+  },
+  async rankingSemanal() {
+    await espera();
+    const semana = Date.now() - 7 * 86_400_000;
+    const u = yo();
+    const filas = lideres.map((l) => ({ l, n: personas.filter((p) => p.liderId === l.id && !p.eliminada && new Date(p.creadoEn).getTime() >= semana).length }))
+      .sort((a, b) => b.n - a.n || a.l.nombre.localeCompare(b.l.nombre));
+    return filas.map((x, i) => ({
+      posicion: filas.findIndex((y) => y.n === x.n) + 1, lider_id: x.l.id, nombre: x.l.nombre, registros: x.n,
+      soy_yo: vistaLider ? x.l.id === vistaLider : x.l.perfil_id === u.id, rn: i + 1,
+    })).filter((x) => (x.rn <= 10 && x.registros > 0) || x.soy_yo).map(({ rn: _rn, ...r }) => r as RankingFila);
+  },
   async quitarDosPasosDe(id) {
     await espera(); soloLectura();
     const u = usuarios.find((x) => x.id === id)!;
@@ -1075,7 +1127,7 @@ for (const k of ['registrarPersona', 'resolverUbicacion', 'confirmarImportacion'
 const ESCRITURAS: (keyof Api)[] = ['crearLider', 'registrarPersona', 'eliminarPersona', 'resolverUbicacion', 'crearImportacion', 'cargarFilas',
   'confirmarImportacion', 'cancelarImportacion', 'crearEleccion', 'digitarE14', 'corregirDigitacion', 'resolverE14', 'importarE14',
   'vincularUsuario', 'desactivarUsuario', 'reactivarUsuario', 'cambiarRol', 'invitarUsuario', 'reenviarAcceso',
-  'configurarPolitica', 'atenderSolicitud', 'importarHistorico', 'eliminarHistorico', 'quitarDosPasosDe', 'inscribirDosPasos', 'confirmarDosPasos', 'quitarDosPasos'];
+  'configurarPolitica', 'atenderSolicitud', 'importarHistorico', 'eliminarHistorico', 'configurarFechasMeta', 'cambiarMeta', 'quitarDosPasosDe', 'inscribirDosPasos', 'confirmarDosPasos', 'quitarDosPasos'];
 for (const k of ESCRITURAS) {
   const original = api[k] as (...a: unknown[]) => Promise<unknown>;
   (api as unknown as Record<string, unknown>)[k] = async (...a: unknown[]) => {

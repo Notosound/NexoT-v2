@@ -6,7 +6,8 @@ import {
   AlertTriangle, BarChart3, Inbox, PhoneCall, ShieldAlert, ClipboardCheck, Contact, Flag, LineChart, MapPinOff, QrCode, Target, UserPlus, Users, UsersRound, Vote,
 } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
-import type { Demografia, Lider, Resumen, Tendencia } from '../lib/tipos';
+import type { Demografia, Lider, MetaLider, RankingFila, Resumen, Tendencia } from '../lib/tipos';
+import { Ranking, SEMAFORO } from './Metas';
 import { mensajeError } from '../lib/utilidades';
 import { ORDEN_EDAD, partesSexo, resumirDemografia, serieDesdeTendencia } from '../lib/estadisticas';
 import { BarrasH, Dona, Linea, SERIES } from '../componentes/Graficos';
@@ -34,8 +35,11 @@ function InicioLider() {
   const { api, sesion } = useSesion();
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [ficha, setFicha] = useState<Lider | null>(null);
+  const [mia, setMia] = useState<MetaLider | null>(null);
+  const [ranking, setRanking] = useState<RankingFila[] | null>(null);
   const [error, setError] = useState('');
-  useEnVivo(() => Promise.all([api.resumen().then(setResumen), api.lideres().then((l) => setFicha(l[0] ?? null))]).catch((e) => setError(mensajeError(e))), ['registros']);
+  useEnVivo(() => Promise.all([api.resumen().then(setResumen), api.lideres().then((l) => setFicha(l[0] ?? null)),
+    api.metasLideres().then((m) => setMia(m[0] ?? null)), api.rankingSemanal().then(setRanking)]).catch((e) => setError(mensajeError(e))), ['registros']);
   const nombre = sesion!.perfil!.nombre.split(' ')[0];
   const meta = ficha?.meta_votos ?? 0;
   const sinPuesto = resumen ? resumen.porRevisar + resumen.sinUbicacion : null;
@@ -73,10 +77,13 @@ function InicioLider() {
       </div>
       <div className="cifras seccion">
         <Cifra icono={Users} valor={resumen?.personas} etiqueta="personas registradas" a="/personas" />
-        {meta > 0 && <Cifra icono={Target} valor={resumen ? `${pct(resumen.personas, meta)}%` : null} etiqueta={`de tu meta (${meta})`} tono="ok" />}
+        {meta > 0 && <Cifra icono={Target} valor={resumen ? `${pct(resumen.personas, meta)}%` : null} etiqueta={`de tu meta (${meta})`}
+          tono={mia?.semaforo === 'rojo' ? 'aviso' : 'ok'}
+          detalle={mia ? `${SEMAFORO[mia.semaforo].texto}${mia.esperado_hoy != null && mia.semaforo !== 'cumplida' ? ` · hoy deberías llevar ${mia.esperado_hoy}` : ''}` : undefined} />}
         <Cifra icono={MapPinOff} valor={sinPuesto} etiqueta="sin puesto confirmado" tono={sinPuesto ? 'aviso' : undefined} a="/personas"
           detalle={sinPuesto ? 'Pregúntales dónde votan' : undefined} />
       </div>
+      {ranking && <div className="seccion" style={{ maxWidth: 520 }}><Ranking filas={ranking} compacto /></div>}
     </>
   );
 }

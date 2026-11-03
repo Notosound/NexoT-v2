@@ -6,7 +6,7 @@ import type {
   AvanceE14, Eleccion, CalidadLider, FilaPlantillaE14, PuestoCodigos, RegistrosMesa, ResultadoFilaE14, LiderE14, LocalidadE14, MesaE14, MesaEnRevision, MesaPendiente, MiDigitacion, PuestoE14, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
   PersonaFila, Puesto, Rol, Sesion, Sugerencia, OpcionVerComo, EnlaceLider,
   SeguimientoLider, DiaDFila, Testigo, CoberturaMesa, AlertaCalidad,
-  Politica, SolicitudDatos, DatoTitular, AccionSensible, Historico, PotencialPuesto, FilaHistoricoResultado,
+  Politica, SolicitudDatos, DatoTitular, AccionSensible, Historico, PotencialPuesto, FilaHistoricoResultado, MetaLider, FechasMeta, RankingFila,
 } from './tipos';
 import { AVISO_VERSION } from './tipos';
 import { edadDesde, hoyISO } from './utilidades';
@@ -630,5 +630,24 @@ export const api: Api = {
   },
   async eliminarHistorico(id) {
     ok(await sb.rpc('eliminar_historico', { p_id: id }));
+  },
+
+  // ── Metas ──────────────────────────────────────────────────────────
+  async metasLideres() {
+    return todas((a, b) => sb.from('v_metas_lideres').select('*').order('nombre').range(a, b)) as Promise<MetaLider[]>;
+  },
+  async fechasMeta() {
+    const r = lista(await rpcLectura('fechas_meta')) as FechasMeta[];
+    return r[0] ?? { inicio: null, fin: null, esperado: null };
+  },
+  async configurarFechasMeta(inicio, fin) {
+    ok(await sb.rpc('configurar_fechas_meta', { p_inicio: inicio, p_fin: fin }));
+  },
+  async cambiarMeta(liderId, meta) {
+    const r = await sb.from('lideres').update({ meta_votos: meta }).eq('id', liderId).select('id');
+    if (!ok(r)?.length) throw new Error('No tienes permiso para cambiar la meta de este líder');
+  },
+  async rankingSemanal() {
+    return lista(await rpcLectura('ranking_semanal')) as RankingFila[];
   },
 };

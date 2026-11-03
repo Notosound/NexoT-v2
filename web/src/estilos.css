@@ -621,3 +621,47 @@ details.plegable-simple[open] > summary { margin-bottom: 0.6rem; }
 .aviso-accion { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 1rem; }
 .aviso-accion span { flex: 1; }
 .aviso-accion .boton { white-space: nowrap; }
+
+/* Metas */
+.metas-cuerpo { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 1rem; align-items: start; }
+@media (max-width: 1000px) { .metas-cuerpo { grid-template-columns: 1fr; } }
+.lista-metas { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.meta-fila { padding: 0.75rem 0.9rem; border: 1px solid var(--borde); border-radius: 12px; background: var(--superficie); display: grid; gap: 0.45rem; }
+.meta-encabezado { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.meta-barra { position: relative; height: 10px; background: var(--pista); border-radius: 999px; overflow: visible; }
+.meta-barra .relleno { position: absolute; inset: 0 auto 0 0; border-radius: 999px; background: var(--serie-1); }
+.meta-barra .relleno.verde, .meta-barra .relleno.cumplida { background: var(--ok); }
+.meta-barra .relleno.amarillo { background: var(--aviso); }
+.meta-barra .relleno.rojo { background: var(--error); }
+.meta-barra .esperado { position: absolute; top: -4px; bottom: -4px; width: 2px; background: var(--texto); border-radius: 2px; transform: translateX(-1px); }
+.meta-datos { display: flex; justify-content: space-between; gap: 0.5rem 1rem; flex-wrap: wrap; align-items: center; font-size: 0.92rem; }
+.meta-datos .semana { display: inline-flex; align-items: center; gap: 0.25rem; }
+.meta-datos .semana svg { width: 14px; height: 14px; }
+.meta-datos .sube { color: var(--ok); }
+.meta-datos .baja { color: var(--error); }
+.meta-datos .quieto { color: var(--aviso-texto); font-weight: 600; }
+.chip-semaforo { font-size: 0.75rem; font-weight: 700; padding: 0.1rem 0.55rem; border-radius: 999px; background: var(--pista); color: var(--texto-2); }
+.chip-semaforo.verde, .chip-semaforo.cumplida { background: var(--ok-suave); color: var(--ok-texto); }
+.chip-semaforo.amarillo { background: var(--aviso-suave); color: var(--aviso-texto); }
+.chip-semaforo.rojo { background: var(--error-suave); color: var(--error-texto); }
+.punto { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 0.35rem; background: var(--borde-fuerte); }
+.punto.verde, .punto.cumplida { background: var(--ok); } .punto.amarillo { background: var(--aviso); } .punto.rojo { background: var(--error); }
+.icono-boton { border: 0; background: none; cursor: pointer; color: var(--texto-3); padding: 0.15rem 0.3rem; border-radius: 6px; vertical-align: middle; }
+.icono-boton:hover { color: var(--marca); background: var(--pista); }
+.icono-boton svg { width: 14px; height: 14px; }
+.editar-meta, .fechas-form { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; }
+.editar-meta input { width: 100px; padding: 0.3rem 0.5rem; border: 1px solid var(--borde-fuerte); border-radius: 8px; font: inherit; }
+.fechas-meta { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.fechas-meta > span { flex: 1; min-width: 220px; }
+.fechas-form { width: 100%; }
+.fechas-form .campo { margin: 0; flex-direction: row; align-items: center; gap: 0.35rem; }
+.lista-ranking { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.lista-ranking li { display: grid; grid-template-columns: 28px minmax(0, 1fr) 70px auto; gap: 0.5rem; align-items: center; padding: 0.35rem 0.4rem; border-radius: 10px; }
+.ranking .lista-ranking li:has(.pista) { grid-template-columns: 28px minmax(0, 1fr) 70px auto; }
+.lista-ranking li:not(:has(.pista)) { grid-template-columns: 28px minmax(0, 1fr) auto; }
+.lista-ranking li.yo { background: var(--pista); font-weight: 600; }
+.lista-ranking .nombre { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lista-ranking .pista { height: 6px; background: var(--pista); border-radius: 999px; overflow: hidden; display: block; }
+.lista-ranking .pista span { display: block; height: 100%; background: var(--serie-1); border-radius: 999px; }
+.medalla { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 0.8rem; font-weight: 800; background: var(--pista); color: var(--texto-2); }
+.medalla.m1 { background: #f5c542; color: #4a3500; } .medalla.m2 { background: #cfd5df; color: #2c3440; } .medalla.m3 { background: #e0a46e; color: #4a2600; }

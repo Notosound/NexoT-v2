@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   BarChart3, ClipboardCheck, Eye, FileSpreadsheet, Home, LineChart, LogOut, MapPinned, Moon, QrCode,
-  ChevronDown, Lock, UserCog, Sun, UserPlus, Users, UsersRound, Vote, Contact, PhoneCall, CalendarCheck, ShieldCheck, type LucideIcon,
+  ChevronDown, Lock, Target, UserCog, Sun, UserPlus, Users, UsersRound, Vote, Contact, PhoneCall, CalendarCheck, ShieldCheck, type LucideIcon,
 } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
 import { ROLES, type Rol } from '../lib/tipos';
@@ -17,6 +17,7 @@ const SECCIONES: { titulo: string; tituloLider?: string; enlaces: Enlace[] }[] =
     { a: '/', texto: 'Inicio', icono: Home, roles: ['admin', 'coordinador', 'lider', 'digitador'] },
     { a: '/tablero', texto: 'Tablero', icono: MapPinned, roles: ['admin', 'coordinador', 'candidato'] },
     { a: '/analisis', texto: 'Análisis', icono: BarChart3, roles: ['admin', 'coordinador', 'candidato'] },
+    { a: '/metas', texto: 'Metas', icono: Target, roles: ['admin', 'coordinador', 'candidato'] },
     { a: '/estadisticas', texto: 'Mis estadísticas', icono: LineChart, roles: ['lider'] },
   ] },
   { titulo: 'Simpatizantes', tituloLider: 'Mi gente', enlaces: [
