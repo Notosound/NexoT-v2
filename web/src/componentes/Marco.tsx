@@ -10,22 +10,34 @@ import SelectorVerComo from './VerComo';
 import Protector from './Protector';
 import NuevaVersion from './NuevaVersion';
 
-const ENLACES: { a: string; texto: string; icono: LucideIcon; roles: Rol[]; textoLider?: string }[] = [
-  { a: '/', texto: 'Inicio', icono: Home, roles: ['admin', 'coordinador', 'lider', 'digitador'] },
-  { a: '/tablero', texto: 'Tablero', icono: MapPinned, roles: ['admin', 'coordinador', 'candidato'] },
-  { a: '/analisis', texto: 'Análisis', icono: BarChart3, roles: ['admin', 'coordinador', 'candidato'] },
-  { a: '/registrar', texto: 'Registrar persona', icono: UserPlus, roles: ['admin', 'coordinador', 'lider'] },
-  { a: '/personas', texto: 'Personas', textoLider: 'Mis registros', icono: Contact, roles: ['admin', 'coordinador', 'lider'] },
-  { a: '/seguimiento', texto: 'Seguimiento', icono: PhoneCall, roles: ['admin', 'coordinador', 'lider'] },
-  { a: '/dia-d', texto: 'Día D', icono: CalendarCheck, roles: ['admin', 'coordinador', 'lider', 'candidato'] },
-  { a: '/estadisticas', texto: 'Mis estadísticas', icono: LineChart, roles: ['lider'] },
-  { a: '/mi-enlace', texto: 'Mi enlace y QR', icono: QrCode, roles: ['lider'] },
-  { a: '/revision', texto: 'Puestos por revisar', icono: ClipboardCheck, roles: ['admin'] },
-  { a: '/importar', texto: 'Importar Excel', icono: FileSpreadsheet, roles: ['admin'] },
-  { a: '/e14', texto: 'E14', icono: Vote, roles: ['admin', 'coordinador', 'candidato', 'digitador'] },
-  { a: '/testigos', texto: 'Testigos', icono: ShieldCheck, roles: ['admin', 'coordinador'] },
-  { a: '/lideres', texto: 'Líderes', icono: UsersRound, roles: ['admin', 'coordinador'] },
-  { a: '/equipo', texto: 'Equipo', icono: Users, roles: ['admin'] },
+type Enlace = { a: string; texto: string; icono: LucideIcon; roles: Rol[]; textoLider?: string };
+// Menú por secciones: cada rol ve solo las secciones que tienen algo para él
+const SECCIONES: { titulo: string; tituloLider?: string; enlaces: Enlace[] }[] = [
+  { titulo: 'General', enlaces: [
+    { a: '/', texto: 'Inicio', icono: Home, roles: ['admin', 'coordinador', 'lider', 'digitador'] },
+    { a: '/tablero', texto: 'Tablero', icono: MapPinned, roles: ['admin', 'coordinador', 'candidato'] },
+    { a: '/analisis', texto: 'Análisis', icono: BarChart3, roles: ['admin', 'coordinador', 'candidato'] },
+    { a: '/estadisticas', texto: 'Mis estadísticas', icono: LineChart, roles: ['lider'] },
+  ] },
+  { titulo: 'Simpatizantes', tituloLider: 'Mi gente', enlaces: [
+    { a: '/registrar', texto: 'Registrar persona', icono: UserPlus, roles: ['admin', 'coordinador', 'lider'] },
+    { a: '/personas', texto: 'Personas', textoLider: 'Mis registros', icono: Contact, roles: ['admin', 'coordinador', 'lider'] },
+    { a: '/mi-enlace', texto: 'Mi enlace y QR', icono: QrCode, roles: ['lider'] },
+    { a: '/importar', texto: 'Importar Excel', icono: FileSpreadsheet, roles: ['admin'] },
+    { a: '/revision', texto: 'Puestos por revisar', icono: ClipboardCheck, roles: ['admin'] },
+  ] },
+  { titulo: 'Movilización', enlaces: [
+    { a: '/seguimiento', texto: 'Seguimiento', icono: PhoneCall, roles: ['admin', 'coordinador', 'lider'] },
+    { a: '/dia-d', texto: 'Día D', icono: CalendarCheck, roles: ['admin', 'coordinador', 'lider', 'candidato'] },
+    { a: '/testigos', texto: 'Testigos', icono: ShieldCheck, roles: ['admin', 'coordinador'] },
+  ] },
+  { titulo: 'Resultados', enlaces: [
+    { a: '/e14', texto: 'E14', icono: Vote, roles: ['admin', 'coordinador', 'candidato', 'digitador'] },
+  ] },
+  { titulo: 'Organización', enlaces: [
+    { a: '/lideres', texto: 'Líderes', icono: UsersRound, roles: ['admin', 'coordinador'] },
+    { a: '/equipo', texto: 'Equipo', icono: Users, roles: ['admin'] },
+  ] },
 ];
 
 // Tema claro/oscuro: se recuerda en este navegador (si se puede)
@@ -90,13 +102,23 @@ export default function Marco({ children }: { children: ReactNode }) {
       <NuevaVersion />
       <div className="cuerpo">
         <nav className="menu" aria-label="Secciones">
-          {ENLACES.filter((e) => e.roles.includes(perfil.rol)).map((e) => (
-            <NavLink key={e.a} to={e.a} end={e.a === '/'} className={({ isActive }) => (isActive ? 'activo' : '')}>
-              <e.icono className="icono" aria-hidden />
-              {perfil.rol === 'lider' && e.textoLider ? e.textoLider : e.texto}
-              {e.a === '/revision' && porRevisar > 0 && <span className="contador">{porRevisar}</span>}
-            </NavLink>
-          ))}
+          {SECCIONES.map((sec) => {
+            const enlaces = sec.enlaces.filter((e) => e.roles.includes(perfil.rol));
+            if (!enlaces.length) return null;
+            const titulo = perfil.rol === 'lider' && sec.tituloLider ? sec.tituloLider : sec.titulo;
+            return (
+              <div key={sec.titulo} className="menu-grupo" role="group" aria-label={titulo}>
+                <span className="menu-titulo">{titulo}</span>
+                {enlaces.map((e) => (
+                  <NavLink key={e.a} to={e.a} end={e.a === '/'} className={({ isActive }) => (isActive ? 'activo' : '')}>
+                    <e.icono className="icono" aria-hidden />
+                    {perfil.rol === 'lider' && e.textoLider ? e.textoLider : e.texto}
+                    {e.a === '/revision' && porRevisar > 0 && <span className="contador">{porRevisar}</span>}
+                  </NavLink>
+                ))}
+              </div>
+            );
+          })}
         </nav>
         <main className="contenido" key={vista?.objetivo ?? 'propio'}><Protector clave={ruta + (vista?.objetivo ?? '')}>{children}</Protector></main>
       </div>

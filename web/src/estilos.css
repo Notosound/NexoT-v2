@@ -117,12 +117,21 @@ svg.icono { width: 1.15em; height: 1.15em; flex-shrink: 0; }
 .menu a:hover { background: var(--superficie); color: var(--texto); }
 .menu a.activo { background: var(--superficie); color: var(--marca-fuerte); font-weight: 700; box-shadow: var(--sombra); }
 .menu a.activo svg { color: var(--marca); }
+.menu-grupo { display: flex; gap: 0.25rem; align-items: center; }
+.menu-titulo {
+  font-size: 0.7rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--texto-3); padding: 0 0.8rem;
+}
 .menu .contador { background: var(--aviso); color: #fff; border-radius: 999px; font-size: 0.72rem; padding: 0 0.45rem; font-weight: 700; margin-left: auto; }
 
 .contenido { flex: 1; padding: 1rem; max-width: 1180px; width: 100%; margin: 0 auto; min-width: 0; }
 
 @media (min-width: 900px) {
   .cuerpo { flex-direction: row; }
+  .menu-grupo { flex-direction: column; align-items: stretch; gap: 0.15rem; }
+  .menu-grupo + .menu-grupo { margin-top: 1.1rem; }
+  .menu-titulo { margin-bottom: 0.3rem; }
+  .menu a { padding: 0.5rem 0.8rem; font-size: 0.93rem; }
   .menu {
     flex-direction: column; width: 232px; flex-shrink: 0; padding: 1.25rem 0.75rem;
     position: sticky; top: 58px; height: calc(100vh - 58px); overflow-y: auto;
@@ -133,6 +142,8 @@ svg.icono { width: 1.15em; height: 1.15em; flex-shrink: 0; }
   .cuerpo { flex-direction: column; }
   .menu { position: sticky; top: 58px; z-index: 9; background: var(--fondo); border-bottom: 1px solid var(--borde); }
   .con-cinta .menu { top: 96px; }
+  .menu-titulo { display: none; }
+  .menu-grupo + .menu-grupo { border-left: 1px solid var(--borde); padding-left: 0.25rem; margin-left: 0.25rem; }
 }
 
 /* ── Componentes ──────────────────────────────────────────── */
