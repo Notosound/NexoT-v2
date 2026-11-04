@@ -7,12 +7,13 @@ interface Props {
   localidadId: number;
   elegido: Puesto | null;
   onElegir: (p: Puesto | null) => void;
-  onOtro?: () => void;          // si se pasa, aparece la opción "No aparece en la lista"
+  onOtro?: () => void;          // si se pasa, arriba de la lista aparece la opción para escribir el puesto
   etiqueta?: string;
+  textoOtro?: string;
 }
 
 /** Lista buscable de puestos oficiales de una localidad (por nombre o dirección). */
-export default function SelectorPuesto({ localidadId, elegido, onElegir, onOtro, etiqueta = 'Puesto de votación' }: Props) {
+export default function SelectorPuesto({ localidadId, elegido, onElegir, onOtro, etiqueta = 'Puesto de votación', textoOtro = '¿No encuentra su puesto? Escríbalo como le aparece (Otro)…' }: Props) {
   const { api } = useSesion();
   const [puestos, setPuestos] = useState<Puesto[] | null>(null);
   const [texto, setTexto] = useState('');
@@ -50,6 +51,11 @@ export default function SelectorPuesto({ localidadId, elegido, onElegir, onOtro,
           onChange={(e) => setTexto(e.target.value)} aria-labelledby={`etq-puesto-${localidadId}`}
         />
         <ul role="listbox" aria-labelledby={`etq-puesto-${localidadId}`}>
+          {onOtro && (
+            <li className="otro">
+              <button type="button" onClick={onOtro}>{textoOtro}</button>
+            </li>
+          )}
           {puestos === null && <li className="vacio">Cargando puestos…</li>}
           {filtrados.slice(0, 80).map((p) => (
             <li key={p.id}>
@@ -60,11 +66,6 @@ export default function SelectorPuesto({ localidadId, elegido, onElegir, onOtro,
           ))}
           {puestos && filtrados.length > 80 && <li className="vacio">Escribe para ver más ({filtrados.length - 80} más)…</li>}
           {puestos && filtrados.length === 0 && <li className="vacio">Ningún puesto coincide con “{texto}”.</li>}
-          {onOtro && (
-            <li className="otro">
-              <button type="button" onClick={onOtro}>No aparece en la lista (Otro)…</button>
-            </li>
-          )}
         </ul>
       </div>
     </div>

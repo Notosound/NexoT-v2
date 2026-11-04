@@ -26,7 +26,7 @@ export default function Registrar() {
   const [fecha, setFecha] = useState('');
   const [edad, setEdad] = useState('');
   const [telefono, setTelefono] = useState('');
-  const [sabeDonde, setSabeDonde] = useState(true);
+  const sabeDonde = true; // el lugar de votación es obligatorio
   const [localidadId, setLocalidadId] = useState<number | null>(null);
   const [puesto, setPuesto] = useState<Puesto | null>(null);
   const [otro, setOtro] = useState(false);
@@ -84,7 +84,7 @@ export default function Registrar() {
     else if (!/^3\d{9}$/.test(tel)) e.telefono = 'El celular debe tener 10 dígitos y empezar por 3.';
     if (sabeDonde) {
       if (!localidadId) e.localidad = 'Elige la localidad.';
-      else if (!puesto && !otro) e.puesto = 'Elige el puesto o marca que no aparece en la lista.';
+      else if (!puesto && !otro) e.puesto = 'Elige el puesto. Si no está en la lista, usa la opción de arriba “¿No encuentra su puesto?”.';
       else if (otro && !puestoReportado.trim() && !direccionReportada.trim()) e.otro = 'Escribe el nombre que le aparece o la dirección del puesto.';
       if (mesa && (!/^\d+$/.test(mesa) || Number(mesa) < 1)) e.mesa = 'Número de mesa inválido.';
       else if (mesa && puesto?.mesas_total && Number(mesa) > puesto.mesas_total) e.mesa = `Ese puesto tiene ${puesto.mesas_total} mesas.`;
@@ -232,10 +232,10 @@ export default function Registrar() {
           <fieldset>
             <legend>Lugar de votación</legend>
             <div className="formulario">
-              <label className="casilla">
-                <input type="checkbox" checked={!sabeDonde} onChange={(e) => setSabeDonde(!e.target.checked)} />
-                <span>Todavía no sabe dónde vota</span>
-              </label>
+              <p className="ayuda" style={{ margin: 0 }}>
+                Es obligatorio. Si la persona no lo sabe, lo consulta con su cédula en la{' '}
+                <a href="https://wsp.registraduria.gov.co/censo/consultar/" target="_blank" rel="noreferrer">página de la Registraduría</a>.
+              </p>
               {sabeDonde && (
                 <>
                   <label className="campo"><span>Localidad</span>

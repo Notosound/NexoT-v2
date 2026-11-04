@@ -221,7 +221,8 @@ legend { font-weight: 700; padding: 0 0.35rem; }
 }
 .buscador-lista li button:hover, .buscador-lista li button[aria-selected=true] { background: var(--marca-suave); }
 .buscador-lista li small { display: block; color: var(--texto-3); }
-.buscador-lista .otro button { color: var(--marca-fuerte); font-weight: 600; }
+.buscador-lista .otro { position: sticky; top: 0; z-index: 1; background: var(--superficie); border-bottom: 1px solid var(--borde); }
+.buscador-lista .otro button { color: var(--marca-fuerte); font-weight: 600; background: var(--marca-suave); }
 .elegido { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.6rem 0.75rem; border: 1px solid var(--marca); background: var(--marca-suave); border-radius: var(--radio-chico); }
 .elegido small { display: block; color: var(--texto-2); }
 

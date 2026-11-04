@@ -124,6 +124,19 @@ console.log('Líder (móvil)');
     await page.screenshot({ path: join(capturas, '02-registro-errores.png'), fullPage: true });
   });
 
+  await paso('el lugar de votación es obligatorio y "no encuentra su puesto" va primero', async () => {
+    assert.equal(await page.getByText('Todavía no sabe dónde vota').count(), 0);
+    await page.getByLabel('Localidad').selectOption({ label: 'Usaquén' });
+    const primero = page.locator('.buscador-lista li').first();
+    await primero.getByRole('button', { name: /No encuentra su puesto/ }).waitFor();
+    await page.getByPlaceholder('Busca por nombre o dirección…').fill('zzzz');
+    await page.locator('.buscador-lista li').first().getByRole('button', { name: /No encuentra su puesto/ }).waitFor();
+    await page.getByPlaceholder('Busca por nombre o dirección…').fill('');
+    await page.getByRole('button', { name: 'Registrar', exact: true }).click();
+    await page.getByText(/Elige el puesto\. Si no está en la lista/).waitFor();
+    await page.getByLabel('Localidad').selectOption('');
+  });
+
   await paso('registro completo con puesto de la lista oficial', async () => {
     await page.getByLabel('Cédula').fill('80.123.456');
     await page.getByLabel('Nombres').fill('María Fernanda');
@@ -158,7 +171,11 @@ console.log('Líder (móvil)');
     await page.getByRole('button', { name: 'Fecha de nacimiento' }).click();
     await page.getByLabel('Fecha de nacimiento').fill('1980-02-02');
     await page.getByLabel('Celular').fill('3001234568');
-    await page.getByLabel('Todavía no sabe dónde vota').check();
+    await page.getByLabel('Localidad').selectOption({ label: 'Usaquén' });
+    if (await page.getByRole('button', { name: 'Cambiar', exact: true }).count() === 0) {
+      await page.getByPlaceholder('Busca por nombre o dirección…').fill('servita');
+      await page.getByRole('option', { name: /SERVITA/ }).click();
+    }
     await page.getByLabel(/La persona autoriza/).check();
     await page.getByRole('button', { name: 'Registrar', exact: true }).click();
     await page.getByText('Esta cédula ya está registrada.').waitFor();
@@ -173,9 +190,9 @@ console.log('Líder (móvil)');
   });
 
   await paso('"Otro" con el nombre oficial: sugiere el puesto correcto', async () => {
-    await page.getByLabel('Todavía no sabe dónde vota').uncheck();
     await page.getByLabel('Localidad').selectOption({ label: 'Usaquén' });
-    await page.getByRole('button', { name: /No aparece en la lista/ }).click();
+    if (await page.getByRole('button', { name: 'Cambiar', exact: true }).count()) await page.getByRole('button', { name: 'Cambiar', exact: true }).click();
+    await page.getByRole('button', { name: /No encuentra su puesto/ }).click();
     await page.getByLabel('Nombre del puesto como le aparece').fill('Servita');
     await page.getByText('¿Es').waitFor();
     await page.screenshot({ path: join(capturas, '05-otro-sugerencia.png'), fullPage: true });
@@ -185,7 +202,7 @@ console.log('Líder (móvil)');
 
   await paso('"Otro" con un nombre desconocido: queda para revisión', async () => {
     await page.getByRole('button', { name: 'Cambiar', exact: true }).click();
-    await page.getByRole('button', { name: /No aparece en la lista/ }).click();
+    await page.getByRole('button', { name: /No encuentra su puesto/ }).click();
     await page.getByLabel('Nombre del puesto como le aparece').fill('Colegio de las Palmas Sede Norte');
     await page.getByLabel(/^Mesa/).fill('2');
     await page.getByLabel('Cédula').fill('99999992');
@@ -297,7 +314,11 @@ console.log('Administrador (escritorio)');
     await page.getByLabel('Nombres').fill('No');
     await page.getByRole('button', { name: 'Femenino' }).click();
     await page.getByLabel('Fecha de nacimiento').fill('1980-01-01');
-    await page.getByLabel('Todavía no sabe dónde vota').check();
+    await page.getByLabel('Localidad').selectOption({ label: 'Usaquén' });
+    if (await page.getByRole('button', { name: 'Cambiar', exact: true }).count() === 0) {
+      await page.getByPlaceholder('Busca por nombre o dirección…').fill('servita');
+      await page.getByRole('option', { name: /SERVITA/ }).click();
+    }
     await page.getByLabel(/La persona autoriza/).check();
     await page.getByRole('button', { name: 'Registrar', exact: true }).click();
     await page.getByText(/solo lectura/).first().waitFor();
@@ -335,6 +356,11 @@ console.log('Enlace del líder y formulario público (móvil)');
     await p.getByRole('button', { name: 'Masculino' }).click();
     await p.getByLabel('Fecha de nacimiento').fill('1990-03-03');
     await p.getByLabel(/Autorizo el tratamiento/).check();
+    await p.getByRole('button', { name: 'Registrarme' }).click();
+    await p.getByText('Elige la localidad donde votas.').waitFor();
+    await p.getByLabel('Localidad').selectOption({ label: 'Usaquén' });
+    await p.locator('.buscador-lista li').first().getByRole('button', { name: /No encuentras tu puesto/ }).click();
+    await p.getByLabel('Nombre del puesto como te aparece').fill('Colegio del barrio');
     await p.screenshot({ path: join(capturas, '18-formulario-publico.png'), fullPage: true });
     await p.getByRole('button', { name: 'Registrarme' }).click();
     await p.getByText('¡Gracias! Tu registro quedó listo.').waitFor();

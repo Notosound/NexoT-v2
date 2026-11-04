@@ -47,6 +47,9 @@ export default function RegistroPublico() {
     if (!d.sexo) return setError('Elige una opción en sexo.');
     if (!edad) return setError('Escribe tu fecha de nacimiento o tu edad.');
     if (edad < 18) return setError('Debes ser mayor de edad para registrarte.');
+    if (!d.localidad_id) return setError('Elige la localidad donde votas.');
+    if (!otro && !puesto) return setError('Elige tu puesto de votación. Si no está en la lista, usa “¿No encuentras tu puesto?”, arriba de la lista.');
+    if (otro && !d.puesto_reportado.trim() && !d.direccion_reportada.trim()) return setError('Escribe el nombre de tu puesto como te aparece o su dirección.');
     if (!d.acepta) return setError('Para registrarte debes aceptar el tratamiento de tus datos.');
     setEnviando(true);
     try {
@@ -127,15 +130,20 @@ export default function RegistroPublico() {
             : <input type="number" aria-label="Edad" min={18} max={120} value={d.edad} onChange={(e) => poner('edad', e.target.value)} />}
         </fieldset>
         <fieldset>
-          <legend>¿Dónde votas? <span className="opcional">(si lo sabes)</span></legend>
+          <legend>¿Dónde votas?</legend>
           <div className="formulario">
+            <p className="ayuda" style={{ margin: 0 }}>
+              Si no lo sabes, consúltalo con tu cédula en la{' '}
+              <a href="https://wsp.registraduria.gov.co/censo/consultar/" target="_blank" rel="noreferrer">página de la Registraduría</a>.
+            </p>
             <label className="campo"><span>Localidad</span>
               <select value={d.localidad_id ?? ''} onChange={(e) => { poner('localidad_id', e.target.value ? Number(e.target.value) : null); setPuesto(null); setOtro(false); }}>
                 <option value="">Elige…</option>
                 {localidades.map((l) => <option key={l.id} value={l.id}>{l.nombre}</option>)}
               </select>
             </label>
-            {d.localidad_id && !otro && <SelectorPuesto localidadId={d.localidad_id} elegido={puesto} onElegir={setPuesto} onOtro={() => { setOtro(true); setPuesto(null); }} />}
+            {d.localidad_id && !otro && <SelectorPuesto localidadId={d.localidad_id} elegido={puesto} onElegir={setPuesto} onOtro={() => { setOtro(true); setPuesto(null); }}
+              textoOtro="¿No encuentras tu puesto? Escríbelo como te aparece (Otro)…" />}
             {d.localidad_id && otro && (
               <>
                 <label className="campo"><span>Nombre del puesto como te aparece</span>
