@@ -9,7 +9,8 @@ import { useEnVivo } from '../lib/enVivo';
 import type { Demografia, Eleccion, LocalidadE14, MetaLider, PuestoCenso, SeguimientoLider, Tendencia } from '../lib/tipos';
 import { formatoNumero, mensajeError } from '../lib/utilidades';
 import EnVivo from '../componentes/EnVivo';
-import { Linea, SERIES } from '../componentes/Graficos';
+import { BarrasH, Dona, Linea, Piramide, Segmentos, SERIES } from '../componentes/Graficos';
+import { resumirDemografia } from '../lib/estadisticas';
 
 interface Datos {
   demo: Demografia[]; tendencia: Tendencia[]; metas: MetaLider[]; seguimiento: SeguimientoLider[]; censo: PuestoCenso[];
@@ -85,10 +86,36 @@ export default function MiCampana() {
             </div>
           </section>
 
-          {/* 3. Crecimiento */}
-          <section className="tarjeta seccion">
-            <div className="tarjeta-titulo"><h2>Cómo ha crecido</h2><small>registros por semana, últimas 12 semanas</small></div>
-            <Linea puntos={r.semanas} color={SERIES[0]} nombre="Registros" alto={170} />
+          {/* 3. Gráficos: crecimiento, apoyo, perfil, territorio, líderes */}
+          <section className="mc-graficos seccion">
+            <div className="tarjeta">
+              <div className="tarjeta-titulo"><h2>Registros por semana</h2><small>últimas 12 semanas</small></div>
+              <Linea puntos={r.semanas} color={SERIES[0]} nombre="Registros" alto={170} />
+            </div>
+            <div className="tarjeta">
+              <div className="tarjeta-titulo"><h2>Total acumulado</h2><small>simpatizantes al cierre de cada semana</small></div>
+              <Linea puntos={r.acumulado} color={SERIES[2]} nombre="Total" alto={170} />
+              {r.proyeccion && <p className="mc-nota">{r.proyeccion}</p>}
+            </div>
+            <div className="tarjeta">
+              <div className="tarjeta-titulo"><h2>¿Con quién contamos?</h2><small>resultado de las llamadas</small></div>
+              <Dona partes={r.apoyo} centro={`${r.confirmadosPct}%`} sub="confirmados" />
+            </div>
+            <div className="tarjeta">
+              <div className="tarjeta-titulo"><h2>Quiénes te apoyan</h2><small>edad y sexo</small></div>
+              <Piramide filas={r.piramide} />
+              <p className="mc-nota">{r.perfil}</p>
+            </div>
+            <div className="tarjeta">
+              <div className="tarjeta-titulo"><h2>Simpatizantes por localidad</h2><small>de más a menos</small></div>
+              <BarrasH limite={8} filas={r.porLocalidad.map((l) => ({ nombre: l.nombre, valores: [l.n], detalle: `${l.porMil.toLocaleString('es-CO')} por cada 1.000 votantes` }))} />
+            </div>
+            <div className="tarjeta">
+              <div className="tarjeta-titulo"><h2>Cómo van los líderes</h2><small>frente a su meta</small></div>
+              <Segmentos partes={r.semaforo} />
+              <h3 className="mc-sub">Los que más aportan</h3>
+              <BarrasH filas={r.topLideres} series={[{ nombre: 'Registrados', color: SERIES[0] }]} />
+            </div>
           </section>
 
           {/* 4. Fuertes y débiles */}
@@ -195,7 +222,49 @@ function calcular(d: Datos) {
     e14 = { votos: t.v, cumplimiento: pct(t.c, t.e), mesasPct: pct(t.mv, t.m) };
   }
 
+  // Acumulado por semana y proyección a la meta
+  let acum = total - semanas.reduce((a, w) => a + w.valor, 0);
+  const acumulado = semanas.map((w) => ({ etiqueta: w.etiqueta, valor: (acum += w.valor) }));
+  const ritmo = Math.round(semanas.slice(-4).reduce((a, w) => a + w.valor, 0) / 4);
+  const faltanMeta = Math.max(0, meta - avance);
+  let proyeccion: string | null = null;
+  if (meta > 0 && faltanMeta === 0) proyeccion = 'La meta de los líderes ya se cumplió.';
+  else if (meta > 0 && ritmo > 0) {
+    const sem = Math.ceil(faltanMeta / ritmo);
+    const f = new Date(); f.setDate(f.getDate() + sem * 7);
+    proyeccion = `A este ritmo (${ritmo.toLocaleString('es-CO')} por semana) la meta se alcanza en unas ${sem} semanas, hacia el ${f.toLocaleDateString('es-CO', { day: 'numeric', month: 'long' })}.`;
+  } else if (meta > 0) proyeccion = 'En las últimas 4 semanas no hubo registros: así no se llega a la meta.';
+
+  // Apoyo (seguimiento)
+  const sumaSeg = (k: keyof SeguimientoLider) => d.seguimiento.reduce((a, x) => a + Number(x[k] ?? 0), 0);
+  const apoyo = [
+    { nombre: 'Confirmados', valor: sumaSeg('confirmados'), color: 'var(--ok)' },
+    { nombre: 'Dudosos', valor: sumaSeg('dudosos'), color: 'var(--aviso)' },
+    { nombre: 'No apoyan', valor: sumaSeg('no_apoya'), color: 'var(--error)' },
+    { nombre: 'Número equivocado', valor: sumaSeg('numero_errado'), color: SERIES[4] },
+    { nombre: 'Sin contactar', valor: sumaSeg('sin_contactar'), color: 'var(--borde-fuerte)' },
+  ];
+
+  // Perfil: edad y sexo
+  const dem = resumirDemografia(d.demo);
+  const piramide = dem.piramide;
+  const mujeres = piramide.reduce((a, f) => a + f.mujeres, 0), hombres = piramide.reduce((a, f) => a + f.hombres, 0);
+  const rangoMayor = [...piramide].sort((a, b) => (b.mujeres + b.hombres) - (a.mujeres + a.hombres))[0];
+  const perfil = `${pct(mujeres, mujeres + hombres)}% mujeres y ${pct(hombres, mujeres + hombres)}% hombres. El grupo más grande tiene ${rangoMayor?.rango ?? '—'} años.`;
+
+  // Territorio y líderes
+  const porLocalidad = [...locs].sort((a, b) => b.n - a.n);
+  const semaforo = [
+    { nombre: 'Meta cumplida', valor: conMeta.filter((m) => m.semaforo === 'cumplida').length, color: 'var(--ok)' },
+    { nombre: 'Al día', valor: conMeta.filter((m) => m.semaforo === 'verde').length, color: SERIES[2] },
+    { nombre: 'Un poco atrás', valor: conMeta.filter((m) => m.semaforo === 'amarillo').length, color: 'var(--aviso)' },
+    { nombre: 'Muy atrás', valor: lideresAtras, color: 'var(--error)' },
+  ];
+  const topLideres = [...d.metas].sort((a, b) => b.registrados - a.registrados).slice(0, 5)
+    .map((m) => ({ nombre: m.nombre, valores: [m.registrados], detalle: m.meta ? `${pct(m.registrados, m.meta)}% de su meta de ${m.meta.toLocaleString('es-CO')}` : 'sin meta' }));
+
   return {
+    acumulado, proyeccion, apoyo, piramide, perfil, porLocalidad, semaforo, topLideres,
     total, semana, anterior, delta, semanas, meta, avanceMeta: pct(avance, meta),
     confirmados: seg.c, confirmadosPct: pct(seg.c, seg.t), contactadosPct: pct(seg.k, seg.t),
     lideres: conMeta.length, lideresAlDia, lideresAtras,

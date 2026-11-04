@@ -48,6 +48,7 @@ function InicioLider() {
     <>
       <Bienvenida titulo={`¡Hola, ${nombre}!`} texto="Registra a tu gente y haz crecer tu equipo" />
       {error && <div className="aviso error">{error}</div>}
+      {mia && <MiMeta m={mia} posicion={ranking?.find((r) => r.soy_yo)?.posicion ?? null} />}
       <div className="acciones-grandes">
         <Link to="/registrar" className="accion-grande">
           <span className="ficha-icono"><UserPlus aria-hidden /></span>
@@ -85,6 +86,34 @@ function InicioLider() {
       </div>
       {ranking && <div className="seccion" style={{ maxWidth: 520 }}><Ranking filas={ranking} compacto /></div>}
     </>
+  );
+}
+
+// Tarjeta "Tu meta" del líder: cuánto lleva, cuánto le falta y a qué ritmo
+function MiMeta({ m, posicion }: { m: MetaLider; posicion: number | null }) {
+  if (!m.meta) {
+    return <div className="tarjeta mi-meta"><h2><Target className="icono" aria-hidden /> Tu meta</h2><p className="ayuda">Todavía no tienes una meta asignada. Pídesela a tu coordinador o al administrador.</p></div>;
+  }
+  const avance = Math.min(100, Math.round((100 * m.registrados) / m.meta));
+  const faltan = Math.max(0, m.meta - m.registrados);
+  const marca = m.esperado_hoy != null ? Math.min(100, (100 * m.esperado_hoy) / m.meta) : null;
+  return (
+    <div className={`tarjeta mi-meta ${SEMAFORO[m.semaforo].clase}`}>
+      <div className="mi-meta-cabeza">
+        <h2><Target className="icono" aria-hidden /> Tu meta: {m.meta.toLocaleString('es-CO')} personas</h2>
+        <span className={`chip-semaforo ${SEMAFORO[m.semaforo].clase}`}>{SEMAFORO[m.semaforo].texto}</span>
+      </div>
+      <div className="mi-meta-num"><strong>{m.registrados.toLocaleString('es-CO')}</strong> registradas · {avance}%</div>
+      <div className="meta-barra grande" title={marca != null ? `Hoy deberías llevar ${m.esperado_hoy}` : undefined}>
+        <span className={`relleno ${SEMAFORO[m.semaforo].clase}`} style={{ width: `${avance}%` }} />
+        {marca != null && m.semaforo !== 'cumplida' && <span className="esperado" style={{ left: `${marca}%` }} />}
+      </div>
+      <p className="mi-meta-texto">
+        {faltan === 0 ? '¡Cumpliste tu meta! Cada persona más suma para la campaña.'
+          : <>Te faltan <strong>{faltan.toLocaleString('es-CO')}</strong>{m.esperado_hoy != null && m.registrados < m.esperado_hoy ? `; hoy deberías llevar ${m.esperado_hoy.toLocaleString('es-CO')}` : ''}.</>}
+        {' '}Esta semana registraste {m.esta_semana}{posicion ? ` y vas de ${posicion} en el ranking` : ''}.
+      </p>
+    </div>
   );
 }
 

@@ -10,6 +10,9 @@ import EnVivo from '../componentes/EnVivo';
 import { BarrasH, SERIES } from '../componentes/Graficos';
 import { Cifra, Plegable, QueEs, pct } from '../componentes/Piezas';
 
+/** 3001234567 → 300 123 4567 */
+export const formatoCelular = (t: string) => t.replace(/^(\d{3})(\d{3})(\d{4})$/, '$1 $2 $3');
+
 export const enlaceWhatsApp = (tel: string | null, texto: string) =>
   tel ? `https://wa.me/57${tel}?text=${encodeURIComponent(texto)}` : null;
 
@@ -38,6 +41,8 @@ export default function Seguimiento() {
   const [canal, setCanal] = useState<Record<string, 'llamada' | 'whatsapp'>>({});
   const [aviso, setAviso] = useState('');
   const [abierto, setAbierto] = useState<string | null>(null);
+  const [llamando, setLlamando] = useState<string | null>(null);
+  const [copiado, setCopiado] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   const vivo = useEnVivo(() => api.seguimientoLideres().then(setResumen), ['registros']);
@@ -59,7 +64,7 @@ export default function Seguimiento() {
       const nuevo = r === 'no_contesta' ? p.compromiso : r;
       setFilas((f) => (f ?? []).flatMap((x) => (x.id !== p.id ? [x] : filtro && filtro !== nuevo ? [] : [{ ...x, compromiso: nuevo, contactos_n: x.contactos_n + 1 }])));
       if (filtro && filtro !== nuevo) setTotal((t) => t - 1);
-      setAbierto(null);
+      setAbierto(null); setLlamando(null);
       setAviso(`${p.nombres}: ${r === 'no_contesta' ? 'no contestó (queda para volver a intentar)' : COMPROMISOS[nuevo].toLowerCase()}.`);
       vivo.recargar();
     } catch (e) { setError(mensajeError(e)); }
@@ -140,7 +145,9 @@ export default function Seguimiento() {
                       <small>{p.telefono ?? 'Sin celular'} · {p.puesto ?? p.puesto_reportado ?? 'Sin puesto'}{p.mesa ? ` · mesa ${p.mesa}` : ''}{rol !== 'lider' && p.lider ? ` · ${p.lider}` : ''}{p.contactos_n ? ` · ${p.contactos_n} ${p.contactos_n === 1 ? 'intento' : 'intentos'}` : ''}</small>
                     </div>
                     <div className="contacto-canales">
-                      {p.telefono && <a className="boton chico" href={`tel:+57${p.telefono}`} onClick={() => { setCanal((c) => ({ ...c, [p.id]: 'llamada' })); setAbierto(p.id); }} aria-label={`Llamar a ${p.nombres}`}><Phone className="icono" aria-hidden /><span className="rotulo">Llamar</span></a>}
+                      {p.telefono && <button type="button" className={`boton chico${llamando === p.id ? ' activo-llamada' : ''}`} aria-expanded={llamando === p.id}
+                        onClick={() => { setCanal((c) => ({ ...c, [p.id]: 'llamada' })); setLlamando(llamando === p.id ? null : p.id); setAbierto(p.id); }}
+                        aria-label={`Llamar a ${p.nombres}`}><Phone className="icono" aria-hidden /><span className="rotulo">Llamar</span></button>}
                       {wa && <a className="boton chico" href={wa} target="_blank" rel="noreferrer" onClick={() => { setCanal((c) => ({ ...c, [p.id]: 'whatsapp' })); setAbierto(p.id); }} aria-label={`WhatsApp a ${p.nombres}`}><MessageCircle className="icono" aria-hidden /><span className="rotulo">WhatsApp</span></a>}
                       <button type="button" className={`boton chico transporte${p.necesita_transporte ? ' activo' : ''}`} aria-pressed={!!p.necesita_transporte} aria-label="Transporte"
                         onClick={() => transporte(p)} title={p.necesita_transporte ? 'Necesita que lo lleven a votar (tocar para quitar)' : 'Marcar que necesita transporte el día de la elección'}>
@@ -148,6 +155,19 @@ export default function Seguimiento() {
                       </button>
                       <button type="button" className={`boton chico${abierto === p.id ? ' primario' : ''}`} aria-expanded={abierto === p.id} onClick={() => setAbierto(abierto === p.id ? null : p.id)}>Anotar</button>
                     </div>
+                    {llamando === p.id && p.telefono && (
+                      <div className="llamada" role="region" aria-label={`Número de ${p.nombres}`}>
+                        <Phone className="icono" aria-hidden />
+                        <div className="llamada-num">
+                          <small>Celular de {p.nombres}</small>
+                          <strong>{formatoCelular(p.telefono)}</strong>
+                        </div>
+                        <a className="boton chico primario" href={`tel:+57${p.telefono}`}>Llamar ahora</a>
+                        <button type="button" className="boton chico" onClick={async () => {
+                          try { await navigator.clipboard.writeText(p.telefono!); setCopiado(p.id); setTimeout(() => setCopiado(null), 2000); } catch { /* */ }
+                        }}>{copiado === p.id ? 'Copiado' : 'Copiar'}</button>
+                      </div>
+                    )}
                     {abierto === p.id && <div className="contacto-resultado" role="group" aria-label={`Resultado con ${p.nombres}`}>
                       {BOTONES.map((b) => (
                         <button key={b.r} type="button" className={`boton chico ${b.clase ?? ''}`} onClick={() => anotar(p, b.r)}>

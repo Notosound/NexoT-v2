@@ -103,6 +103,10 @@ console.log('Líder (móvil)');
   await page.locator('.cifra-tarjeta .valor').first().waitFor();
   await page.screenshot({ path: join(capturas, '01-lider-inicio.png'), fullPage: true });
 
+  await paso('el líder ve su meta a cumplir en el inicio', async () => {
+    await page.locator('.mi-meta').getByText(/Tu meta/).waitFor();
+    assert.match(await page.locator('.mi-meta').innerText(), /registradas|Todavía no tienes una meta/);
+  });
   await paso('el menú del líder no muestra secciones de administración', async () => {
     const menu = await page.getByRole('navigation', { name: 'Secciones' }).innerText();
     assert.match(menu, /Mis registros/);
@@ -373,6 +377,9 @@ console.log('Candidato (móvil)');
     await page.locator('.mc-grande').waitFor();
     assert.match(await page.locator('.mc-grande').innerText(), /\d/);
     await page.getByRole('heading', { name: 'Donde eres más fuerte' }).waitFor();
+    for (const t of ['Total acumulado', '¿Con quién contamos?', 'Quiénes te apoyan', 'Simpatizantes por localidad', 'Cómo van los líderes']) {
+      await page.getByRole('heading', { name: t }).waitFor();
+    }
     await page.screenshot({ path: join(capturas, '19-candidato-mi-campana.png'), fullPage: true });
   });
   await paso('el mapa sigue a un toque y solo ve agregados', async () => {
@@ -664,9 +671,11 @@ console.log('Campaña: seguimiento, Día D, testigos y alertas');
     const primero = page.locator('.contacto').first();
     await primero.waitFor();
     const nombre = (await primero.locator('strong').textContent()).split(' ')[0];
+    await primero.getByRole('button', { name: /Llamar a/ }).click();
+    assert.match(await primero.locator('.llamada-num strong').innerText(), /^3\d{2} \d{3} \d{4}$/);
     await primero.getByRole('button', { name: /Transporte/ }).click();
     await primero.locator('.transporte.activo').waitFor();
-    await primero.getByRole('button', { name: 'Anotar' }).click();
+    // Llamar ya abre las opciones para anotar el resultado
     await page.screenshot({ path: join(capturas, '40-seguimiento.png') });
     await primero.getByRole('button', { name: 'Confirmó' }).click();
     await page.locator('.aviso.ok', { hasText: nombre }).waitFor();
