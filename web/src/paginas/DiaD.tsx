@@ -1,11 +1,12 @@
 // Día D: el día de la elección cada líder marca quién de su gente ya votó.
 // El candidato y el admin ven el avance en vivo para movilizar a los que faltan.
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CheckCircle2, Clock, MessageCircle, Vote } from 'lucide-react';
+import { Bus, CheckCircle2, Clock, Download, MessageCircle, Vote } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
 import { useEnVivo } from '../lib/enVivo';
 import type { DiaDFila, Eleccion, PersonaFila } from '../lib/tipos';
 import { mensajeError } from '../lib/utilidades';
+import { descargarExcel, fechaArchivo } from '../lib/excel';
 import EnVivo from '../componentes/EnVivo';
 import { BarrasH, SERIES } from '../componentes/Graficos';
 import { Cifra, Plegable, pct } from '../componentes/Piezas';
@@ -152,6 +153,60 @@ export default function DiaD() {
           </Plegable>
         </div>
       )}
+
+      {marca && <Transporte votaron={votaron} />}
     </>
+  );
+}
+
+// Quiénes necesitan que los lleven a votar, agrupados por puesto de destino
+function Transporte({ votaron }: { votaron: Set<string> }) {
+  const { api } = useSesion();
+  const [lista, setLista] = useState<PersonaFila[] | null>(null);
+  const [error, setError] = useState('');
+  useEffect(() => { api.personasTransporte().then(setLista).catch((e) => setError(mensajeError(e))); }, [api]);
+  const grupos = useMemo(() => {
+    const m = new Map<string, PersonaFila[]>();
+    for (const p of lista ?? []) {
+      const k = p.puesto ?? p.puesto_reportado ?? 'Sin puesto confirmado';
+      m.set(k, [...(m.get(k) ?? []), p]);
+    }
+    return [...m.entries()].sort((a, b) => b[1].length - a[1].length);
+  }, [lista]);
+  if (!lista) return null;
+  const faltan = lista.filter((p) => !votaron.has(p.id)).length;
+  const exportar = async () => {
+    try {
+      await api.registrarExportacion('transporte_dia_d', lista.length);
+      await descargarExcel(`Transporte_Dia_D_${fechaArchivo()}.xlsx`, [{ nombre: 'Transporte', anchos: [36, 28, 14, 22, 8, 22, 10], filas: [
+        ['Puesto de votación', 'Persona', 'Celular', 'Barrio', 'Mesa', 'Líder', 'Ya votó'],
+        ...grupos.flatMap(([puesto, ps]) => ps.map((p) => [puesto, `${p.nombres} ${p.apellidos}`, p.telefono, p.barrio ?? '', p.mesa, p.lider, votaron.has(p.id) ? 'Sí' : 'No'])),
+      ] }]);
+    } catch (e) { setError(mensajeError(e)); }
+  };
+  return (
+    <div className="seccion">
+      <Plegable titulo={<><Bus className="icono" aria-hidden style={{ verticalAlign: '-3px' }} /> Transporte</>}
+        cuenta={lista.length ? `${lista.length} personas · faltan ${faltan}` : 'nadie marcado'}
+        acciones={lista.length ? <button className="boton chico" onClick={exportar}><Download className="icono" aria-hidden />Excel para conductores</button> : undefined}>
+        {error && <div className="aviso error" role="alert">{error}</div>}
+        {lista.length === 0 ? (
+          <p className="ayuda">Nadie está marcado como que necesita transporte. Se marca en Seguimiento con el botón “Transporte”.</p>
+        ) : grupos.map(([puesto, ps]) => (
+          <div key={puesto} className="grupo-transporte">
+            <h3>{puesto} <small className="ayuda">{ps.length} {ps.length === 1 ? 'persona' : 'personas'} · {ps.filter((p) => !votaron.has(p.id)).length} por llevar</small></h3>
+            <ul>
+              {ps.map((p) => (
+                <li key={p.id} className={votaron.has(p.id) ? 'ya' : ''}>
+                  <span>{p.nombres} {p.apellidos}</span>
+                  <span className="ayuda">{p.telefono ?? 'sin celular'}{p.barrio ? ` · ${p.barrio}` : ''}{p.mesa ? ` · mesa ${p.mesa}` : ''}</span>
+                  {votaron.has(p.id) ? <span className="chip-compromiso confirmado">Ya votó</span> : p.telefono ? <a className="enlace" href={`tel:+57${p.telefono}`}>Llamar</a> : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </Plegable>
+    </div>
   );
 }

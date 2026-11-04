@@ -2,13 +2,15 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   BarChart3, ClipboardCheck, Eye, FileSpreadsheet, Home, LineChart, LogOut, MapPinned, Moon, QrCode,
-  ChevronDown, Lock, Target, UserCog, Sun, UserPlus, Users, UsersRound, Vote, Contact, PhoneCall, CalendarCheck, ShieldCheck, type LucideIcon,
+  ChevronDown, Lock, Target, CalendarDays, UserCog, Sun, UserPlus, Users, UsersRound, Vote, Contact, PhoneCall, CalendarCheck, ShieldCheck, type LucideIcon,
 } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
 import { ROLES, type Rol } from '../lib/tipos';
 import SelectorVerComo from './VerComo';
 import Protector from './Protector';
 import NuevaVersion from './NuevaVersion';
+import SinSenal from './SinSenal';
+import { pendientes } from '../lib/cola';
 
 type Enlace = { a: string; texto: string; icono: LucideIcon; roles: Rol[]; textoLider?: string };
 // Menú por secciones: cada rol ve solo las secciones que tienen algo para él
@@ -29,6 +31,7 @@ const SECCIONES: { titulo: string; tituloLider?: string; enlaces: Enlace[] }[] =
   ] },
   { titulo: 'Movilización', enlaces: [
     { a: '/seguimiento', texto: 'Seguimiento', icono: PhoneCall, roles: ['admin', 'coordinador', 'lider'] },
+    { a: '/eventos', texto: 'Eventos', icono: CalendarDays, roles: ['admin', 'coordinador', 'candidato'] },
     { a: '/dia-d', texto: 'Día D', icono: CalendarCheck, roles: ['admin', 'coordinador', 'lider', 'candidato'] },
     { a: '/testigos', texto: 'Testigos', icono: ShieldCheck, roles: ['admin', 'coordinador'] },
   ] },
@@ -104,7 +107,11 @@ export default function Marco({ children }: { children: ReactNode }) {
           title={tema === 'oscuro' ? 'Usar tema claro' : 'Usar tema oscuro'} aria-label="Cambiar tema">
           {tema === 'oscuro' ? <Sun className="icono" aria-hidden /> : <Moon className="icono" aria-hidden />}
         </button>
-        <button className="boton-barra" onClick={() => api.cerrarSesion()} title="Cerrar sesión" aria-label="Cerrar sesión">
+        <button className="boton-barra" title="Cerrar sesión" aria-label="Cerrar sesión" onClick={() => {
+          const n = pendientes(sesionReal!.usuarioId).length;
+          if (n && !confirm(`Hay ${n} ${n === 1 ? 'registro guardado' : 'registros guardados'} en este celular sin enviar. Si cierras sesión siguen guardados aquí y se enviarán la próxima vez que entres. ¿Cerrar sesión?`)) return;
+          api.cerrarSesion();
+        }}>
           <LogOut className="icono" aria-hidden />
         </button>
       </header>
@@ -116,6 +123,7 @@ export default function Marco({ children }: { children: ReactNode }) {
         </div>
       )}
       <NuevaVersion />
+      <SinSenal />
       <div className="cuerpo">
         <nav className="menu" aria-label="Secciones">
           {SECCIONES.map((sec) => {

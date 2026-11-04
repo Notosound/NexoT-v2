@@ -26,6 +26,8 @@ import DatosPersonales from './paginas/DatosPersonales';
 import MiCuenta from './paginas/MiCuenta';
 import CodigoDosPasos from './paginas/CodigoDosPasos';
 import Metas from './paginas/Metas';
+import Eventos from './paginas/Eventos';
+import EventoPublico from './paginas/EventoPublico';
 
 // El tablero carga el mapa (Leaflet): solo se descarga cuando se abre
 const Tablero = lazy(() => import('./paginas/Tablero'));
@@ -43,6 +45,10 @@ export default function App() {
   // Formulario público del enlace de un líder: no requiere sesión
   if (ruta.startsWith('/r/')) {
     return <Routes><Route path="/r/:token" element={<RegistroPublico />} /></Routes>;
+  }
+  // Asistencia a un evento (QR): pública
+  if (ruta.startsWith('/e/')) {
+    return <Routes><Route path="/e/:token" element={<EventoPublico />} /></Routes>;
   }
   // Política de datos y solicitudes de los titulares: pública
   if (ruta.startsWith('/privacidad/')) {
@@ -79,6 +85,7 @@ export default function App() {
         <Route path="/equipo" element={<Solo roles={['admin']}><Equipo /></Solo>} />
         <Route path="/analisis" element={<Solo roles={['admin', 'coordinador', 'candidato']}><Analisis /></Solo>} />
         <Route path="/e14" element={<Solo roles={['admin', 'coordinador', 'candidato', 'digitador']}><E14 /></Solo>} />
+        <Route path="/eventos" element={<Solo roles={['admin', 'coordinador', 'candidato']}><Eventos /></Solo>} />
         <Route path="/metas" element={<Solo roles={['admin', 'coordinador', 'candidato']}><Metas /></Solo>} />
         <Route path="/datos-personales" element={<Solo roles={['admin']}><DatosPersonales /></Solo>} />
         <Route path="/cuenta" element={<MiCuenta />} />

@@ -1,7 +1,7 @@
 // Seguimiento: llamar o escribir a cada simpatizante y anotar si confirma.
 // Idea rescatada del piloto (llamadas y confirmados), ahora en un toque.
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, HelpCircle, MessageCircle, Phone, PhoneOff, UserCheck, Users, XCircle } from 'lucide-react';
+import { Bus, CheckCircle2, HelpCircle, MessageCircle, Phone, PhoneOff, UserCheck, Users, XCircle } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
 import { useEnVivo } from '../lib/enVivo';
 import { COMPROMISOS, type Compromiso, type Lider, type PersonaFila, type ResultadoContacto, type SeguimientoLider } from '../lib/tipos';
@@ -62,6 +62,14 @@ export default function Seguimiento() {
       setAbierto(null);
       setAviso(`${p.nombres}: ${r === 'no_contesta' ? 'no contestó (queda para volver a intentar)' : COMPROMISOS[nuevo].toLowerCase()}.`);
       vivo.recargar();
+    } catch (e) { setError(mensajeError(e)); }
+  };
+
+  const transporte = async (p: PersonaFila) => {
+    setError('');
+    try {
+      await api.marcarTransporte(p.id, !p.necesita_transporte);
+      setFilas((f) => (f ?? []).map((x) => (x.id === p.id ? { ...x, necesita_transporte: !p.necesita_transporte } : x)));
     } catch (e) { setError(mensajeError(e)); }
   };
 
@@ -134,6 +142,10 @@ export default function Seguimiento() {
                     <div className="contacto-canales">
                       {p.telefono && <a className="boton chico" href={`tel:+57${p.telefono}`} onClick={() => { setCanal((c) => ({ ...c, [p.id]: 'llamada' })); setAbierto(p.id); }} aria-label={`Llamar a ${p.nombres}`}><Phone className="icono" aria-hidden /><span className="rotulo">Llamar</span></a>}
                       {wa && <a className="boton chico" href={wa} target="_blank" rel="noreferrer" onClick={() => { setCanal((c) => ({ ...c, [p.id]: 'whatsapp' })); setAbierto(p.id); }} aria-label={`WhatsApp a ${p.nombres}`}><MessageCircle className="icono" aria-hidden /><span className="rotulo">WhatsApp</span></a>}
+                      <button type="button" className={`boton chico transporte${p.necesita_transporte ? ' activo' : ''}`} aria-pressed={!!p.necesita_transporte} aria-label="Transporte"
+                        onClick={() => transporte(p)} title={p.necesita_transporte ? 'Necesita que lo lleven a votar (tocar para quitar)' : 'Marcar que necesita transporte el día de la elección'}>
+                        <Bus className="icono" aria-hidden /><span className="rotulo">Transporte</span>
+                      </button>
                       <button type="button" className={`boton chico${abierto === p.id ? ' primario' : ''}`} aria-expanded={abierto === p.id} onClick={() => setAbierto(abierto === p.id ? null : p.id)}>Anotar</button>
                     </div>
                     {abierto === p.id && <div className="contacto-resultado" role="group" aria-label={`Resultado con ${p.nombres}`}>

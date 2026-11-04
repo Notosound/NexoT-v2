@@ -82,6 +82,14 @@ export interface MetaLider {
 export interface FechasMeta { inicio: string | null; fin: string | null; esperado: number | null }
 export interface RankingFila { posicion: number; lider_id: string; nombre: string; registros: number; soy_yo: boolean }
 
+// Eventos con asistencia por QR
+export interface Evento {
+  id: string; nombre: string; fecha: string; lugar: string | null; activo: boolean; token: string; lider_id: string; lider: string;
+  localidad: string | null; asistentes: number; nuevos: number;
+}
+export interface Asistente { persona_id: string; nombres: string; apellidos: string; telefono: string | null; lider: string | null; nueva: boolean; en: string }
+export interface DatosAsistencia { cedula: string; nombres: string; apellidos: string; telefono: string; sexo: Sexo | ''; edad: string; acepta: boolean }
+
 export interface FactorDosPasos { id: string; nombre: string; verificado: boolean; creado: string }
 
 export interface Localidad { id: number; codigo: string; nombre: string }
@@ -128,6 +136,8 @@ export interface NuevaPersona {
   puestoReportado: string | null;
   direccionReportada: string | null;
   mesa: number | null;
+  /** Cuándo se capturó (registros guardados sin señal y enviados después) */
+  capturadoEn?: string;
 }
 
 export interface ResultadoRegistro {
@@ -153,6 +163,8 @@ export interface PersonaFila {
   compromiso: Compromiso;
   contactos_n: number;
   lider_id: string | null;
+  necesita_transporte?: boolean;
+  barrio?: string | null;
 }
 
 export interface FiltroPersonas {
@@ -407,5 +419,15 @@ export interface Api {
   recibeInforme(): Promise<boolean>;
   cambiarRecibeInforme(recibe: boolean): Promise<void>;
   probarInforme(): Promise<string>;
+  // eventos
+  eventos(): Promise<Evento[]>;
+  crearEvento(d: { nombre: string; fecha: string; lugar: string; localidadId: number | null; liderId: string }): Promise<string>;
+  cerrarEvento(id: string, activo: boolean): Promise<void>;
+  asistentes(eventoId: string): Promise<Asistente[]>;
+  eventoInfo(token: string): Promise<{ evento: string; campana: string; fecha: string; lugar: string | null; slug: string } | null>;
+  registrarAsistencia(token: string, d: DatosAsistencia): Promise<void>;
+  // transporte el Día D
+  marcarTransporte(personaId: string, necesita: boolean): Promise<void>;
+  personasTransporte(): Promise<PersonaFila[]>;
   quitarDosPasosDe(usuarioId: string): Promise<string>;
 }

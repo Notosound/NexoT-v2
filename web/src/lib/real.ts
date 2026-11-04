@@ -6,7 +6,7 @@ import type {
   AvanceE14, Eleccion, CalidadLider, FilaPlantillaE14, PuestoCodigos, RegistrosMesa, ResultadoFilaE14, LiderE14, LocalidadE14, MesaE14, MesaEnRevision, MesaPendiente, MiDigitacion, PuestoE14, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
   PersonaFila, Puesto, Rol, Sesion, Sugerencia, OpcionVerComo, EnlaceLider,
   SeguimientoLider, DiaDFila, Testigo, CoberturaMesa, AlertaCalidad,
-  Politica, SolicitudDatos, DatoTitular, AccionSensible, Historico, PotencialPuesto, FilaHistoricoResultado, MetaLider, FechasMeta, RankingFila,
+  Politica, SolicitudDatos, DatoTitular, AccionSensible, Historico, PotencialPuesto, FilaHistoricoResultado, MetaLider, FechasMeta, RankingFila, Evento,
 } from './tipos';
 import { AVISO_VERSION } from './tipos';
 import { edadDesde, hoyISO } from './utilidades';
@@ -92,6 +92,13 @@ async function todas<T>(consulta: (desde: number, hasta: number) => PromiseLike<
   }
 }
 
+function sesionGuardada(): { id: string; email?: string } | undefined {
+  try {
+    const k = Object.keys(localStorage).find((x) => x.startsWith('sb-') && x.endsWith('-auth-token'));
+    return k ? JSON.parse(localStorage.getItem(k)!)?.user : undefined;
+  } catch { return undefined; }
+}
+
 let cacheSesion: { usuarioId: string; orgId: string; rol: Rol } | null = null;
 let cacheMunicipio: number | null = null;
 
@@ -115,10 +122,10 @@ type CrudoPersona = Record<string, unknown> & {
   lider: { nombre: string } | null; puesto: { nombre: string } | null; localidad: { nombre: string } | null;
 };
 
-function consultaPersonas(textoLibre: string, estado: string, extra: { compromiso?: string; liderId?: string; ids?: string[] } = {}) {
+function consultaPersonas(textoLibre: string, estado: string, extra: { compromiso?: string; liderId?: string; ids?: string[]; transporte?: boolean } = {}) {
   let q = sb.from('personas')
     .select(`id, cedula, nombres, apellidos, sexo, fecha_nacimiento, edad_declarada, edad_declarada_en, telefono,
-             puesto_reportado, mesa_reportada, ubicacion_estado, creado_en, compromiso, contactos_n, lider_id,
+             puesto_reportado, mesa_reportada, ubicacion_estado, creado_en, compromiso, contactos_n, lider_id, necesita_transporte, barrio,
              lider:lideres(nombre), puesto:puestos(nombre),
              localidad:localidades!localidad_votacion_id(nombre)`, { count: 'exact' })
     .is('eliminado_en', null)
@@ -134,6 +141,7 @@ function consultaPersonas(textoLibre: string, estado: string, extra: { compromis
   if (extra.compromiso) q = q.eq('compromiso', extra.compromiso);
   if (extra.liderId) q = q.eq('lider_id', extra.liderId);
   if (extra.ids) q = q.in('id', extra.ids);
+  if (extra.transporte) q = q.eq('necesita_transporte', true);
   return q;
 }
 
@@ -156,6 +164,8 @@ function aFila(x: CrudoPersona): PersonaFila {
     compromiso: (x.compromiso ?? 'sin_contactar') as PersonaFila['compromiso'],
     contactos_n: Number(x.contactos_n ?? 0),
     lider_id: (x.lider_id as string | null) ?? null,
+    necesita_transporte: !!x.necesita_transporte,
+    barrio: (x.barrio as string | null) ?? null,
   };
 }
 
@@ -164,10 +174,11 @@ export const api: Api = {
 
   async sesion(): Promise<Sesion | null> {
     const { data } = await sb.auth.getSession();
-    const usuario = data.session?.user;
+    // Sin señal la sesión no se puede renovar: se usa la guardada en este navegador
+    const usuario = data.session?.user ?? (navigator.onLine ? undefined : sesionGuardada());
     if (!usuario) { cacheSesion = null; return null; }
     // Verificación en dos pasos: si tiene la app activada y aún no escribió el código
-    const nivel = await sb.auth.mfa.getAuthenticatorAssuranceLevel();
+    const nivel = data.session ? await sb.auth.mfa.getAuthenticatorAssuranceLevel() : { data: null };
     if (nivel.data && nivel.data.nextLevel === 'aal2' && nivel.data.currentLevel !== 'aal2') {
       cacheSesion = null;
       return { usuarioId: usuario.id, email: usuario.email ?? '', perfil: null, organizacion: null, faltaCodigo: true };
@@ -197,6 +208,7 @@ export const api: Api = {
   },
   async cerrarSesion() {
     cacheSesion = null;
+    try { await caches?.delete('nexot-datos'); } catch { /* sin caché */ }
     await sb.auth.signOut();
   },
   async cambiarClave(clave) {
@@ -265,7 +277,7 @@ export const api: Api = {
       mesa_reportada: p.mesa,
       origen: 'manual',
       consentimiento_version: AVISO_VERSION,
-      consentimiento_en: new Date().toISOString(),
+      consentimiento_en: p.capturadoEn ?? new Date().toISOString(),
       consentimiento_canal: 'presencial',
     };
     const r = uno(await sb.from('personas').insert(fila).select('ubicacion_estado, puesto:puestos(nombre)').single()) as
@@ -661,5 +673,40 @@ export const api: Api = {
   },
   probarInforme() {
     return llamarFuncion({ accion: 'probar' }, 'informe');
+  },
+
+  // ── Eventos ────────────────────────────────────────────────────────
+  async eventos() {
+    return lista(await sb.from('v_eventos').select('*').order('fecha', { ascending: false }).limit(200)) as Evento[];
+  },
+  async crearEvento(d) {
+    const r = await sb.rpc('crear_evento', { p: { nombre: d.nombre, fecha: new Date(d.fecha).toISOString(), lugar: d.lugar, localidad_id: d.localidadId, lider_id: d.liderId } });
+    sinError(r);
+    return r.data as string;
+  },
+  async cerrarEvento(id, activo) {
+    ok(await sb.rpc('cerrar_evento', { p_id: id, p_activo: activo }));
+  },
+  async asistentes(eventoId) {
+    const filas = lista(await sb.from('asistencias').select('persona_id, nueva, en, persona:personas(nombres, apellidos, telefono, lider:lideres(nombre))')
+      .eq('evento_id', eventoId).order('en', { ascending: false }).limit(2000)) as unknown as
+      { persona_id: string; nueva: boolean; en: string; persona: { nombres: string; apellidos: string; telefono: string | null; lider: { nombre: string } | null } | null }[];
+    return filas.filter((f) => f.persona).map((f) => ({ persona_id: f.persona_id, nueva: f.nueva, en: f.en, nombres: f.persona!.nombres,
+      apellidos: f.persona!.apellidos, telefono: f.persona!.telefono, lider: f.persona!.lider?.nombre ?? null }));
+  },
+  async eventoInfo(token) {
+    const r = lista(await sb.rpc('evento_info', { p_token: token })) as { evento: string; campana: string; fecha: string; lugar: string | null; slug: string }[];
+    return r[0] ?? null;
+  },
+  async registrarAsistencia(token, d) {
+    sinError(await sb.rpc('registrar_asistencia', { p_token: token, p: { ...d, aviso_version: AVISO_VERSION } }));
+  },
+  // ── Transporte ─────────────────────────────────────────────────────
+  async marcarTransporte(personaId, necesita) {
+    ok(await sb.rpc('marcar_transporte', { p_persona: personaId, p_necesita: necesita }));
+  },
+  async personasTransporte() {
+    const filas = await todas((a, b) => consultaPersonas('', '', { transporte: true }).range(a, b)) as unknown as CrudoPersona[];
+    return filas.map(aFila);
   },
 };

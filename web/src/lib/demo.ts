@@ -5,7 +5,7 @@ import type {
   Api, Demografia, FilaImportacion, PuestoCenso, Tendencia,
   Eleccion, EstadoMesa, CalidadLider, PuestoCodigos, RegistrosMesa, ResultadoFilaE14, LiderE14, LocalidadE14, MesaE14, PuestoE14, TotalesE14, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
   PersonaFila, Puesto, Rol, Sesion, Sexo, Sugerencia, Compromiso, Testigo,
-  Politica, SolicitudDatos, AccionSensible, FactorDosPasos, Historico, PotencialPuesto, FilaHistoricoResultado, MetaLider, RankingFila, Semaforo,
+  Politica, SolicitudDatos, AccionSensible, FactorDosPasos, Historico, PotencialPuesto, FilaHistoricoResultado, MetaLider, RankingFila, Semaforo, Evento, Asistente,
 } from './tipos';
 import QRCode from 'qrcode';
 import { edadDesde, hoyISO, normalizar } from './utilidades';
@@ -33,7 +33,7 @@ interface PersonaDemo {
   fechaNacimiento: string | null; edad: number | null; edadEn: string | null; telefono: string | null;
   localidadId: number | null; puestoId: number | null; puestoReportado: string | null; direccionReportada: string | null;
   mesa: number | null; creadoEn: string; eliminada: boolean; origen?: string;
-  compromiso?: Compromiso; contactosN?: number;
+  compromiso?: Compromiso; contactosN?: number; transporte?: boolean;
 }
 
 // Generador pseudoaleatorio con semilla: los mismos datos en cada carga
@@ -195,6 +195,13 @@ let sembradas = false;
 const accionesDemo: AccionSensible[] = [];
 const factoresDemo: FactorDosPasos[] = [];
 const recibeDemo = { valor: true };
+function sembrarEventos() {
+  if (eventosDemo.length) return;
+  eventosDemo.push({ id: 'ev-1', nombre: 'Reunión en Suba (demo)', fecha: new Date(Date.now() - 3 * 86_400_000).toISOString(), lugar: 'Salón comunal',
+    activo: true, token: 'demoevento1', lider_id: 'l-1', localidadId: 11,
+    asistencias: personas.filter((p) => p.liderId === 'l-1').slice(0, 23).map((p, i) => ({ personaId: p.id, nueva: i % 4 === 0, en: p.creadoEn })) });
+}
+const eventosDemo: (Omit<Evento, 'asistentes' | 'nuevos' | 'lider' | 'localidad'> & { localidadId: number | null; asistencias: { personaId: string; nueva: boolean; en: string }[] })[] = [];
 const fechasDemo: { inicio: string | null; fin: string | null } = { inicio: null, fin: null };
 // Resultados históricos inventados para la demostración: votos por puesto
 // con variación por localidad, para que el análisis de potencial tenga forma
@@ -275,6 +282,7 @@ function aFila(p: PersonaDemo): PersonaFila {
     puesto: PUESTOS.find((x) => x.id === p.puestoId)?.nombre ?? null, puesto_reportado: p.puestoReportado,
     mesa: p.mesa, ubicacion_estado: estado(p), creado_en: p.creadoEn,
     compromiso: p.compromiso ?? 'sin_contactar', contactos_n: p.contactosN ?? 0, lider_id: p.liderId,
+    necesita_transporte: !!p.transporte, barrio: null,
   };
 }
 const exportaciones: { tipo: string; filas: number; en?: string; usuario?: string }[] = [];
@@ -324,6 +332,7 @@ export const api: Api = {
 
   async registrarPersona(p) {
     await espera(250);
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new TypeError('Failed to fetch');  // simula la falta de señal
     if (!misLideres().some((l) => l.id === p.liderId)) throw new Error('No tienes permiso para hacer esto.');
     if (personas.some((x) => !x.eliminada && x.cedula === p.cedula)) throw new Error('Esta cédula ya está registrada.');
     let puestoId = p.puestoId;
@@ -1109,6 +1118,77 @@ export const api: Api = {
   async recibeInforme() { await espera(40); return recibeDemo.valor; },
   async cambiarRecibeInforme(recibe) { await espera(); recibeDemo.valor = recibe; },
   async probarInforme() { await espera(300); return `Te enviamos el informe a ${yo().email} (en la demostración no sale ningún correo).`; },
+  async eventos() {
+    await espera();
+    const u = yo();
+    const visiblesL = new Set(misLideres().map((l) => l.id));
+    sembrarEventos();
+    return eventosDemo.filter((e) => u.rol === 'admin' || u.rol === 'candidato' || visiblesL.has(e.lider_id)).map((e) => ({
+      id: e.id, nombre: e.nombre, fecha: e.fecha, lugar: e.lugar, activo: e.activo, token: e.token, lider_id: e.lider_id,
+      lider: lideres.find((l) => l.id === e.lider_id)?.nombre ?? '', localidad: LOCALIDADES.find((l) => l.id === e.localidadId)?.nombre ?? null,
+      asistentes: e.asistencias.length, nuevos: e.asistencias.filter((a) => a.nueva).length,
+    })).sort((a, b) => b.fecha.localeCompare(a.fecha));
+  },
+  async crearEvento(d) {
+    await espera(); soloLectura();
+    if (!['admin', 'coordinador'].includes(yo().rol)) throw new Error('Solo administradores y coordinadores crean eventos');
+    if (!d.nombre.trim()) throw new Error('Ponle un nombre al evento');
+    if (!d.fecha) throw new Error('Elige la fecha y la hora');
+    if (!misLideres().some((l) => l.id === d.liderId)) throw new Error('Elige el líder al que quedarán asignadas las personas nuevas');
+    const id = `ev-${Date.now()}`;
+    eventosDemo.unshift({ id, nombre: d.nombre.trim(), fecha: new Date(d.fecha).toISOString(), lugar: d.lugar.trim() || null, activo: true,
+      token: `demoev${Math.random().toString(36).slice(2, 12)}`, lider_id: d.liderId, localidadId: d.localidadId, asistencias: [] });
+    return id;
+  },
+  async cerrarEvento(id, activo) { await espera(); soloLectura(); eventosDemo.find((e) => e.id === id)!.activo = activo; },
+  async asistentes(eventoId) {
+    await espera();
+    const e = eventosDemo.find((x) => x.id === eventoId);
+    const vis = new Set(visibles().map((p) => p.id));
+    return (e?.asistencias ?? []).filter((a) => vis.has(a.personaId)).map((a) => {
+      const p = personas.find((x) => x.id === a.personaId)!;
+      return { persona_id: p.id, nombres: p.nombres, apellidos: p.apellidos, telefono: p.telefono, lider: lideres.find((l) => l.id === p.liderId)?.nombre ?? null, nueva: a.nueva, en: a.en } as Asistente;
+    });
+  },
+  async eventoInfo(token) {
+    await espera();
+    sembrarEventos();
+    const e = eventosDemo.find((x) => x.token === token && x.activo);
+    return e ? { evento: e.nombre, campana: 'Campaña de demostración', fecha: e.fecha, lugar: e.lugar, slug: 'demo' } : null;
+  },
+  async registrarAsistencia(token, d) {
+    await espera(200);
+    const e = eventosDemo.find((x) => x.token === token && x.activo);
+    if (!e) throw new Error('Este evento ya no recibe asistencias.');
+    const ced = d.cedula.replace(/\D/g, '');
+    if (!/^\d{5,10}$/.test(ced)) throw new Error('Revisa la cédula: solo números, entre 5 y 10 dígitos.');
+    if (!d.acepta) throw new Error('Para registrarte debes aceptar el tratamiento de tus datos.');
+    let p = personas.find((x) => x.cedula === ced && !x.eliminada);
+    let nueva = false;
+    if (!p) {
+      if (!d.nombres.trim()) throw new Error('Escribe tu nombre.');
+      if (!/^3\d{9}$/.test(d.telefono)) throw new Error('El celular debe tener 10 dígitos y empezar por 3.');
+      if (!d.sexo) throw new Error('Elige una opción en sexo.');
+      if (!(Number(d.edad) >= 18)) throw new Error('Escribe tu edad (debes ser mayor de edad).');
+      p = { id: `p-${personas.length + 1}`, cedula: ced, nombres: d.nombres.trim(), apellidos: d.apellidos.trim(), sexo: d.sexo as Sexo, fechaNacimiento: null,
+        edad: Number(d.edad), edadEn: hoyISO(), telefono: d.telefono, liderId: e.lider_id, localidadId: null, puestoId: null, puestoReportado: null,
+        direccionReportada: null, mesa: null, creadoEn: new Date().toISOString(), eliminada: false, origen: 'formulario' };
+      personas.push(p);
+      nueva = true;
+    }
+    if (!e.asistencias.some((a) => a.personaId === p!.id)) e.asistencias.push({ personaId: p.id, nueva, en: new Date().toISOString() });
+  },
+  async marcarTransporte(personaId, necesita) {
+    await espera(); soloLectura();
+    const p = visibles().find((x) => x.id === personaId);
+    if (!p || !['admin', 'coordinador', 'lider'].includes(yo().rol)) throw new Error('Esa persona no está en tu lista');
+    p.transporte = necesita;
+  },
+  async personasTransporte() {
+    await espera();
+    if (!personas.some((p) => p.transporte)) personas.forEach((p, i) => { if (i % 29 === 0) p.transporte = true; });
+    return visibles().filter((p) => p.transporte && !p.eliminada).map(aFila);
+  },
   async quitarDosPasosDe(id) {
     await espera(); soloLectura();
     const u = usuarios.find((x) => x.id === id)!;
@@ -1131,7 +1211,7 @@ for (const k of ['registrarPersona', 'resolverUbicacion', 'confirmarImportacion'
 const ESCRITURAS: (keyof Api)[] = ['crearLider', 'registrarPersona', 'eliminarPersona', 'resolverUbicacion', 'crearImportacion', 'cargarFilas',
   'confirmarImportacion', 'cancelarImportacion', 'crearEleccion', 'digitarE14', 'corregirDigitacion', 'resolverE14', 'importarE14',
   'vincularUsuario', 'desactivarUsuario', 'reactivarUsuario', 'cambiarRol', 'invitarUsuario', 'reenviarAcceso',
-  'configurarPolitica', 'atenderSolicitud', 'importarHistorico', 'eliminarHistorico', 'configurarFechasMeta', 'cambiarMeta', 'quitarDosPasosDe', 'inscribirDosPasos', 'confirmarDosPasos', 'quitarDosPasos'];
+  'configurarPolitica', 'atenderSolicitud', 'importarHistorico', 'eliminarHistorico', 'configurarFechasMeta', 'cambiarMeta', 'crearEvento', 'cerrarEvento', 'marcarTransporte', 'quitarDosPasosDe', 'inscribirDosPasos', 'confirmarDosPasos', 'quitarDosPasos'];
 for (const k of ESCRITURAS) {
   const original = api[k] as (...a: unknown[]) => Promise<unknown>;
   (api as unknown as Record<string, unknown>)[k] = async (...a: unknown[]) => {

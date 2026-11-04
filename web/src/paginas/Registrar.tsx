@@ -4,14 +4,15 @@ import SelectorPuesto from '../componentes/SelectorPuesto';
 import { useSesion } from '../lib/sesion';
 import {
   AVISO_TEXTO, ESTADOS_UBICACION, SEXOS,
-  type Lider, type Localidad, type Puesto, type ResultadoRegistro, type Sexo, type Sugerencia,
+  type Lider, type NuevaPersona, type Localidad, type Puesto, type ResultadoRegistro, type Sexo, type Sugerencia,
 } from '../lib/tipos';
 import { edadDesde, mensajeError, soloDigitos } from '../lib/utilidades';
+import { esSinSenal, guardarSinSenal } from '../lib/cola';
 
 type Errores = Partial<Record<string, string>>;
 
 export default function Registrar() {
-  const { api, sesion } = useSesion();
+  const { api, sesion, sesionReal } = useSesion();
   const rol = sesion!.perfil!.rol;
   const [lideres, setLideres] = useState<Lider[]>([]);
   const [localidades, setLocalidades] = useState<Localidad[]>([]);
@@ -38,7 +39,8 @@ export default function Registrar() {
   const [errores, setErrores] = useState<Errores>({});
   const [intentado, setIntentado] = useState(false);
   const [errorGeneral, setErrorGeneral] = useState('');
-  const [resultado, setResultado] = useState<(ResultadoRegistro & { nombre: string }) | null>(null);
+  const [resultado, setResultado] = useState<(ResultadoRegistro & { nombre: string; guardadoSinSenal?: boolean }) | null>(null);
+  const ultimo = useRef<NuevaPersona | null>(null);
   const [guardando, setGuardando] = useState(false);
   const refCedula = useRef<HTMLInputElement>(null);
 
@@ -103,7 +105,7 @@ export default function Registrar() {
     }
     setGuardando(true);
     try {
-      const r = await api.registrarPersona({
+      ultimo.current = {
         liderId,
         cedula: soloDigitos(cedula),
         nombres: nombres.trim(),
@@ -117,7 +119,8 @@ export default function Registrar() {
         puestoReportado: sabeDonde && otro ? puestoReportado.trim() || null : null,
         direccionReportada: sabeDonde && otro ? direccionReportada.trim() || null : null,
         mesa: sabeDonde && mesa ? Number(mesa) : null,
-      });
+      };
+      const r = await api.registrarPersona(ultimo.current);
       setResultado({ ...r, nombre: `${nombres.trim()} ${apellidos.trim()}`.trim() });
       // Se conservan líder y localidad para registrar al siguiente más rápido
       setCedula(''); setNombres(''); setApellidos(''); setSexo(''); setFecha(''); setEdad(''); setTelefono('');
@@ -126,7 +129,17 @@ export default function Registrar() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       refCedula.current?.focus({ preventScroll: true });
     } catch (err) {
-      setErrorGeneral(mensajeError(err));
+      if (esSinSenal(err)) {
+        // Sin internet: se guarda en el celular y se envía después
+        guardarSinSenal(ultimo.current!, sesionReal!.usuarioId);
+        setResultado({ ubicacion_estado: 'sin_dato', puesto: null, nombre: `${nombres.trim()} ${apellidos.trim()}`.trim(), guardadoSinSenal: true });
+        setCedula(''); setNombres(''); setApellidos(''); setSexo(''); setFecha(''); setEdad(''); setTelefono('');
+        setPuesto(null); setOtro(false); setPuestoReportado(''); setDireccionReportada(''); setMesa(''); setConsentimiento(false);
+        setErrores({}); setIntentado(false);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } else {
+        setErrorGeneral(mensajeError(err));
+      }
     } finally {
       setGuardando(false);
     }
@@ -140,13 +153,13 @@ export default function Registrar() {
 
       {resultado && (
         <div className={`aviso ${resultado.ubicacion_estado === 'completa' ? 'ok' : 'atencion'}`} style={{ marginBottom: '1rem' }} role="status">
-          <p><strong>{resultado.nombre}</strong> quedó registrada.</p>
-          <p>
+          <p><strong>{resultado.nombre}</strong> {resultado.guardadoSinSenal ? 'quedó guardada en este celular.' : 'quedó registrada.'}</p>
+          {resultado.guardadoSinSenal ? <p>No hay señal: se enviará sola cuando vuelva la conexión. Puedes seguir registrando.</p> : <p>
             {resultado.ubicacion_estado === 'completa' && <>Lugar de votación confirmado: {resultado.puesto}.</>}
             {resultado.ubicacion_estado === 'sin_mesa' && <>Puesto: {resultado.puesto}. Falta la mesa.</>}
             {resultado.ubicacion_estado === 'por_revisar' && <>El puesto quedó para revisión del administrador.</>}
             {resultado.ubicacion_estado === 'sin_dato' && <>{ESTADOS_UBICACION.sin_dato}: se puede completar después.</>}
-          </p>
+          </p>}
         </div>
       )}
       {errorGeneral && <div className="aviso error" style={{ marginBottom: '1rem' }} role="alert">{errorGeneral}</div>}

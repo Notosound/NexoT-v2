@@ -11,6 +11,11 @@ import { recargarPorVersion } from './lib/version';
 // Pestaña abierta antes de publicar una versión nueva: recargar y seguir
 window.addEventListener('vite:preloadError', (e) => { if (recargarPorVersion()) e.preventDefault(); });
 
+// Para abrir sin señal (solo en la versión publicada)
+if ('serviceWorker' in navigator && import.meta.env.PROD && location.hostname !== 'localhost') {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}); });
+}
+
 const raiz = createRoot(document.getElementById('raiz')!);
 
 cargarApi()

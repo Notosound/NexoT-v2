@@ -665,3 +665,29 @@ details.plegable-simple[open] > summary { margin-bottom: 0.6rem; }
 .lista-ranking .pista span { display: block; height: 100%; background: var(--serie-1); border-radius: 999px; }
 .medalla { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 0.8rem; font-weight: 800; background: var(--pista); color: var(--texto-2); }
 .medalla.m1 { background: #f5c542; color: #4a3500; } .medalla.m2 { background: #cfd5df; color: #2c3440; } .medalla.m3 { background: #e0a46e; color: #4a2600; }
+
+/* Eventos */
+.lista-eventos { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.evento { display: grid; gap: 0.6rem; margin: 0 !important; }
+.evento.cerrado { opacity: 0.7; }
+.evento h2 { margin: 0 0 0.2rem; font-size: 1.05rem; }
+.evento p { margin: 0; }
+.evento-cabeza { display: flex; justify-content: space-between; gap: 0.5rem; align-items: flex-start; }
+.evento-cifras { display: flex; gap: 1.25rem; font-size: 0.95rem; }
+.evento-cifras strong { font-size: 1.3rem; }
+.qr-evento { display: grid; place-items: center; margin: 0.5rem 0; }
+.qr-evento .qr { width: 240px; max-width: 70vw; }
+.qr-evento .qr svg { width: 100%; height: auto; }
+.boton.transporte.activo { background: var(--info-suave); border-color: var(--info-borde); color: var(--info-texto); }
+.grupo-transporte + .grupo-transporte { margin-top: 0.9rem; }
+.grupo-transporte h3 { font-size: 0.98rem; margin: 0 0 0.35rem; }
+.grupo-transporte ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; }
+.grupo-transporte li { display: flex; flex-wrap: wrap; gap: 0.35rem 0.75rem; align-items: center; padding: 0.4rem 0.6rem; border: 1px solid var(--borde); border-radius: 10px; }
+.grupo-transporte li.ya { background: var(--ok-suave); border-color: var(--ok-borde); }
+.grupo-transporte li > span:first-child { font-weight: 600; }
+/* Sin señal */
+.sin-senal { display: flex; align-items: center; gap: 0.6rem; justify-content: center; flex-wrap: wrap; padding: 0.55rem 1rem;
+  background: var(--info-suave); color: var(--info-texto); border-bottom: 1px solid var(--info-borde); font-size: 0.92rem; }
+.sin-senal.fuera { background: var(--aviso-suave); color: var(--aviso-texto); border-color: var(--aviso-borde, var(--borde)); }
+.sin-senal button { border: 1px solid currentColor; background: transparent; color: inherit; border-radius: 999px; padding: 0.15rem 0.75rem; font-weight: 600; cursor: pointer; }
+.sin-senal ul { flex-basis: 100%; margin: 0.25rem 0 0; padding-left: 1.2rem; }
