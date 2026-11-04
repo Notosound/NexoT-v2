@@ -80,9 +80,10 @@ function sinError(r: { error: unknown }): void {
 
 // PostgREST devuelve como máximo 1.000 filas por consulta: se pagina.
 async function todas<T>(consulta: (desde: number, hasta: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> {
-  // Se piden 4 páginas a la vez: con 40.000 registros son 4 veces menos esperas
-  const salida: T[] = [];
-  for (let desde = 0; ; desde += 4000) {
+  // Primero una página: casi siempre basta. Si viene llena, el resto se pide de a 4 en paralelo.
+  const salida: T[] = [...(ok(await consulta(0, 999)) ?? [])];
+  if (salida.length < 1000) return salida;
+  for (let desde = 1000; ; desde += 4000) {
     const lotes = await Promise.all([0, 1, 2, 3].map((k) => consulta(desde + k * 1000, desde + k * 1000 + 999)));
     for (const r of lotes) {
       const lote = ok(r) ?? [];
@@ -90,6 +91,12 @@ async function todas<T>(consulta: (desde: number, hasta: number) => PromiseLike<
       if (lote.length < 1000) return salida;
     }
   }
+}
+
+/** Vista agregada calculada una sola vez en el servidor (ver vista_completa en la base) */
+async function vista<T>(nombre: string, filtro: Record<string, string> = {}, orden?: string): Promise<T[]> {
+  const r = await rpcLectura('vista_completa', { p_vista: nombre, p_filtro: filtro, p_orden: orden ?? null });
+  return (ok(r) as T[] | null) ?? [];
 }
 
 function sesionGuardada(): { id: string; email?: string } | undefined {
@@ -239,7 +246,7 @@ export const api: Api = {
     const [fichas, avance] = await Promise.all([
       todas((a, b) => sb.from('lideres').select('id, nombre, cedula, telefono, meta_votos, coordinador_id, perfil_id')
         .eq('activo', true).order('nombre').range(a, b)),
-      todas((a, b) => sb.from('v_avance_lideres').select('lider_id, registrados').range(a, b)),
+      vista('v_avance_lideres'),
     ]);
     const reg = new Map((avance as { lider_id: string; registrados: number }[]).map((x) => [x.lider_id, x.registrados]));
     return (fichas as Omit<Lider, 'registrados'>[]).map((f) => ({ ...f, registrados: reg.get(f.id) ?? 0 }));
@@ -300,19 +307,11 @@ export const api: Api = {
     ok(await sb.rpc('eliminar_persona', { p_id: id }));
   },
   async resumen() {
-    const contar = async (filtro?: string) => {
-      let q = sb.from('personas').select('id', { count: 'exact', head: true }).is('eliminado_en', null);
-      if (filtro) q = q.eq('ubicacion_estado', filtro);
-      const r = await q;
-      if (r.error) throw r.error;
-      return r.count ?? 0;
-    };
-    const [personas, porRevisar, sinUbicacion] = await Promise.all([contar(), contar('por_revisar'), contar('sin_dato')]);
-    return { personas, porRevisar, sinUbicacion };
+    const [r] = lista(await rpcLectura('resumen_personas')) as { personas: number; por_revisar: number; sin_ubicacion: number }[];
+    return { personas: r?.personas ?? 0, porRevisar: r?.por_revisar ?? 0, sinUbicacion: r?.sin_ubicacion ?? 0 };
   },
   async demografia(): Promise<Demografia[]> {
-    return todas((a, b) => sb.from('v_demografia')
-      .select('localidad_id, localidad, puesto_id, puesto, rango_edad, sexo, personas').range(a, b));
+    return vista<Demografia>('v_demografia');
   },
   async censoPuestos(): Promise<PuestoCenso[]> {
     const filas = await todas((a, b) => sb.from('puestos')
@@ -325,11 +324,11 @@ export const api: Api = {
     }));
   },
   async tendencia(): Promise<Tendencia[]> {
-    return todas((a, b) => sb.from('v_tendencia_diaria').select('dia, nuevos').order('dia').range(a, b));
+    return vista<Tendencia>('v_tendencia_diaria', {}, 'dia');
   },
 
   async porRevisar(): Promise<GrupoRevision[]> {
-    const r = await todas((a, b) => sb.from('v_ubicaciones_por_revisar').select('*').range(a, b)) as GrupoRevision[];
+    const r = await vista<GrupoRevision>('v_ubicaciones_por_revisar');
     return r.sort((x, y) => y.personas - x.personas);
   },
   async resolverUbicacion(personaId, puestoId) {
@@ -385,16 +384,14 @@ export const api: Api = {
     return (ok(await sb.from('v_e14_avance').select('mesas, pendientes, una_digitacion, en_revision, verificadas').eq('eleccion_id', id).maybeSingle()) as AvanceE14 | null);
   },
   async pendientesE14(id) {
-    return todas((a, b) => sb.from('v_e14_pendientes').select('mesa_id, localidad, puesto, mesa, estado')
-      .eq('eleccion_id', id).order('localidad').order('puesto').order('mesa').range(a, b)) as Promise<MesaPendiente[]>;
+    return vista<MesaPendiente>('v_e14_pendientes', { eleccion_id: id }, 'localidad, puesto, mesa');
   },
   async digitarE14(eleccionId, mesaId, votos) {
     const c = await contexto();
     sinError(await sb.from('e14_digitaciones').insert({ eleccion_id: eleccionId, organizacion_id: c.orgId, mesa_id: mesaId, votos }));
   },
   async misDigitaciones(id) {
-    return todas((a, b) => sb.from('v_mis_digitaciones').select('id, mesa_id, localidad, puesto, mesa, votos, en, estado')
-      .eq('eleccion_id', id).order('en', { ascending: false }).range(a, b)) as Promise<MiDigitacion[]>;
+    return vista<MiDigitacion>('v_mis_digitaciones', { eleccion_id: id }, 'en desc');
   },
   async corregirDigitacion(id, votos) {
     const r = await sb.from('e14_digitaciones').update({ votos }).eq('id', id).select('id');
@@ -402,18 +399,16 @@ export const api: Api = {
     if (!r.data?.length) throw new Error('No tienes permiso para hacer esto.');
   },
   async revisionE14(id) {
-    return todas((a, b) => sb.from('v_e14_revision').select('mesa_id, localidad, puesto, mesa, digitaciones')
-      .eq('eleccion_id', id).order('localidad').order('puesto').order('mesa').range(a, b)) as Promise<MesaEnRevision[]>;
+    return vista<MesaEnRevision>('v_e14_revision', { eleccion_id: id }, 'localidad, puesto, mesa');
   },
   async resolverE14(eleccionId, mesaId, votos) {
     sinError(await sb.rpc('resolver_e14', { p_eleccion: eleccionId, p_mesa: mesaId, p_votos: votos }));
   },
   async resultadosE14(id) {
-    const campos = 'esperados, confirmados, faltantes, adicionales, votos_reales, mesas, mesas_verificadas';
     const [localidades, puestos, lideres] = await Promise.all([
-      todas((a, b) => sb.from('v_e14_localidades').select(`localidad_id, localidad, ${campos}`).eq('eleccion_id', id).range(a, b)),
-      todas((a, b) => sb.from('v_e14_puestos').select(`puesto_id, puesto, localidad_id, localidad, ${campos}`).eq('eleccion_id', id).range(a, b)),
-      todas((a, b) => sb.from('v_e14_lideres').select('lider_id, nombre, esperados, esperados_verificados, confirmados, mesas_pendientes, cumplimiento').eq('eleccion_id', id).range(a, b)),
+      vista('v_e14_localidades', { eleccion_id: id }),
+      vista('v_e14_puestos', { eleccion_id: id }),
+      vista('v_e14_lideres', { eleccion_id: id }),
     ]);
     // Los totales vienen como enteros (::int); solo "cumplimiento" es numeric y llega como texto
     // Una localidad o puesto sin mesas verificadas suma null en la base: se normaliza a 0
@@ -436,8 +431,7 @@ export const api: Api = {
   },
 
   async plantillaE14(id) {
-    return todas((a, b) => sb.from('v_e14_plantilla').select('localidad, zona, codigo_puesto, puesto, mesa')
-      .eq('eleccion_id', id).order('localidad').order('puesto').order('mesa').range(a, b)) as Promise<FilaPlantillaE14[]>;
+    return vista<FilaPlantillaE14>('v_e14_plantilla', { eleccion_id: id }, 'localidad, puesto, mesa');
   },
   async puestosConCodigos() {
     const filas = await todas((a, b) => sb.from('puestos')
@@ -449,10 +443,10 @@ export const api: Api = {
     return lista(await sb.rpc('importar_e14', { p_eleccion: eleccionId, p_archivo: archivo, p_filas: filas, p_confirmar: confirmar })) as ResultadoFilaE14[];
   },
   async registrosMesa() {
-    return todas((a, b) => sb.from('v_registros_mesa').select('*').order('mesa_id').range(a, b)) as Promise<RegistrosMesa[]>;
+    return vista<RegistrosMesa>('v_registros_mesa', {}, 'mesa_id');
   },
   async calidadLideres() {
-    return todas((a, b) => sb.from('v_calidad_lideres').select('*').order('nombre').range(a, b)) as Promise<CalidadLider[]>;
+    return vista<CalidadLider>('v_calidad_lideres', {}, 'nombre');
   },
   async registrarExportacion(tipo, filas, filtros = {}) {
     sinError(await sb.rpc('registrar_exportacion', { p_tipo: tipo, p_filas: filas, p_filtros: filtros }));
@@ -496,7 +490,7 @@ export const api: Api = {
     ok(await sb.rpc('registrar_contacto', { p_persona: personaId, p_resultado: resultado, p_canal: canal, p_nota: nota ?? null }));
   },
   async seguimientoLideres() {
-    return todas((a, b) => sb.from('v_seguimiento_lideres').select('*').order('nombre').range(a, b)) as Promise<SeguimientoLider[]>;
+    return vista<SeguimientoLider>('v_seguimiento_lideres', {}, 'nombre');
   },
   async votosMarcados(eleccionId) {
     const filas = await todas((a, b) => sb.from('votos_marcados').select('persona_id').eq('eleccion_id', eleccionId).range(a, b)) as { persona_id: string }[];
@@ -506,13 +500,13 @@ export const api: Api = {
     ok(await sb.rpc('marcar_voto', { p_eleccion: eleccionId, p_persona: personaId, p_voto: voto }));
   },
   async diaD(eleccionId) {
-    return todas((a, b) => sb.from('v_dia_d').select('*').eq('eleccion_id', eleccionId).range(a, b)) as Promise<DiaDFila[]>;
+    return vista<DiaDFila>('v_dia_d', { eleccion_id: eleccionId });
   },
   async testigos(eleccionId) {
-    return todas((a, b) => sb.from('v_testigos').select('*').eq('eleccion_id', eleccionId).order('localidad').range(a, b)) as Promise<Testigo[]>;
+    return vista<Testigo>('v_testigos', { eleccion_id: eleccionId }, 'localidad');
   },
   async coberturaTestigos(eleccionId) {
-    return todas((a, b) => sb.from('v_testigos_cobertura').select('*').eq('eleccion_id', eleccionId).range(a, b)) as Promise<CoberturaMesa[]>;
+    return vista<CoberturaMesa>('v_testigos_cobertura', { eleccion_id: eleccionId });
   },
   async asignarTestigo(eleccionId, personaId, puestoId, mesas) {
     ok(await sb.rpc('asignar_testigo', { p_eleccion: eleccionId, p_persona: personaId, p_puesto: puestoId, p_mesas: mesas }));
@@ -637,7 +631,7 @@ export const api: Api = {
     return lista(await sb.from('v_historicos').select('*').order('cargado_en', { ascending: false })) as Historico[];
   },
   async potencial(id) {
-    return todas((a, b) => sb.from('v_potencial_puestos').select('*').eq('historico_id', id).order('puesto_id').range(a, b)) as Promise<PotencialPuesto[]>;
+    return vista<PotencialPuesto>('v_potencial_puestos', { historico_id: id }, 'puesto_id');
   },
   async importarHistorico(nombre, anio, filas, confirmar) {
     return lista(await sb.rpc('importar_historico', { p_nombre: nombre, p_anio: anio, p_filas: filas, p_confirmar: confirmar })) as FilaHistoricoResultado[];
@@ -648,7 +642,7 @@ export const api: Api = {
 
   // ── Metas ──────────────────────────────────────────────────────────
   async metasLideres() {
-    return todas((a, b) => sb.from('v_metas_lideres').select('*').order('nombre').range(a, b)) as Promise<MetaLider[]>;
+    return vista<MetaLider>('v_metas_lideres', {}, 'nombre');
   },
   async fechasMeta() {
     const r = lista(await rpcLectura('fechas_meta')) as FechasMeta[];
