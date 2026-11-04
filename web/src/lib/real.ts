@@ -95,7 +95,8 @@ async function todas<T>(consulta: (desde: number, hasta: number) => PromiseLike<
 
 /** Vista agregada calculada una sola vez en el servidor (ver vista_completa en la base) */
 async function vista<T>(nombre: string, filtro: Record<string, string> = {}, orden?: string): Promise<T[]> {
-  const r = await rpcLectura('vista_completa', { p_vista: nombre, p_filtro: filtro, p_orden: orden ?? null });
+  // El filtro va como texto JSON: así llega bien también por GET ("Ver como")
+  const r = await rpcLectura('vista_completa', { p_vista: nombre, p_filtro: JSON.stringify(filtro), ...(orden ? { p_orden: orden } : {}) });
   return (ok(r) as T[] | null) ?? [];
 }
 

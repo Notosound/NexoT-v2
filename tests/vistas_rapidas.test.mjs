@@ -45,3 +45,10 @@ test('resumen en una consulta', async () => {
   assert.deepEqual([r.personas, r.por_revisar, r.sin_ubicacion], [3, 0, 0]);
   assert.equal((await base.como(lider, 'select * from resumen_personas()'))[0].personas, 2);
 });
+
+test('funciona por GET en "Ver como" (el filtro llega como texto)', async () => {
+  const filas = await base.peticion(admin, { encabezados: { 'x-ver-como': 'rol:candidato' } },
+    `select jsonb_array_length(vista_completa('v_demografia', '{}')) n`);
+  assert.ok(filas[0].n > 0);
+  await assert.rejects(base.como(admin, `select vista_completa('v_demografia', '[1]')`), /Filtro no válido/);
+});
