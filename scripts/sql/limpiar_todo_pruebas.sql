@@ -25,11 +25,11 @@ begin
   delete from public.elecciones where organizacion_id = v_org;
   delete from public.historicos where organizacion_id = v_org;
   delete from public.solicitudes_datos where organizacion_id = v_org;
-  delete from public.importacion_filas where organizacion_id = v_org;
-  delete from public.importaciones where organizacion_id = v_org;
   delete from public.personas where organizacion_id = v_org;
   get diagnostics n = row_count;
   raise notice 'Personas borradas: %', n;
+  delete from public.importacion_filas where organizacion_id = v_org;
+  delete from public.importaciones where organizacion_id = v_org;
   delete from public.lideres where organizacion_id = v_org and perfil_id is null;
   update public.lideres set meta_votos = 0 where organizacion_id = v_org;
   delete from public.auditoria where organizacion_id = v_org;
