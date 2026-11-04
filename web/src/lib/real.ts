@@ -6,7 +6,7 @@ import type {
   AvanceE14, Eleccion, CalidadLider, FilaPlantillaE14, PuestoCodigos, RegistrosMesa, ResultadoFilaE14, LiderE14, LocalidadE14, MesaE14, MesaEnRevision, MesaPendiente, MiDigitacion, PuestoE14, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
   PersonaFila, Puesto, Rol, Sesion, Sugerencia, OpcionVerComo, EnlaceLider,
   SeguimientoLider, DiaDFila, Testigo, CoberturaMesa, AlertaCalidad,
-  Politica, SolicitudDatos, DatoTitular, AccionSensible, Historico, PotencialPuesto, FilaHistoricoResultado, MetaLider, FechasMeta, RankingFila, Evento, LecturaE14, FilaLecturaResultado,
+  Politica, SolicitudDatos, DatoTitular, AccionSensible, Historico, PotencialPuesto, FilaHistoricoResultado, MetaLider, FechasMeta, RankingFila, Evento, LecturaE14, ResultadoLectura, EstadoMesa,
 } from './tipos';
 import { AVISO_VERSION } from './tipos';
 import { edadDesde, hoyISO } from './utilidades';
@@ -711,42 +711,47 @@ export const api: Api = {
     ok(await sb.rpc('aceptar_terminos', { p_version: version }));
   },
 
-  // ── E14 con imagen ─────────────────────────────────────────────────
+
+
+  // ── Lectura automática de E14 ──────────────────────────────────────
   async lecturasE14(eleccionId) {
-    return vista<LecturaE14>('v_e14_lecturas', { eleccion_id: eleccionId });
+    return vista<LecturaE14>('v_e14_lecturas', { eleccion_id: eleccionId }, 'localidad, puesto, mesa');
   },
-  async urlsRecortes(rutas) {
-    const unicas = [...new Set(rutas.filter(Boolean))];
-    if (!unicas.length) return {};
-    const salida: Record<string, string> = {};
-    for (let i = 0; i < unicas.length; i += 100) {
-      const { data, error } = await sb.storage.from('e14-recortes').createSignedUrls(unicas.slice(i, i + 100), 3600);
-      if (error) throw error;
-      for (const d of data ?? []) if (d.signedUrl && d.path) salida[d.path] = d.signedUrl;
-    }
-    return salida;
-  },
-  async subirRecortes(eleccionId, archivos, alProgreso) {
+  async cargarLecturasE14(eleccionId, filas, imagenes, alAvanzar) {
     const { orgId } = await contexto();
-    const carpeta = `${orgId}/${eleccionId}`;
-    let hechos = 0;
-    const cola = [...archivos];
-    const trabajador = async () => {
-      for (let f = cola.shift(); f; f = cola.shift()) {
-        const { error } = await sb.storage.from('e14-recortes').upload(`${carpeta}/${f.name}`, f, { upsert: true, contentType: f.type || 'image/png' });
-        if (error) throw new Error(`No se pudo subir ${f.name}: ${error.message}`);
-        alProgreso?.(++hechos);
-      }
+    const porNombre = new Map(imagenes.map((f) => [f.name, f]));
+    const conRecorte = filas.filter((f) => f.recorte && porNombre.has(f.recorte));
+    const total = conRecorte.length;
+    let hechas = 0;
+    // Recortes al almacenamiento privado: carpeta de la organización y la elección
+    const subir = async (f: Record<string, string>) => {
+      const archivo = porNombre.get(f.recorte)!;
+      const ruta = `${orgId}/${eleccionId}/${f.recorte.replace(/[^\w.-]/g, '_')}`;
+      const r = await sb.storage.from('e14').upload(ruta, archivo, { upsert: true, contentType: archivo.type || 'image/png' });
+      if (r.error) throw new Error(`No se pudo subir ${f.recorte}: ${r.error.message}`);
+      f.recorte = ruta;
+      alAvanzar?.(++hechas, total);
     };
-    await Promise.all([trabajador(), trabajador(), trabajador(), trabajador()]);
-    return carpeta;
-  },
-  async importarLecturas(eleccionId, filas, umbral, carpeta, confirmar) {
-    const salida: FilaLecturaResultado[] = [];
+    for (let i = 0; i < conRecorte.length; i += 6) await Promise.all(conRecorte.slice(i, i + 6).map(subir));
+    for (const f of filas) if (f.recorte && !f.recorte.startsWith(`${orgId}/`)) f.recorte = '';
+    const salida: ResultadoLectura[] = [];
     for (let i = 0; i < filas.length; i += 2000) {
-      salida.push(...(lista(await sb.rpc('importar_lecturas', { p_eleccion: eleccionId, p_filas: filas.slice(i, i + 2000), p_umbral: umbral,
-        p_recortes_base: carpeta, p_confirmar: confirmar })) as FilaLecturaResultado[]));
+      salida.push(...(lista(await sb.rpc('cargar_lecturas_e14', { p_eleccion: eleccionId, p_filas: filas.slice(i, i + 2000) })) as ResultadoLectura[]));
     }
     return salida;
+  },
+  async revisarLecturaE14(id, votos) {
+    const r = await sb.rpc('revisar_lectura_e14', { p_lectura: id, p_votos: votos });
+    sinError(r);
+    return (r.data as EstadoMesa | null) ?? null;
+  },
+  async urlRecorte(ruta) {
+    const r = await sb.storage.from('e14').createSignedUrl(ruta, 3600);
+    return r.error ? null : r.data.signedUrl;
+  },
+  async recorteMesa(eleccionId, mesaId) {
+    const r = await rpcLectura('recorte_mesa', { p_eleccion: eleccionId, p_mesa: mesaId });
+    const ruta = r.error ? null : ((r.data as string | null) ?? null);
+    return ruta ? api.urlRecorte(ruta) : null;
   },
 };

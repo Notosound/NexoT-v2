@@ -431,7 +431,7 @@ console.log('E14: digitador (móvil)');
   await paso('el digitador solo ve la pestaña de digitar', async () => {
     await page.getByRole('link', { name: /Digitar mesas/ }).click();
     await page.getByRole('heading', { name: /^Avance:/ }).waitFor();
-    assert.deepEqual(await page.getByRole('tab').allInnerTexts(), ['Digitar', 'Subir Excel']);
+    assert.deepEqual(await page.getByRole('tab').allInnerTexts(), ['Digitar', 'Lectura automática', 'Subir Excel']);
     const menu = await page.getByRole('navigation', { name: 'Secciones' }).innerText();
     assert.doesNotMatch(menu, /Personas|Registrar|Tablero/);
   });
@@ -471,6 +471,29 @@ console.log('E14: digitador (móvil)');
     await page.getByLabel('Votos corregidos').fill('8');
     await page.getByRole('button', { name: 'Guardar' }).last().click();
     await page.getByRole('cell', { name: '8', exact: true }).first().waitFor();
+  });
+  await ctx.close();
+}
+
+console.log('E14: lectura automática (digitador)');
+{
+  const { ctx, page } = await sesion('digitador', escritorio);
+  await page.goto(`${base}/e14?vista=lecturas`);
+  await paso('ve las cifras y la cola con el recorte de la mesa', async () => {
+    await page.getByRole('heading', { name: 'Revisar con la imagen' }).waitFor();
+    await page.locator('.lectura-imagen img').waitFor();
+    assert.equal(await page.getByRole('button', { name: /Subir/ }).count(), 0, 'el digitador no sube lecturas');
+    await page.screenshot({ path: join(capturas, '35-e14-lecturas.png'), fullPage: true });
+  });
+  await paso('confirma una lectura y pasa a la siguiente', async () => {
+    const quedan = async () => Number((await page.getByText(/^quedan \d+/).innerText()).match(/\d+/)[0]);
+    const antes = await quedan();
+    const donde = await page.locator('.lectura-donde strong').innerText();
+    await page.getByLabel('Votos que se ven en la imagen').fill('12');
+    await page.getByLabel('Votos que se ven en la imagen').press('Enter');
+    await page.getByText(/12 votos guardados/).waitFor();
+    assert.equal(await quedan(), antes - 1);
+    assert.notEqual(await page.locator('.lectura-donde strong').innerText(), donde);
   });
   await ctx.close();
 }
@@ -543,6 +566,17 @@ console.log('E14: administrador (escritorio)');
       throw new Error(`No apareció el detalle de "${nombre}". Pantalla: ${texto.slice(Math.max(0, i - 100), i + 400)}`);
     }
     await page.screenshot({ path: join(capturas, '31-e14-resultados.png'), fullPage: true });
+  });
+  await paso('lectura automática: el admin sube el CSV del lector', async () => {
+    await page.getByRole('tab', { name: 'Lectura automática' }).click();
+    await page.getByRole('heading', { name: /Subir lecturas del lector/ }).waitFor();
+    await page.getByRole('button', { name: 'Subir', exact: true }).click();
+    const csv = join(capturas, 'lecturas.csv');
+    const { writeFile } = await import('node:fs/promises');
+    await writeFile(csv, 'zona,codigo_puesto,mesa,votos,alterno,confianza,metodo,documento,recorte,motivo\n01,01,1,14,,0.97,svm,,,\n01,01,2,3,8,0.6,svm,,,dígito dudoso\n');
+    await page.getByLabel(/1\. Archivo de lecturas/).setInputFiles(csv);
+    await page.getByRole('button', { name: 'Cargar' }).click();
+    await page.getByText(/^Listo: \d+ claras/).waitFor();
   });
   await paso('diferencias: el admin elige el valor correcto', async () => {
     const pestana = page.getByRole('tab', { name: /^Diferencias/ });

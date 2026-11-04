@@ -73,3 +73,14 @@ test('elección con digitación simple: todo lo confirma una persona', async () 
   const [{ recorte }] = await base.como(dig, 'select recorte_mesa($1, 1) recorte', [eleccion]);
   assert.equal(recorte, 'org/e/1.png');
 });
+
+test('acepta el archivo del lector tal cual (alterno, documento, motivo)', async () => {
+  const r = await base.como(admin, `select * from cargar_lecturas_e14($1, $2::jsonb)`, [eleccion, filas([
+    { zona: '01', codigo_puesto: '01', mesa: '3', votos: '17', alterno: '11', confianza: '0.97', documento: 'Z01_P01_M3.pdf', motivo: '' },
+    { zona: '01', codigo_puesto: '01', mesa: '4', votos: '20', alterno: '', confianza: '0.99', motivo: 'casilla vacía entre dígitos' },
+  ])]);
+  assert.deepEqual(r.map((x) => x.estado), ['por_revisar', 'por_revisar']);
+  const l = await base.como(admin, `select mesa, alternativa, documento_url, motivo from v_e14_lecturas where eleccion_id = $1 and mesa in (3, 4) and puesto = 'Pepe Sierra' order by mesa`, [eleccion]);
+  assert.deepEqual(l.map((x) => [x.alternativa, x.documento_url]), [[11, 'Z01_P01_M3.pdf'], [null, null]]);
+  assert.equal(l[1].motivo, 'casilla vacía entre dígitos');
+});

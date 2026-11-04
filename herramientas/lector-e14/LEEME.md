@@ -10,7 +10,7 @@ claro, y lo dudoso lo revisa una persona **viendo el recorte de la imagen**.
   Una persona digita la segunda (sin ver lo que leyó la máquina): si coinciden,
   la mesa queda verificada; si no, pasa a revisión del administrador.
 - Las lecturas **dudosas** no cuentan solas: entran a la cola
-  **E14 → Con imagen**, donde el digitador ve el recorte en grande y escribe el número.
+  **E14 → Lectura automática**, donde el digitador ve el recorte en grande y escribe el número.
 - Las mesas con simpatizantes de la campaña aparecen primero.
 
 ## Pasos
@@ -24,15 +24,15 @@ claro, y lo dudoso lo revisa una persona **viendo el recorte de la imagen**.
    Mira `prueba/calibracion_pagina.png` (rectángulo rojo) y ajusta `x`, `y`, `ancho`, `alto`
    (fracciones de la página) hasta que el rectángulo cubra exactamente las casillas de los votos.
 4. **Leer** todos: `python3 lector.py --documentos e14/ --manifiesto e14/manifiesto.csv --calibracion calibracion.json --salida resultado/`
-5. **Subir** a NexoT: E14 → Con imagen → *Subir lecturas*: elige `resultado/lecturas.csv`
+5. **Subir** a NexoT: E14 → Lectura automática → *Subir lecturas del lector*: elige `resultado/lecturas.csv`
    y todas las imágenes de `resultado/recortes/`.
 
 ## Qué tan bien lee
 
 El clasificador se entrena con 10.000 dígitos manuscritos de MNIST, los de
 scikit-learn y las formas locales (1 con banderita, 7 cruzado, 4 abierto).
-En formularios de prueba generados (`pruebas/`) leyó bien el 59 % de las mesas;
-de las que dio por **claras**, el 96 % estaba bien. Con E14 reales hay que
+En formularios de prueba generados (`pruebas/`) leyó bien entre el 56 % y el 59 % de las mesas;
+de las que dio por **claras**, entre el 91 % y el 96 % estaba bien (por eso una persona siempre digita la segunda vez). Con E14 reales hay que
 medirlo de nuevo con una muestra y ajustar `umbral` en la calibración: subirlo
 manda más mesas a revisión humana y reduce errores.
 

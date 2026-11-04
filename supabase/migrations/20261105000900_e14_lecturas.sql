@@ -95,10 +95,12 @@ begin
     end if;
 
     v_votos := case when (r ->> 'votos') ~ '^\d{1,4}$' and (r ->> 'votos')::int <= 1000 then (r ->> 'votos')::int end;
+    -- El lector escribe 'alterno' y 'documento'; también se aceptan 'alternativa' y 'documento_url'
+    r := r || jsonb_build_object('alternativa', coalesce(r ->> 'alternativa', r ->> 'alterno'), 'documento_url', coalesce(r ->> 'documento_url', r ->> 'documento'));
     v_alt   := case when (r ->> 'alternativa') ~ '^\d{1,4}$' and (r ->> 'alternativa')::int <= 1000 then (r ->> 'alternativa')::int end;
     v_conf  := case when (r ->> 'confianza') ~ '^(0(\.\d+)?|1(\.0+)?)$' then (r ->> 'confianza')::numeric end;
     v_estado := case when ele.modo_digitacion = 'doble' and v_votos is not null and coalesce(v_conf, 0) >= p_umbral
-                       and (v_alt is null or v_alt = v_votos) then 'automatica' else 'por_revisar' end;
+                       and (v_alt is null or v_alt = v_votos) and coalesce(r ->> 'motivo', '') = '' then 'automatica' else 'por_revisar' end;
 
     -- Una mesa ya revisada no se vuelve a abrir con una carga nueva
     if exists (select 1 from public.e14_lecturas l where l.eleccion_id = p_eleccion and l.mesa_id = v_mesa and l.estado = 'revisada') then
@@ -111,6 +113,7 @@ begin
             nullif(r ->> 'recorte', ''), v_estado,
             case when v_estado = 'automatica' then null
                  when ele.modo_digitacion = 'simple' then 'elección con digitación simple: siempre la confirma una persona'
+                 when coalesce(r ->> 'motivo', '') <> '' then r ->> 'motivo'
                  when v_votos is null then 'no se pudo leer el número'
                  when v_alt is not null and v_alt <> v_votos then format('podría ser %s o %s', v_votos, v_alt)
                  else format('lectura poco clara (confianza %s%%)', round(coalesce(v_conf, 0) * 100)) end)

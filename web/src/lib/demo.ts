@@ -5,7 +5,7 @@ import type {
   Api, Demografia, FilaImportacion, PuestoCenso, Tendencia,
   Eleccion, EstadoMesa, CalidadLider, PuestoCodigos, RegistrosMesa, ResultadoFilaE14, LiderE14, LocalidadE14, MesaE14, PuestoE14, TotalesE14, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
   PersonaFila, Puesto, Rol, Sesion, Sexo, Sugerencia, Compromiso, Testigo,
-  Politica, SolicitudDatos, AccionSensible, FactorDosPasos, Historico, PotencialPuesto, FilaHistoricoResultado, MetaLider, RankingFila, Semaforo, Evento, Asistente,
+  Politica, SolicitudDatos, AccionSensible, FactorDosPasos, Historico, PotencialPuesto, FilaHistoricoResultado, MetaLider, RankingFila, Semaforo, Evento, Asistente, LecturaE14, ResultadoLectura,
 } from './tipos';
 import QRCode from 'qrcode';
 import { TERMINOS_VERSION } from './tipos';
@@ -195,6 +195,36 @@ const solicitudesDemo: SolicitudDatos[] = [];
 let sembradas = false;
 const accionesDemo: AccionSensible[] = [];
 const factoresDemo: FactorDosPasos[] = [];
+// Lecturas automáticas de E14 (demostración): recortes dibujados en SVG
+const lecturasDemo: (LecturaE14 & { _org: string })[] = [];
+const LECTOR = 'lector-automatico';
+function recorteSvg(n: number | null, semilla: number) {
+  const giro = ((semilla * 37) % 11) - 5;
+  const texto = n == null ? '' : String(n);
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='300' height='90'><rect width='300' height='90' fill='#f3f1ea'/>` +
+    `<line x1='0' y1='4' x2='300' y2='4' stroke='#333' stroke-width='3'/><line x1='0' y1='86' x2='300' y2='86' stroke='#333' stroke-width='3'/>` +
+    `<text x='${90 + (semilla % 40)}' y='66' font-family='Segoe Print, Comic Sans MS, cursive' font-size='54' fill='#1b2a6b' transform='rotate(${giro} 150 45)'>${texto}</text>` +
+    (n == null ? `<path d='M40 70 L260 20' stroke='#1b2a6b' stroke-width='5'/>` : '') + `</svg>`;
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+function sembrarLecturas(eleccionId: string) {
+  if (lecturasDemo.some((l) => l.eleccion_id === eleccionId)) return;
+  const mesas = mesasCalc(eleccionId).filter((m) => m.estado === 'pendiente').slice(0, 24);
+  mesas.forEach((m, i) => {
+    const real = Math.max(0, m.esperados + ((i * 7) % 9) - 3);
+    const clara = i % 3 !== 0;
+    const pu = PUESTOS.find((p) => p.id === m.puesto_id)!;
+    const cod = CODIGOS.get(pu.id) ?? { zona: '', codigo: '' };
+    const l: LecturaE14 & { _org: string } = {
+      id: i + 1, eleccion_id: eleccionId, mesa_id: m.mesa_id, localidad: m.localidad, puesto: m.puesto, zona: cod.zona, codigo_puesto: cod.codigo, mesa: m.mesa,
+      votos_leidos: i % 7 === 3 ? null : real, alternativa: !clara && i % 2 === 0 ? real + 5 : null, confianza: clara ? 0.95 : 0.52,
+      estado: clara ? 'automatica' : 'por_revisar', motivo: clara ? null : i % 7 === 3 ? 'no se pudo leer el número' : `lectura poco clara (confianza 52%)`,
+      recorte: recorteSvg(i % 7 === 3 ? null : real, i), documento_url: null, votos_revisados: null, simpatizantes: m.esperados, estado_mesa: null, _org: ORG,
+    };
+    lecturasDemo.push(l);
+    if (clara) { digitaciones.push({ id: digitaciones.length + 1, eleccionId, mesaId: m.mesa_id, votos: real, por: LECTOR, en: new Date().toISOString() }); consolidar(eleccionId, m.mesa_id); }
+  });
+}
 const recibeDemo = { valor: true };
 // En la demostración los términos se piden solo si se abre con ?terminos (para probarlos)
 const terminosDemo = new Set<string>();
@@ -1196,6 +1226,42 @@ export const api: Api = {
     if (!personas.some((p) => p.transporte)) personas.forEach((p, i) => { if (i % 29 === 0) p.transporte = true; });
     return visibles().filter((p) => p.transporte && !p.eliminada).map(aFila);
   },
+  async lecturasE14(eleccionId) {
+    await espera();
+    if (!['admin', 'digitador'].includes(yo().rol)) return [];
+    sembrarLecturas(eleccionId);
+    return lecturasDemo.filter((l) => l.eleccion_id === eleccionId).map(({ _org: _o, ...l }) => ({
+      ...l, estado_mesa: (resultados.get(clave(eleccionId, l.mesa_id))?.estado ?? null) as LecturaE14['estado_mesa'] }));
+  },
+  async cargarLecturasE14(_eleccionId, filas, imagenes, alAvanzar) {
+    await espera(300);
+    if (yo().rol !== 'admin') throw new Error('Solo un administrador carga lecturas');
+    imagenes.forEach((_, i) => alAvanzar?.(i + 1, imagenes.length));
+    return filas.map((f, i): ResultadoLectura => {
+      const conf = Number(f.confianza || 0);
+      return { fila: i + 1, estado: f.votos && conf >= 0.9 && !f.alternativa ? 'automatica' : 'por_revisar', mensaje: null, mesa_id: null };
+    });
+  },
+  async revisarLecturaE14(id, votos) {
+    await espera(); soloLectura();
+    const l = lecturasDemo.find((x) => x.id === id);
+    if (!l) throw new Error('Lectura no encontrada');
+    if (l.estado !== 'por_revisar') throw new Error('Esta mesa ya fue revisada');
+    if (!(votos >= 0 && votos <= 1000)) throw new Error('Escribe un número de votos entre 0 y 1.000');
+    if (!digitaciones.some((d) => d.eleccionId === l.eleccion_id && d.mesaId === l.mesa_id && d.por === yo().id)) {
+      digitaciones.push({ id: digitaciones.length + 1, eleccionId: l.eleccion_id, mesaId: l.mesa_id, votos, por: yo().id, en: new Date().toISOString() });
+      consolidar(l.eleccion_id, l.mesa_id);
+    }
+    Object.assign(l, { estado: 'revisada', votos_revisados: votos });
+    setTimeout(() => oyentesDatos.forEach((f) => f('e14')), 0);
+    return resultados.get(clave(l.eleccion_id, l.mesa_id))?.estado ?? null;
+  },
+  async urlRecorte(ruta) { return ruta.startsWith('data:') ? ruta : null; },
+  async recorteMesa(eleccionId, m) {
+    await espera(60);
+    sembrarLecturas(eleccionId);
+    return lecturasDemo.find((l) => l.eleccion_id === eleccionId && l.mesa_id === m)?.recorte ?? null;
+  },
   async quitarDosPasosDe(id) {
     await espera(); soloLectura();
     const u = usuarios.find((x) => x.id === id)!;
@@ -1218,7 +1284,7 @@ for (const k of ['registrarPersona', 'resolverUbicacion', 'confirmarImportacion'
 const ESCRITURAS: (keyof Api)[] = ['crearLider', 'registrarPersona', 'eliminarPersona', 'resolverUbicacion', 'crearImportacion', 'cargarFilas',
   'confirmarImportacion', 'cancelarImportacion', 'crearEleccion', 'digitarE14', 'corregirDigitacion', 'resolverE14', 'importarE14',
   'vincularUsuario', 'desactivarUsuario', 'reactivarUsuario', 'cambiarRol', 'invitarUsuario', 'reenviarAcceso',
-  'configurarPolitica', 'atenderSolicitud', 'importarHistorico', 'eliminarHistorico', 'configurarFechasMeta', 'cambiarMeta', 'crearEvento', 'cerrarEvento', 'marcarTransporte', 'quitarDosPasosDe', 'inscribirDosPasos', 'confirmarDosPasos', 'quitarDosPasos'];
+  'configurarPolitica', 'atenderSolicitud', 'importarHistorico', 'eliminarHistorico', 'configurarFechasMeta', 'cambiarMeta', 'crearEvento', 'cerrarEvento', 'marcarTransporte', 'cargarLecturasE14', 'revisarLecturaE14', 'quitarDosPasosDe', 'inscribirDosPasos', 'confirmarDosPasos', 'quitarDosPasos'];
 for (const k of ESCRITURAS) {
   const original = api[k] as (...a: unknown[]) => Promise<unknown>;
   (api as unknown as Record<string, unknown>)[k] = async (...a: unknown[]) => {

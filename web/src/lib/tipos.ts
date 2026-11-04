@@ -97,15 +97,15 @@ export interface Evento {
 export interface Asistente { persona_id: string; nombres: string; apellidos: string; telefono: string | null; lider: string | null; nueva: boolean; en: string }
 export interface DatosAsistencia { cedula: string; nombres: string; apellidos: string; telefono: string; sexo: Sexo | ''; edad: string; acepta: boolean }
 
-// E14 con lectura automática (lector-e14)
+
+// Lectura automática de E14
+export type EstadoLectura = 'automatica' | 'por_revisar' | 'revisada' | 'descartada';
 export interface LecturaE14 {
-  mesa_id: number; localidad: string; zona: string; codigo_puesto: string; puesto: string; mesa: number;
-  lectura: 'clara' | 'dudosa' | 'ilegible'; recorte: string | null; documento: string | null; motivo: string | null;
-  /** Solo los ve el administrador: el digitador digita "a ciegas" */
-  votos_leidos: number | null; alterno: number | null; confianza: number | null;
-  resultado: EstadoMesa | 'pendiente'; digitaciones_humanas: number; ya_digite: boolean; simpatizantes: number;
+  id: number; eleccion_id: string; mesa_id: number; localidad: string; puesto: string; zona: string; codigo_puesto: string; mesa: number;
+  votos_leidos: number | null; alternativa: number | null; confianza: number | null; estado: EstadoLectura; motivo: string | null;
+  recorte: string | null; documento_url: string | null; votos_revisados: number | null; simpatizantes: number; estado_mesa: EstadoMesa | null;
 }
-export interface FilaLecturaResultado { fila: number; estado: 'clara' | 'dudosa' | 'ilegible' | 'error'; mensaje: string | null; mesa_id: number | null; votos: number | null }
+export interface ResultadoLectura { fila: number; estado: 'automatica' | 'por_revisar' | 'error' | 'omitida'; mensaje: string | null; mesa_id: number | null }
 
 export interface FactorDosPasos { id: string; nombre: string; verificado: boolean; creado: string }
 
@@ -437,13 +437,14 @@ export interface Api {
   cambiarRecibeInforme(recibe: boolean): Promise<void>;
   probarInforme(): Promise<string>;
   aceptarTerminos(version: string): Promise<void>;
-  // E14 con imagen
+  // lectura automática de E14
   lecturasE14(eleccionId: string): Promise<LecturaE14[]>;
-  /** Enlaces temporales para ver los recortes (ruta → URL) */
-  urlsRecortes(rutas: string[]): Promise<Record<string, string>>;
-  /** Sube las imágenes del lector; devuelve la carpeta donde quedaron */
-  subirRecortes(eleccionId: string, archivos: File[], alProgreso?: (hechos: number) => void): Promise<string>;
-  importarLecturas(eleccionId: string, filas: Record<string, string>[], umbral: number, carpeta: string | null, confirmar: boolean): Promise<FilaLecturaResultado[]>;
+  /** Sube los recortes (imágenes) y carga las lecturas del lector */
+  cargarLecturasE14(eleccionId: string, filas: Record<string, string>[], imagenes: File[], alAvanzar?: (hechas: number, total: number) => void): Promise<ResultadoLectura[]>;
+  revisarLecturaE14(id: number, votos: number): Promise<EstadoMesa | null>;
+  /** Dirección temporal para ver un recorte */
+  urlRecorte(ruta: string): Promise<string | null>;
+  recorteMesa(eleccionId: string, mesaId: number): Promise<string | null>;
   // eventos
   eventos(): Promise<Evento[]>;
   crearEvento(d: { nombre: string; fecha: string; lugar: string; localidadId: number | null; liderId: string }): Promise<string>;

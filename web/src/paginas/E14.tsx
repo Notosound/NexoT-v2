@@ -9,15 +9,17 @@ import EnVivo from '../componentes/EnVivo';
 import { BarrasH, Segmentos, SERIES } from '../componentes/Graficos';
 import { Cifra } from '../componentes/Piezas';
 import E14Excel from './E14Excel';
+import LecturasE14 from '../componentes/LecturasE14';
 import type {
   AvanceE14, Eleccion, LiderE14, LocalidadE14, MesaE14, MesaEnRevision, MesaPendiente, MiDigitacion, ModoDigitacion, PuestoE14, Rol,
 } from '../lib/tipos';
 import { formatoNumero, hoyISO, mensajeError, normalizar } from '../lib/utilidades';
 
-type Vista = 'digitar' | 'excel' | 'revisar' | 'resultados' | 'elecciones';
+type Vista = 'digitar' | 'lecturas' | 'excel' | 'revisar' | 'resultados' | 'elecciones';
 const VISTAS: { id: Vista; texto: string; roles: Rol[] }[] = [
   { id: 'resultados', texto: 'Resultados', roles: ['admin', 'coordinador', 'candidato'] },
   { id: 'digitar', texto: 'Digitar', roles: ['admin', 'digitador'] },
+  { id: 'lecturas', texto: 'Lectura automática', roles: ['admin', 'digitador'] },
   { id: 'excel', texto: 'Subir Excel', roles: ['admin', 'digitador'] },
   { id: 'revisar', texto: 'Diferencias', roles: ['admin'] },
   { id: 'elecciones', texto: 'Elecciones', roles: ['admin'] },
@@ -93,6 +95,7 @@ export default function E14() {
           <>
             {avance && <Avance avance={avance} modo={eleccion.modo_digitacion} />}
             {vista === 'digitar' && <Digitar eleccion={eleccion} onCambio={cargarAvance} />}
+            {vista === 'lecturas' && <LecturasE14 eleccion={eleccion} onCambio={cargarAvance} />}
             {vista === 'excel' && <E14Excel eleccion={eleccion} onCambio={cargarAvance} />}
             {vista === 'revisar' && <Revisar eleccion={eleccion} onCambio={cargarAvance} />}
             {vista === 'resultados' && <Resultados eleccion={eleccion} />}
@@ -156,6 +159,11 @@ function Digitar({ eleccion, onCambio }: { eleccion: Eleccion; onCambio: () => v
   const mesas = useMemo(() => (pendientes ?? []).filter((p) => p.localidad === localidad && p.puesto === puesto).sort((a, b) => a.mesa - b.mesa),
     [pendientes, localidad, puesto]);
   const mesa = mesas.find((m) => m.mesa_id === mesaId) ?? null;
+  const [recorte, setRecorte] = useState<string | null>(null);
+  useEffect(() => {
+    setRecorte(null);
+    if (mesaId) api.recorteMesa(eleccion.id, mesaId).then(setRecorte).catch(() => {});
+  }, [api, eleccion.id, mesaId]);
 
   const elegirPuesto = (nombre: string) => {
     setPuesto(nombre); setBuscar(''); setError('');
@@ -234,6 +242,12 @@ function Digitar({ eleccion, onCambio }: { eleccion: Eleccion; onCambio: () => v
                 ))}
               </div>
             </fieldset>
+          )}
+          {puesto && recorte && (
+            <figure className="recorte-digitar">
+              <img src={recorte} alt={`Casilla del candidato en el E14 de la mesa ${mesa?.mesa ?? ''}`} />
+              <figcaption>Recorte del E14 de esta mesa. Escribe el número que ves.</figcaption>
+            </figure>
           )}
           {puesto && (
             <label className="campo"><span>4. Votos del candidato{mesa ? ` en la mesa ${mesa.mesa}` : ''}</span>
