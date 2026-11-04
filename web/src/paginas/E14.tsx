@@ -10,13 +10,15 @@ import { BarrasH, Segmentos, SERIES } from '../componentes/Graficos';
 import { Cifra } from '../componentes/Piezas';
 import E14Excel from './E14Excel';
 import LecturasE14 from '../componentes/LecturasE14';
+import E14Guia from '../componentes/E14Guia';
 import type {
   AvanceE14, Eleccion, LiderE14, LocalidadE14, MesaE14, MesaEnRevision, MesaPendiente, MiDigitacion, ModoDigitacion, PuestoE14, Rol,
 } from '../lib/tipos';
 import { formatoNumero, hoyISO, mensajeError, normalizar } from '../lib/utilidades';
 
-type Vista = 'digitar' | 'lecturas' | 'excel' | 'revisar' | 'resultados' | 'elecciones';
+type Vista = 'guia' | 'digitar' | 'lecturas' | 'excel' | 'revisar' | 'resultados' | 'elecciones';
 const VISTAS: { id: Vista; texto: string; roles: Rol[] }[] = [
+  { id: 'guia', texto: '¿Cómo funciona?', roles: ['admin', 'coordinador', 'digitador', 'candidato'] },
   { id: 'resultados', texto: 'Resultados', roles: ['admin', 'coordinador', 'candidato'] },
   { id: 'digitar', texto: 'Digitar', roles: ['admin', 'digitador'] },
   { id: 'lecturas', texto: 'Lectura automática', roles: ['admin', 'digitador'] },
@@ -36,7 +38,8 @@ export default function E14() {
   const rol = sesion!.perfil!.rol;
   const [params, setParams] = useSearchParams();
   const vistas = VISTAS.filter((v) => v.roles.includes(rol));
-  const vista = (vistas.find((v) => v.id === params.get('vista'))?.id ?? vistas[0].id) as Vista;
+  const inicial: Vista = rol === 'digitador' ? 'digitar' : 'resultados';
+  const vista = (vistas.find((v) => v.id === params.get('vista'))?.id ?? inicial) as Vista;
   const [elecciones, setElecciones] = useState<Eleccion[] | null>(null);
   const [eleccionId, setEleccionId] = useState('');
   const [avance, setAvance] = useState<AvanceE14 | null>(null);
@@ -85,6 +88,7 @@ export default function E14() {
 
       {elecciones === null ? <div className="tarjeta vacio">Cargando…</div>
         : vista === 'elecciones' ? <Elecciones elecciones={elecciones} onCreada={cargarElecciones} />
+        : vista === 'guia' ? <E14Guia eleccion={eleccion} ir={(v) => setParams({ vista: v })} onCambio={cargarAvance} />
         : !eleccion ? (
           <div className="tarjeta vacio">
             {rol === 'admin'

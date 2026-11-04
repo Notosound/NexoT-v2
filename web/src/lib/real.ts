@@ -733,7 +733,7 @@ export const api: Api = {
       alAvanzar?.(++hechas, total);
     };
     for (let i = 0; i < conRecorte.length; i += 6) await Promise.all(conRecorte.slice(i, i + 6).map(subir));
-    for (const f of filas) if (f.recorte && !f.recorte.startsWith(`${orgId}/`)) f.recorte = '';
+    for (const f of filas) if (f.recorte && !f.recorte.startsWith(`${orgId}/`) && !f.recorte.startsWith('ejemplo/')) f.recorte = '';
     const salida: ResultadoLectura[] = [];
     for (let i = 0; i < filas.length; i += 2000) {
       salida.push(...(lista(await sb.rpc('cargar_lecturas_e14', { p_eleccion: eleccionId, p_filas: filas.slice(i, i + 2000) })) as ResultadoLectura[]));
@@ -746,6 +746,8 @@ export const api: Api = {
     return (r.data as EstadoMesa | null) ?? null;
   },
   async urlRecorte(ruta) {
+    // Ejemplo de demostración: imágenes inventadas servidas por el panel
+    if (ruta.startsWith('ejemplo/')) return `/ejemplos-e14/recortes/${ruta.slice(8)}`;
     const r = await sb.storage.from('e14').createSignedUrl(ruta, 3600);
     return r.error ? null : r.data.signedUrl;
   },

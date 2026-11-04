@@ -1,0 +1,37 @@
+zona,codigo_puesto,mesa,votos,alterno,confianza,metodo,documento,recorte,motivo
+01,08,1,77,17,0.642,svm-mnist-local-v3,Z01_P08_M1.png,01-08-1.png,dígito poco claro
+01,38,2,73,13,0.375,svm-mnist-local-v3,Z01_P38_M2.png,01-38-2.png,dígito poco claro
+02,06,3,2,9,0.386,svm-mnist-local-v3,Z02_P06_M3.png,02-06-3.png,dígito poco claro
+02,36,1,589,,0.515,svm-mnist-local-v3,Z02_P36_M1.png,02-36-1.png,dígito poco claro
+04,05,1,5,3,0.547,svm-mnist-local-v3,Z04_P05_M1.png,04-05-1.png,dígito poco claro
+04,35,2,7,,0.990,svm-mnist-local-v3,Z04_P35_M2.png,04-35-2.png,
+05,07,3,6,,0.959,svm-mnist-local-v3,Z05_P07_M3.png,05-07-3.png,
+05,37,4,1,7,0.238,svm-mnist-local-v3,Z05_P37_M4.png,05-37-4.png,dígito poco claro
+06,14,1,559,859,0.155,svm-mnist-local-v3,Z06_P14_M1.png,06-14-1.png,dígito poco claro
+07,07,2,96,56,0.410,svm-mnist-local-v3,Z07_P07_M2.png,07-07-2.png,dígito poco claro
+07,37,3,736,734,0.266,svm-mnist-local-v3,Z07_P37_M3.png,07-37-3.png,dígito poco claro
+07,67,4,4,,0.785,svm-mnist-local-v3,Z07_P67_M4.png,07-67-4.png,dígito poco claro
+08,17,1,5,6,0.284,svm-mnist-local-v3,Z08_P17_M1.png,08-17-1.png,dígito poco claro
+08,47,2,132,,0.620,svm-mnist-local-v3,Z08_P47_M2.png,08-47-2.png,dígito poco claro
+08,77,3,57,,0.895,svm-mnist-local-v3,Z08_P77_M3.png,08-77-3.png,
+08,A8,4,52,,0.575,svm-mnist-local-v3,Z08_PA8_M4.png,08-A8-4.png,dígito poco claro
+09,14,1,5,9,0.342,svm-mnist-local-v3,Z09_P14_M1.png,09-14-1.png,dígito poco claro
+09,44,2,34,,0.893,svm-mnist-local-v3,Z09_P44_M2.png,09-44-2.png,
+10,26,3,816,516,0.455,svm-mnist-local-v3,Z10_P26_M3.png,10-26-3.png,dígito poco claro
+10,56,4,9,,0.991,svm-mnist-local-v3,Z10_P56_M4.png,10-56-4.png,
+10,86,1,13,43,0.475,svm-mnist-local-v3,Z10_P86_M1.png,10-86-1.png,dígito poco claro
+11,18,2,1,,0.991,svm-mnist-local-v3,Z11_P18_M2.png,11-18-2.png,
+11,48,3,57,,0.866,svm-mnist-local-v3,Z11_P48_M3.png,11-48-3.png,
+11,78,4,514,594,0.369,svm-mnist-local-v3,Z11_P78_M4.png,11-78-4.png,dígito poco claro
+11,A9,1,40,60,0.524,svm-mnist-local-v3,Z11_PA9_M1.png,11-A9-1.png,dígito poco claro
+12,24,2,6,,0.989,svm-mnist-local-v3,Z12_P24_M2.png,12-24-2.png,
+13,17,3,1,3,0.527,svm-mnist-local-v3,Z13_P17_M3.png,13-17-3.png,dígito poco claro
+14,07,4,59,,0.810,svm-mnist-local-v3,Z14_P07_M4.png,14-07-4.png,
+15,12,1,199,191,0.210,svm-mnist-local-v3,Z15_P12_M1.png,15-12-1.png,dígito poco claro
+16,17,2,37,,0.996,svm-mnist-local-v3,Z16_P17_M2.png,16-17-2.png,
+16,47,1,9,,0.935,svm-mnist-local-v3,Z16_P47_M1.png,16-47-1.png,
+18,03,4,4,,0.816,svm-mnist-local-v3,Z18_P03_M4.png,18-03-4.png,
+18,33,1,91,,0.971,svm-mnist-local-v3,Z18_P33_M1.png,18-33-1.png,
+18,63,1,592,597,0.195,svm-mnist-local-v3,Z18_P63_M1.png,18-63-1.png,dígito poco claro
+19,28,3,50,,0.448,svm-mnist-local-v3,Z19_P28_M3.png,19-28-3.png,dígito poco claro
+19,58,2,93,92,0.282,svm-mnist-local-v3,Z19_P58_M2.png,19-58-2.png,dígito poco claro

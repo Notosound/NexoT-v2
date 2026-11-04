@@ -816,3 +816,61 @@ a.cifra-tarjeta:hover { box-shadow: none; border-color: var(--marca); }
 .recorte-digitar { margin: 0; background: var(--superficie-2); border: 1px solid var(--borde); border-radius: 10px; padding: 0.6rem; }
 .recorte-digitar img { display: block; max-width: 100%; max-height: 200px; margin: 0 auto; background: #fff; border-radius: 6px; }
 .recorte-digitar figcaption { font-size: 0.85rem; color: var(--texto-3); margin-top: 0.35rem; text-align: center; }
+
+/* E14 · ¿Cómo funciona? */
+.e14-guia { display: grid; gap: 1rem; }
+.e14-guia p { line-height: 1.55; }
+.e14-guia-titulo { margin: 0.5rem 0 0; font-size: 1.1rem; }
+.e14-guia-titulo small { font-weight: 400; color: var(--texto-3); font-size: 0.85rem; }
+.e14-flujo { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+@media (min-width: 1200px) { .e14-flujo { grid-template-columns: repeat(5, 1fr); } }
+.e14-flujo li { position: relative; background: var(--superficie); border: 1px solid var(--borde); border-radius: var(--radio); padding: 0.9rem; box-shadow: var(--sombra); }
+.e14-flujo h3 { font-size: 0.98rem; margin: 0.6rem 0 0.25rem; }
+.e14-flujo p { font-size: 0.88rem; color: var(--texto-2); margin: 0; }
+.e14-flujo figure { margin: 0; height: 120px; border-radius: var(--radio-chico); overflow: hidden; background: var(--superficie-2); border: 1px solid var(--borde); display: grid; place-items: center; }
+.e14-flujo figure img { width: 100%; height: 100%; object-fit: cover; object-position: center 62%; }
+.e14-flujo figure > a { display: block; width: 100%; height: 100%; cursor: zoom-in; }
+.e14-flujo figure img.contener { object-fit: contain; background: #fff; }
+.e14-flujo figure.dos { grid-template-rows: 1fr 1fr; place-items: stretch; }
+.e14-flujo figure.dos img { object-fit: contain; background: #fff; }
+.paso-n { position: absolute; top: -0.55rem; left: -0.55rem; width: 1.7rem; height: 1.7rem; border-radius: 50%; background: var(--degradado); color: #fff; font-weight: 700; font-size: 0.85rem; display: grid; place-items: center; box-shadow: var(--sombra); }
+.paso-icono { height: 120px; border-radius: var(--radio-chico); background: var(--superficie-2); border: 1px solid var(--borde); display: grid; place-items: center; color: var(--marca); }
+.paso-icono svg { width: 44px; height: 44px; }
+.paso-icono.ok { color: var(--ok); }
+.e14-formas { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+.e14-forma { display: flex; flex-direction: column; gap: 0.5rem; }
+.e14-forma p { margin: 0; color: var(--texto-2); font-size: 0.92rem; flex: 1; }
+.e14-forma .boton { align-self: flex-start; }
+.e14-forma.recomendada { border-color: var(--marca); }
+.e14-forma-cabeza { display: flex; align-items: center; gap: 0.6rem; }
+.e14-forma-cabeza h3 { margin: 0; font-size: 1rem; flex: 1; }
+.e14-forma-cabeza .chip { font-size: 0.72rem; padding: 0.1rem 0.5rem; border-radius: 999px; background: var(--info-suave); color: var(--info-texto); }
+.e14-ejemplo-acciones { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.5rem; }
+.e14-forma .ficha-icono { width: 40px; height: 40px; border-radius: 12px; box-shadow: none; }
+.e14-forma .ficha-icono svg { width: 20px; height: 20px; }
+
+/* Inicio · tarjeta del E14 */
+.tarjeta-e14 { display: grid; gap: 0.6rem; margin-bottom: 1rem; }
+.tarjeta-e14 .tarjeta-titulo { margin: 0; }
+.tarjeta-e14-cifra { margin: 0; color: var(--texto-2); }
+.tarjeta-e14-cifra strong { font-size: 1.6rem; color: var(--texto); margin-right: 0.25rem; }
+.tarjeta-e14-pendientes { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.tarjeta-e14 .boton { justify-self: start; }
+.chip-pendiente { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.85rem; padding: 0.3rem 0.7rem; border-radius: 999px;
+  background: var(--info-suave); color: var(--info-texto); border: 1px solid var(--info-borde); text-decoration: none; }
+.chip-pendiente.aviso { background: var(--aviso-suave); color: var(--aviso-texto); border-color: var(--aviso-borde); }
+.chip-pendiente.suave { background: var(--pista); color: var(--texto-2); border-color: var(--borde); }
+.chip-pendiente .icono { width: 15px; height: 15px; }
+
+/* Candidato: interruptor de vista simple / avanzada */
+.menu-vista { display: inline-flex; background: var(--pista); border-radius: 999px; padding: 3px; gap: 2px; flex-shrink: 0; align-self: center; }
+.menu-vista button { font: inherit; font-size: 0.82rem; border: 0; background: none; color: var(--texto-2); padding: 0.3rem 0.8rem; border-radius: 999px; cursor: pointer; white-space: nowrap; }
+.menu-vista button[aria-pressed=true] { background: var(--superficie); color: var(--marca-fuerte); font-weight: 700; box-shadow: var(--sombra); }
+@media (min-width: 900px) { .menu-vista { align-self: stretch; margin-bottom: 1rem; } .menu-vista button { flex: 1; } }
+.mc-mas .tarjeta-titulo { flex-wrap: wrap; gap: 0.5rem; }
+.mc-mas-rejilla { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.mc-mas-enlace { display: flex; gap: 0.7rem; align-items: flex-start; padding: 0.8rem; border: 1px solid var(--borde); border-radius: var(--radio-chico); text-decoration: none; color: var(--texto); background: var(--superficie-2); }
+.mc-mas-enlace:hover { border-color: var(--marca); }
+.mc-mas-enlace .icono { color: var(--marca); flex-shrink: 0; margin-top: 2px; }
+.mc-mas-enlace span { display: grid; gap: 0.15rem; }
+.mc-mas-enlace small { color: var(--texto-2); font-size: 0.85rem; }

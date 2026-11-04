@@ -14,9 +14,10 @@ const G: Guias = {
     candidato: { para: 'Cómo va tu campaña, en una sola página y en palabras sencillas.', pasos: [
       'Arriba ves cuántos simpatizantes tienes, cuánto crecieron esta semana y cuánto falta para la meta.',
       'Más abajo: cuántos ya confirmaron, si los líderes van al día y dónde eres fuerte o débil.',
-      '“Para tener en cuenta” resume lo que tu equipo debe atender. El mapa está en “Mapa y detalle”.'] },
+      '“Para tener en cuenta” resume lo que tu equipo debe atender. El mapa está en “Mapa y detalle”.',
+      'Si quieres más detalle, activa la “Vista avanzada” (arriba del menú o al final de esta página): agrega análisis, metas, eventos, Día D y E14.'] },
     digitador: { para: 'Desde aquí digitas los resultados de los E14 el día de la elección.', pasos: [
-      'Entra a E14 → Digitar.', 'Elige localidad, puesto y mesa, escribe los votos y guarda.', 'Si dos digitaciones no coinciden, el administrador lo revisa.'] },
+      'Empieza por “Revisar lecturas”: confirma el número que ves en cada imagen.', 'En “Digitar mesas” eliges localidad, puesto y mesa, escribes los votos y guardas.', 'Si dos digitaciones no coinciden, el administrador lo revisa.'] },
     todos: { para: 'Una mirada rápida a cómo va la campaña hoy.', pasos: [
       'Las cifras de arriba son lo más importante: registrados, avance de la meta y pendientes.',
       'Toca una cifra para ir al detalle.',
@@ -77,9 +78,9 @@ const G: Guias = {
     'Asigna un testigo (persona ya registrada, con celular) a un puesto y sus mesas.',
     'Sin elegir mesas, el testigo cubre todo el puesto.'] },
   '/e14': { para: 'Los resultados reales de la elección, mesa por mesa, y su comparación con los simpatizantes registrados.', pasos: [
-    'Crea la elección y digita los E14 (o súbelos en Excel).',
-    'Dos digitaciones de la misma mesa se comparan; las diferencias se revisan.',
-    'Resultados muestra cumplimiento por localidad, puesto y líder.'] },
+    'Si es la primera vez, abre la pestaña “¿Cómo funciona?”: tiene el recorrido completo con imágenes y un ejemplo para probar.',
+    'Los votos entran de tres formas: lectura automática (el lector lee las fotos), digitación a mano o un Excel.',
+    'Cada mesa se pasa dos veces; si no coinciden, aparece en Diferencias. Resultados muestra el cumplimiento por localidad, puesto y líder.'] },
   '/lideres': { para: 'Los líderes de la campaña: su meta, su avance, su enlace de registro y su acceso.', pasos: [
     'Crea un líder con su meta.',
     'Desde aquí le das acceso a la plataforma, ves su enlace y QR o ves la plataforma como él.',

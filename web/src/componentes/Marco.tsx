@@ -12,15 +12,16 @@ import NuevaVersion from './NuevaVersion';
 import SinSenal from './SinSenal';
 import Guia, { EVENTO_AYUDA } from './Guia';
 import { pendientes } from '../lib/cola';
+import { useVistaAvanzada } from '../lib/vistaCandidato';
 
-type Enlace = { a: string; texto: string; icono: LucideIcon; roles: Rol[]; textoLider?: string; textoCandidato?: string };
+type Enlace = { a: string; texto: string; icono: LucideIcon; roles: Rol[]; textoLider?: string; textoCandidato?: string; candidatoAvanzado?: boolean };
 // Menú por secciones: cada rol ve solo las secciones que tienen algo para él
 const SECCIONES: { titulo: string; tituloLider?: string; enlaces: Enlace[] }[] = [
   { titulo: 'General', enlaces: [
     { a: '/', texto: 'Inicio', textoCandidato: 'Mi campaña', icono: Home, roles: ['admin', 'coordinador', 'lider', 'digitador', 'candidato'] },
     { a: '/tablero', texto: 'Tablero', textoCandidato: 'Mapa y detalle', icono: MapPinned, roles: ['admin', 'coordinador', 'candidato'] },
-    { a: '/analisis', texto: 'Análisis', icono: BarChart3, roles: ['admin', 'coordinador'] },
-    { a: '/metas', texto: 'Metas', icono: Target, roles: ['admin', 'coordinador'] },
+    { a: '/analisis', texto: 'Análisis', icono: BarChart3, roles: ['admin', 'coordinador'], candidatoAvanzado: true },
+    { a: '/metas', texto: 'Metas', icono: Target, roles: ['admin', 'coordinador'], candidatoAvanzado: true },
     { a: '/estadisticas', texto: 'Mis estadísticas', icono: LineChart, roles: ['lider'] },
   ] },
   { titulo: 'Simpatizantes', tituloLider: 'Mi gente', enlaces: [
@@ -32,12 +33,12 @@ const SECCIONES: { titulo: string; tituloLider?: string; enlaces: Enlace[] }[] =
   ] },
   { titulo: 'Movilización', enlaces: [
     { a: '/seguimiento', texto: 'Seguimiento', icono: PhoneCall, roles: ['admin', 'coordinador', 'lider'] },
-    { a: '/eventos', texto: 'Eventos', icono: CalendarDays, roles: ['admin', 'coordinador'] },
-    { a: '/dia-d', texto: 'Día D', icono: CalendarCheck, roles: ['admin', 'coordinador', 'lider'] },
+    { a: '/eventos', texto: 'Eventos', icono: CalendarDays, roles: ['admin', 'coordinador'], candidatoAvanzado: true },
+    { a: '/dia-d', texto: 'Día D', icono: CalendarCheck, roles: ['admin', 'coordinador', 'lider'], candidatoAvanzado: true },
     { a: '/testigos', texto: 'Testigos', icono: ShieldCheck, roles: ['admin', 'coordinador'] },
   ] },
   { titulo: 'Resultados', enlaces: [
-    { a: '/e14', texto: 'E14', icono: Vote, roles: ['admin', 'coordinador', 'digitador'] },
+    { a: '/e14', texto: 'Resultados E14', icono: Vote, roles: ['admin', 'coordinador', 'digitador'], candidatoAvanzado: true },
   ] },
   { titulo: 'Organización', enlaces: [
     { a: '/lideres', texto: 'Líderes', icono: UsersRound, roles: ['admin', 'coordinador'] },
@@ -74,7 +75,9 @@ export default function Marco({ children }: { children: ReactNode }) {
   const [eligiendo, setEligiendo] = useState(false);
   const [estado, setEstado] = useState<Record<string, boolean>>(estadoMenu);
   const menuLargo = perfil.rol === 'admin' || perfil.rol === 'coordinador';
-  const abiertaPorDefecto = (titulo: string) => !menuLargo || titulo === 'General';
+  const abiertaPorDefecto = (titulo: string) => !menuLargo || titulo === 'General' || titulo === 'Resultados';
+  const [avanzada, setAvanzada] = useVistaAvanzada();
+  const esCandidato = perfil.rol === 'candidato';
   const alternar = (titulo: string) => setEstado((c) => {
     const n = { ...c, [titulo]: !(c[titulo] ?? abiertaPorDefecto(titulo)) };
     try { localStorage.setItem('menu-estado', JSON.stringify(n)); } catch { /* */ }
@@ -134,8 +137,14 @@ export default function Marco({ children }: { children: ReactNode }) {
       <SinSenal />
       <div className="cuerpo">
         <nav className="menu" aria-label="Secciones">
+          {esCandidato && (
+            <div className="menu-vista" role="group" aria-label="Tipo de vista">
+              <button type="button" aria-pressed={!avanzada} onClick={() => setAvanzada(false)}>Simple</button>
+              <button type="button" aria-pressed={avanzada} onClick={() => setAvanzada(true)}>Avanzada</button>
+            </div>
+          )}
           {SECCIONES.map((sec) => {
-            const enlaces = sec.enlaces.filter((e) => e.roles.includes(perfil.rol));
+            const enlaces = sec.enlaces.filter((e) => e.roles.includes(perfil.rol) || (esCandidato && avanzada && e.candidatoAvanzado));
             if (!enlaces.length) return null;
             const titulo = perfil.rol === 'lider' && sec.tituloLider ? sec.tituloLider : sec.titulo;
             const aqui = enlaces.some((e) => (e.a === '/' ? ruta === '/' : ruta.startsWith(e.a)));

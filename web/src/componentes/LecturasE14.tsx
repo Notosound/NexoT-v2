@@ -9,7 +9,7 @@ import { formatoNumero, mensajeError } from '../lib/utilidades';
 import { Cifra, QueEs } from './Piezas';
 
 /** CSV simple con comillas (lo que escribe el lector) */
-function leerCsv(texto: string): Record<string, string>[] {
+export function leerCsv(texto: string): Record<string, string>[] {
   const filas: string[][] = [];
   let fila: string[] = [], celda = '', comillas = false;
   for (let i = 0; i < texto.length; i++) {

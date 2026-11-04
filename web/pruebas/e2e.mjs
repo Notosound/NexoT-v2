@@ -382,6 +382,17 @@ console.log('Candidato (móvil)');
     }
     await page.screenshot({ path: join(capturas, '19-candidato-mi-campana.png'), fullPage: true });
   });
+  await paso('vista avanzada: un toque agrega análisis, metas y E14; se puede volver', async () => {
+    await page.getByRole('button', { name: 'Activar la vista avanzada' }).click();
+    const menu = page.getByRole('navigation', { name: 'Secciones' });
+    await menu.getByRole('link', { name: 'Análisis' }).waitFor();
+    assert.match(await menu.innerText(), /Metas[\s\S]*Resultados E14/);
+    assert.ok(await page.locator('.mc-mas-enlace').count() >= 5);
+    assert.doesNotMatch(await menu.innerText(), /Personas|Registrar/);
+    await page.screenshot({ path: join(capturas, '19b-candidato-avanzada.png'), fullPage: true });
+    await menu.getByRole('button', { name: 'Simple' }).click();
+    await menu.getByRole('link', { name: 'Análisis' }).waitFor({ state: 'detached' });
+  });
   await paso('el mapa sigue a un toque y solo ve agregados', async () => {
     await page.getByRole('link', { name: 'Mapa y detalle' }).first().click();
     await page.getByRole('heading', { name: 'Resumen de la campaña' }).waitFor();
@@ -431,7 +442,8 @@ console.log('E14: digitador (móvil)');
   await paso('el digitador solo ve la pestaña de digitar', async () => {
     await page.getByRole('link', { name: /Digitar mesas/ }).click();
     await page.getByRole('heading', { name: /^Avance:/ }).waitFor();
-    assert.deepEqual(await page.getByRole('tab').allInnerTexts(), ['Digitar', 'Lectura automática', 'Subir Excel']);
+    assert.deepEqual(await page.getByRole('tab').allInnerTexts(), ['¿Cómo funciona?', 'Digitar', 'Lectura automática', 'Subir Excel']);
+    assert.equal(await page.getByRole('tab', { selected: true }).innerText(), 'Digitar');
     const menu = await page.getByRole('navigation', { name: 'Secciones' }).innerText();
     assert.doesNotMatch(menu, /Personas|Registrar|Tablero/);
   });
@@ -567,9 +579,17 @@ console.log('E14: administrador (escritorio)');
     }
     await page.screenshot({ path: join(capturas, '31-e14-resultados.png'), fullPage: true });
   });
-  await paso('lectura automática: el admin sube el CSV del lector', async () => {
-    await page.getByRole('tab', { name: 'Lectura automática' }).click();
+  await paso('¿cómo funciona?: recorrido con imágenes de ejemplo y descargas', async () => {
+    await page.getByRole('tab', { name: '¿Cómo funciona?' }).click();
+    await page.getByRole('heading', { name: 'El recorrido de una mesa' }).waitFor();
+    assert.equal(await page.locator('.e14-flujo > li').count(), 5);
+    await page.waitForFunction(() => [...document.querySelectorAll('.e14-flujo img')].every((i) => i.complete && i.naturalWidth > 0));
+    assert.ok(await page.getByRole('link', { name: /Paquete del lector/ }).count());
+    await page.screenshot({ path: join(capturas, '36-e14-como-funciona.png'), fullPage: true });
+    await page.getByRole('button', { name: 'Ir a Lectura automática' }).click();
     await page.getByRole('heading', { name: /Subir lecturas del lector/ }).waitFor();
+  });
+  await paso('lectura automática: el admin sube el CSV del lector', async () => {
     await page.getByRole('button', { name: 'Subir', exact: true }).click();
     const csv = join(capturas, 'lecturas.csv');
     const { writeFile } = await import('node:fs/promises');
@@ -668,7 +688,7 @@ console.log('E14: candidato');
   await paso('el candidato ve resultados, no digitación ni diferencias', async () => {
     await page.evaluate(() => { history.pushState({}, '', '/e14'); dispatchEvent(new PopStateEvent('popstate')); });
     await page.locator('.cifra-tarjeta', { hasText: 'de cumplimiento' }).waitFor();
-    assert.equal(await page.getByRole('tablist').count(), 1, 'solo las pestañas internas de resultados');
+    assert.deepEqual(await page.getByRole('tablist').first().getByRole('tab').allInnerTexts(), ['¿Cómo funciona?', 'Resultados']);
     assert.equal(await page.getByRole('tab', { name: /Digitar|Diferencias|Elecciones/ }).count(), 0);
     await page.screenshot({ path: join(capturas, '33-e14-candidato.png'), fullPage: true });
   });

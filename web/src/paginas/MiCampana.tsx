@@ -3,7 +3,8 @@
 // qué necesita atención. Sin datos de personas: solo cifras.
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowDownRight, ArrowUpRight, MapPinned, Minus } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, BarChart3, CalendarCheck, CalendarDays, MapPinned, Minus, SlidersHorizontal, Target, Vote } from 'lucide-react';
+import { useVistaAvanzada } from '../lib/vistaCandidato';
 import { useSesion } from '../lib/sesion';
 import { useEnVivo } from '../lib/enVivo';
 import type { Demografia, Eleccion, LocalidadE14, MetaLider, PuestoCenso, SeguimientoLider, Tendencia } from '../lib/tipos';
@@ -27,7 +28,7 @@ export default function MiCampana() {
     try {
       const [demo, tendencia, metas, seguimiento, censo, elecciones] = await Promise.all([
         api.demografia(), api.tendencia(), api.metasLideres(), api.seguimientoLideres(), api.censoPuestos(), api.elecciones()]);
-      const eleccion = elecciones[0] ?? null;
+      const eleccion = [...elecciones].sort((a, b) => b.fecha.localeCompare(a.fecha))[0] ?? null;
       const e14 = eleccion ? (await api.resultadosE14(eleccion.id).catch(() => null))?.localidades ?? null : null;
       setD({ demo, tendencia, metas, seguimiento, censo, eleccion, e14 });
     } catch (e) { setError(mensajeError(e)); }
@@ -151,10 +152,47 @@ export default function MiCampana() {
             </section>
           )}
 
-          <p className="seccion"><Link to="/tablero" className="boton"><MapPinned className="icono" aria-hidden />Ver el mapa y el detalle por localidad</Link></p>
+          <MasDetalle />
         </>
       )}
     </div>
+  );
+}
+
+// Lo avanzado no estorba: está a un toque, para cuando se quiera mirar más
+const AVANZADO = [
+  { a: '/tablero', icono: MapPinned, titulo: 'Mapa y detalle', texto: 'Dónde están los simpatizantes, puesto por puesto' },
+  { a: '/analisis', icono: BarChart3, titulo: 'Análisis', texto: 'Hallazgos, comparación con la elección anterior y simulación' },
+  { a: '/metas', icono: Target, titulo: 'Metas de los líderes', texto: 'Quién va al día, quién va atrás y el ranking de la semana' },
+  { a: '/eventos', icono: CalendarDays, titulo: 'Eventos', texto: 'Asistencia y nuevos registros en cada evento' },
+  { a: '/dia-d', icono: CalendarCheck, titulo: 'Día D', texto: 'El día de la elección: quiénes ya votaron, por puesto' },
+  { a: '/e14', icono: Vote, titulo: 'Resultados E14', texto: 'Votos reales por mesa frente a los simpatizantes' },
+];
+
+function MasDetalle() {
+  const [avanzada, setAvanzada] = useVistaAvanzada();
+  return (
+    <section className="tarjeta seccion mc-mas">
+      <div className="tarjeta-titulo">
+        <h2><SlidersHorizontal className="icono" aria-hidden /> {avanzada ? 'Vista avanzada' : '¿Quieres ver más detalle?'}</h2>
+        <button className="boton chico" onClick={() => setAvanzada(!avanzada)}>{avanzada ? 'Volver a la vista simple' : 'Activar la vista avanzada'}</button>
+      </div>
+      {!avanzada ? (
+        <p className="ayuda" style={{ margin: 0 }}>
+          Esta página es el resumen. La vista avanzada agrega al menú el análisis, las metas, los eventos, el Día D y los resultados
+          de los E14. Puedes volver a la simple cuando quieras. <Link to="/tablero">O mira ya el mapa y el detalle</Link>.
+        </p>
+      ) : (
+        <div className="mc-mas-rejilla">
+          {AVANZADO.map((x) => (
+            <Link key={x.a} to={x.a} className="mc-mas-enlace">
+              <x.icono className="icono" aria-hidden />
+              <span><strong>{x.titulo}</strong><small>{x.texto}</small></span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 

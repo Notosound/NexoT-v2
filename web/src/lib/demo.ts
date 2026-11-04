@@ -82,7 +82,8 @@ for (let i = 0; i < 600; i++) {
     localidadId: caso < 0.95 ? loc : null, puestoId: reportado || caso >= 0.95 ? null : puesto.id,
     puestoReportado: reportado, direccionReportada: null,
     mesa: reportado || caso >= 0.95 ? null : 1 + Math.floor(azar() * (puesto.mesas_total ?? 1)),
-    creadoEn: new Date(Date.now() - i * 3600_000 * 1.2).toISOString(), eliminada: false,
+    // crecimiento: más registros en las últimas semanas, con días buenos y malos
+    creadoEn: new Date(Date.now() - (80 * Math.pow(i / 600, 1.5) + ((i * 7919) % 97) / 60) * 86_400_000).toISOString(), eliminada: false,
   });
 }
 

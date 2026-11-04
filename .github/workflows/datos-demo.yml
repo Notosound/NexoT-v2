@@ -1,0 +1,38 @@
+# Datos de DEMOSTRACIÓN en el proyecto de PRUEBAS (nunca en producción).
+# Borra todos los datos operativos de la campaña de pruebas y carga la
+# campaña de ejemplo de scripts/demo/cargar_demo.sql (datos inventados).
+# Se lanza a mano: Actions → "Datos de demostración (pruebas)" → Run workflow,
+# o con un commit en develop cuyo mensaje incluya [cargar-demo].
+name: Datos de demostración (pruebas)
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+    inputs:
+      confirmar:
+        description: 'Escribe BORRAR Y CARGAR para confirmar (borra los datos del proyecto de pruebas)'
+        required: true
+
+jobs:
+  cargar:
+    if: >-
+      github.ref_name == 'develop' &&
+      ((github.event_name == 'workflow_dispatch' && inputs.confirmar == 'BORRAR Y CARGAR') ||
+       (github.event_name == 'push' && contains(github.event.head_commit.message, '[cargar-demo]')))
+    runs-on: ubuntu-latest
+    environment: pruebas
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ejecutar scripts/demo/cargar_demo.sql en pruebas
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          jq -n --rawfile q scripts/demo/cargar_demo.sql '{query: $q}' > consulta.json
+          codigo=$(curl -sS -o respuesta.json -w '%{http_code}' -X POST \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/database/query" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" -H 'Content-Type: application/json' \
+            --data @consulta.json)
+          cat respuesta.json; echo
+          [ "$codigo" -lt 300 ] || { echo "::error::Falló la carga (HTTP $codigo)"; exit 1; }

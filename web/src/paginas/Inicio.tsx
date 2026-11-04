@@ -3,10 +3,10 @@ import { useEnVivo } from '../lib/enVivo';
 import EnVivo from '../componentes/EnVivo';
 import { Link } from 'react-router-dom';
 import {
-  AlertTriangle, BarChart3, Inbox, PhoneCall, ShieldAlert, ClipboardCheck, Contact, Flag, LineChart, MapPinOff, QrCode, Target, UserPlus, Users, UsersRound, Vote,
+  AlertTriangle, BarChart3, ScanLine, HelpCircle, Inbox, PhoneCall, ShieldAlert, ClipboardCheck, Contact, Flag, LineChart, MapPinOff, QrCode, Target, UserPlus, Users, UsersRound, Vote,
 } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
-import type { Demografia, Lider, MetaLider, RankingFila, Resumen, Tendencia } from '../lib/tipos';
+import type { AvanceE14, Eleccion, Demografia, Lider, MetaLider, RankingFila, Resumen, Tendencia } from '../lib/tipos';
 import { Ranking, SEMAFORO } from './Metas';
 import { mensajeError } from '../lib/utilidades';
 import { ORDEN_EDAD, partesSexo, resumirDemografia, serieDesdeTendencia } from '../lib/estadisticas';
@@ -120,10 +120,17 @@ function MiMeta({ m, posicion }: { m: MetaLider; posicion: number | null }) {
 // ── Digitador ────────────────────────────────────────────────────────
 function InicioDigitador() {
   const { sesion } = useSesion();
+  const e14 = useResumenE14();
   return (
     <>
       <Bienvenida titulo={`¡Hola, ${sesion!.perfil!.nombre.split(' ')[0]}!`} texto="Tu trabajo: pasar los votos de cada E14 tal como aparecen en la foto" />
-      <div className="acciones-grandes" style={{ maxWidth: 760, margin: '0 auto' }}>
+      {e14 && <TarjetaE14 r={e14} />}
+      <div className="acciones-grandes" style={{ maxWidth: 980, margin: '0 auto' }}>
+        <Link to="/e14?vista=lecturas" className="accion-grande">
+          <span className="ficha-icono"><ScanLine aria-hidden /></span>
+          <h3>Revisar lecturas</h3>
+          <p>{e14?.porRevisar ? `${e14.porRevisar} mesas esperan que confirmes el número de la imagen` : 'Confirma lo que el lector no leyó con claridad'}</p>
+        </Link>
         <Link to="/e14?vista=digitar" className="accion-grande">
           <span className="ficha-icono"><Vote aria-hidden /></span>
           <h3>Digitar mesas</h3>
@@ -135,7 +142,53 @@ function InicioDigitador() {
           <p>Con la plantilla oficial de mesas</p>
         </Link>
       </div>
+      <p className="ayuda" style={{ textAlign: 'center', marginTop: '1rem' }}>
+        <Link to="/e14?vista=guia"><HelpCircle className="icono" aria-hidden /> ¿Primera vez? Mira cómo funciona el E14, con ejemplos</Link>
+      </p>
     </>
+  );
+}
+
+// Estado del E14 de la elección más reciente (si hay una)
+type ResumenE14 = { eleccion: Eleccion; avance: AvanceE14; porRevisar: number };
+function useResumenE14() {
+  const { api, sesion } = useSesion();
+  const rol = sesion!.perfil!.rol;
+  const [r, setR] = useState<ResumenE14 | null>(null);
+  useEffect(() => {
+    (async () => {
+      const es = await api.elecciones();
+      const e = [...es].sort((a, b) => b.fecha.localeCompare(a.fecha))[0];
+      if (!e) return;
+      const avance = await api.avanceE14(e.id);
+      if (!avance) return;
+      const lecturas = rol === 'admin' || rol === 'digitador' ? await api.lecturasE14(e.id).catch(() => []) : [];
+      setR({ eleccion: e, avance, porRevisar: lecturas.filter((l) => l.estado === 'por_revisar').length });
+    })().catch(() => {});
+  }, [api, rol]);
+  return r;
+}
+
+function TarjetaE14({ r }: { r: ResumenE14 }) {
+  const { sesion } = useSesion();
+  const admin = sesion!.perfil!.rol === 'admin';
+  const { avance: a } = r;
+  if (!a.mesas) return null;
+  return (
+    <div className="tarjeta tarjeta-e14 seccion">
+      <div className="tarjeta-titulo">
+        <h2><Vote className="icono" aria-hidden /> E14 · {r.eleccion.nombre}</h2>
+        <Link to="/e14?vista=guia">¿Cómo funciona?</Link>
+      </div>
+      <p className="tarjeta-e14-cifra"><strong>{pct(a.verificadas, a.mesas)}%</strong> de las {a.mesas.toLocaleString('es-CO')} mesas con simpatizantes ya verificadas</p>
+      <div className="tarjeta-e14-pendientes">
+        {r.porRevisar > 0 && <Link to="/e14?vista=lecturas" className="chip-pendiente"><ScanLine className="icono" aria-hidden />{r.porRevisar} lecturas por revisar con la imagen</Link>}
+        {admin && a.en_revision > 0 && <Link to="/e14?vista=revisar" className="chip-pendiente aviso"><AlertTriangle className="icono" aria-hidden />{a.en_revision} mesas con diferencia</Link>}
+        {a.una_digitacion > 0 && <Link to="/e14?vista=digitar" className="chip-pendiente">{a.una_digitacion} esperan la 2.ª digitación</Link>}
+        {a.pendientes > 0 && <span className="chip-pendiente suave">{a.pendientes} sin digitar</span>}
+      </div>
+      {sesion!.perfil!.rol !== 'digitador' && <Link to="/e14" className="boton chico">Ver resultados</Link>}
+    </div>
   );
 }
 
@@ -163,6 +216,7 @@ function InicioEquipo() {
     return Promise.all(t).catch((e) => setError(mensajeError(e)));
   }, ['registros']);
 
+  const e14 = useResumenE14();
   const r = demo ? resumirDemografia(demo) : null;
   const serie = serieDesdeTendencia(tendencia, 30);
   const ultimos7 = serie.slice(-7).reduce((a, p) => a + p.valor, 0);
@@ -207,6 +261,8 @@ function InicioEquipo() {
         {resumen && <Cifra icono={MapPinOff} valor={resumen.sinUbicacion} etiqueta="sin lugar de votación" tono="info" a="/personas" />}
         {rol !== 'candidato' && <Cifra icono={UsersRound} valor={lideres.length} etiqueta="líderes activos" a="/lideres" />}
       </div>
+
+      {e14 && rol !== 'candidato' && <TarjetaE14 r={e14} />}
 
       <div className="graficos seccion">
         <div className="tarjeta">
