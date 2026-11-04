@@ -18,7 +18,7 @@ interface Datos {
 const pct = (a: number, b: number) => (b > 0 ? Math.round((100 * a) / b) : 0);
 
 export default function MiCampana() {
-  const { api, sesion } = useSesion();
+  const { api, sesion, vista } = useSesion();
   const [d, setD] = useState<Datos | null>(null);
   const [error, setError] = useState('');
 
@@ -33,13 +33,14 @@ export default function MiCampana() {
   }, ['registros', 'e14']);
 
   const r = useMemo(() => (d ? calcular(d) : null), [d]);
-  const nombre = sesion!.perfil!.nombre.split(' ')[0];
+  // En "Ver como" por rol no hay una persona concreta: sin nombre
+  const nombre = vista?.objetivo.startsWith('rol:') ? null : sesion!.perfil!.nombre.split(' ')[0];
 
   return (
     <div className="mi-campana">
       <div className="mc-cabeza">
         <div>
-          <p className="mc-saludo">Hola, {nombre}</p>
+          {nombre && <p className="mc-saludo">Hola, {nombre}</p>}
           <h1>Así va tu campaña</h1>
         </div>
         <EnVivo {...vivo} />
@@ -169,11 +170,14 @@ function calcular(d: Datos) {
     const v = porLoc.get(x.localidad_id) ?? { nombre: x.localidad ?? '', n: 0 };
     v.n += x.personas; porLoc.set(x.localidad_id, v);
   }
+  const censoDe = new Map<string, number>();
   const locs = [...censo.entries()].filter(([, c]) => c > 0).map(([id, c]) => {
     const v = porLoc.get(id);
+    if (v) censoDe.set(v.nombre, c);
     return { nombre: v?.nombre ?? '', n: v?.n ?? 0, porMil: Math.round((10_000 * (v?.n ?? 0)) / c) / 10 };
   }).filter((l) => l.nombre);
-  const ordenadas = [...locs].sort((a, b) => b.porMil - a.porMil);
+  // Para comparar fuerza solo cuentan localidades grandes (una muy pequeña, como Sumapaz, distorsiona)
+  const ordenadas = [...locs].filter((l) => (censoDe.get(l.nombre) ?? 0) >= 20_000).sort((a, b) => b.porMil - a.porMil);
   const censoTotal = [...censo.values()].reduce((a, c) => a + c, 0);
   const sinLugar = d.demo.filter((x) => x.localidad_id == null).reduce((a, x) => a + x.personas, 0);
 
