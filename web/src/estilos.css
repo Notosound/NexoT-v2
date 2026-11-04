@@ -753,3 +753,34 @@ a.cifra-tarjeta:hover { box-shadow: none; border-color: var(--marca); }
 .menu-titulo { font-size: 0.66rem; color: var(--texto-3); }
 .menu a { font-weight: 500; }
 .menu a.activo { box-shadow: none; background: var(--marca-suave); }
+
+/* ── Mi campaña (candidato): una sola página, grande y clara ── */
+.mi-campana { max-width: 980px; margin: 0 auto; }
+.mc-cabeza { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+.mc-saludo { margin: 0; color: var(--texto-3); font-size: 0.95rem; }
+.mc-cabeza h1 { margin: 0; font-size: 1.8rem; }
+.mc-heroe { display: grid; gap: 1.25rem; padding: 1.5rem 1.6rem; }
+.mc-heroe-num { display: grid; gap: 0.2rem; }
+.mc-grande { font-size: clamp(2.6rem, 7vw, 3.6rem); font-weight: 800; line-height: 1; letter-spacing: -0.03em; color: var(--marca-fuerte); font-variant-numeric: tabular-nums; }
+.mc-etiqueta { font-size: 1.05rem; color: var(--texto-2); }
+.mc-tendencia { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.92rem; color: var(--texto-3); margin-top: 0.3rem; }
+.mc-tendencia svg { width: 18px; height: 18px; }
+.mc-tendencia.sube { color: var(--ok-texto); }
+.mc-tendencia.baja { color: var(--aviso-texto); }
+.mc-meta-texto { font-size: 0.95rem; margin-bottom: 0.4rem; color: var(--texto-2); }
+.mc-meta-texto strong { font-size: 1.15rem; color: var(--texto); }
+.mc-barra { height: 12px; border-radius: 999px; background: var(--pista); overflow: hidden; }
+.mc-barra span { display: block; height: 100%; border-radius: 999px; background: var(--marca); }
+.mc-tres { display: grid; gap: 0.9rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top: 1rem; }
+.mc-cifra { display: grid; gap: 0.15rem; margin: 0 !important; }
+.mc-cifra-num { font-size: 2rem; font-weight: 800; letter-spacing: -0.02em; line-height: 1.1; }
+.mc-cifra-num small { font-size: 1rem; font-weight: 600; color: var(--texto-3); }
+.mc-cifra > span:not(.mc-cifra-num) { font-size: 0.98rem; }
+.mc-cifra small { color: var(--texto-3); font-size: 0.82rem; }
+.mc-dos { display: grid; gap: 0.9rem; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.mc-dos .tarjeta { margin: 0 !important; }
+.mc-lista { list-style: none; counter-reset: n; margin: 0.4rem 0 0.5rem; padding: 0; display: grid; gap: 0.45rem; }
+.mc-lista li { counter-increment: n; display: flex; justify-content: space-between; gap: 0.75rem; font-size: 1rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--borde); }
+.mc-lista li:last-child { border-bottom: 0; }
+.mc-lista li span::before { content: counter(n) '. '; color: var(--texto-3); }
+.mc-atencion ul { margin: 0.3rem 0 0; padding-left: 1.15rem; display: grid; gap: 0.4rem; font-size: 1rem; }

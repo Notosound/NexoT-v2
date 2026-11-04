@@ -13,14 +13,14 @@ import SinSenal from './SinSenal';
 import Guia, { EVENTO_AYUDA } from './Guia';
 import { pendientes } from '../lib/cola';
 
-type Enlace = { a: string; texto: string; icono: LucideIcon; roles: Rol[]; textoLider?: string };
+type Enlace = { a: string; texto: string; icono: LucideIcon; roles: Rol[]; textoLider?: string; textoCandidato?: string };
 // Menú por secciones: cada rol ve solo las secciones que tienen algo para él
 const SECCIONES: { titulo: string; tituloLider?: string; enlaces: Enlace[] }[] = [
   { titulo: 'General', enlaces: [
-    { a: '/', texto: 'Inicio', icono: Home, roles: ['admin', 'coordinador', 'lider', 'digitador'] },
-    { a: '/tablero', texto: 'Tablero', icono: MapPinned, roles: ['admin', 'coordinador', 'candidato'] },
-    { a: '/analisis', texto: 'Análisis', icono: BarChart3, roles: ['admin', 'coordinador', 'candidato'] },
-    { a: '/metas', texto: 'Metas', icono: Target, roles: ['admin', 'coordinador', 'candidato'] },
+    { a: '/', texto: 'Inicio', textoCandidato: 'Mi campaña', icono: Home, roles: ['admin', 'coordinador', 'lider', 'digitador', 'candidato'] },
+    { a: '/tablero', texto: 'Tablero', textoCandidato: 'Mapa y detalle', icono: MapPinned, roles: ['admin', 'coordinador', 'candidato'] },
+    { a: '/analisis', texto: 'Análisis', icono: BarChart3, roles: ['admin', 'coordinador'] },
+    { a: '/metas', texto: 'Metas', icono: Target, roles: ['admin', 'coordinador'] },
     { a: '/estadisticas', texto: 'Mis estadísticas', icono: LineChart, roles: ['lider'] },
   ] },
   { titulo: 'Simpatizantes', tituloLider: 'Mi gente', enlaces: [
@@ -32,12 +32,12 @@ const SECCIONES: { titulo: string; tituloLider?: string; enlaces: Enlace[] }[] =
   ] },
   { titulo: 'Movilización', enlaces: [
     { a: '/seguimiento', texto: 'Seguimiento', icono: PhoneCall, roles: ['admin', 'coordinador', 'lider'] },
-    { a: '/eventos', texto: 'Eventos', icono: CalendarDays, roles: ['admin', 'coordinador', 'candidato'] },
-    { a: '/dia-d', texto: 'Día D', icono: CalendarCheck, roles: ['admin', 'coordinador', 'lider', 'candidato'] },
+    { a: '/eventos', texto: 'Eventos', icono: CalendarDays, roles: ['admin', 'coordinador'] },
+    { a: '/dia-d', texto: 'Día D', icono: CalendarCheck, roles: ['admin', 'coordinador', 'lider'] },
     { a: '/testigos', texto: 'Testigos', icono: ShieldCheck, roles: ['admin', 'coordinador'] },
   ] },
   { titulo: 'Resultados', enlaces: [
-    { a: '/e14', texto: 'E14', icono: Vote, roles: ['admin', 'coordinador', 'candidato', 'digitador'] },
+    { a: '/e14', texto: 'E14', icono: Vote, roles: ['admin', 'coordinador', 'digitador'] },
   ] },
   { titulo: 'Organización', enlaces: [
     { a: '/lideres', texto: 'Líderes', icono: UsersRound, roles: ['admin', 'coordinador'] },
@@ -151,7 +151,7 @@ export default function Marco({ children }: { children: ReactNode }) {
                 {enlaces.map((e) => (
                   <NavLink key={e.a} to={e.a} end={e.a === '/'} className={({ isActive }) => (isActive ? 'activo' : '')}>
                     <e.icono className="icono" aria-hidden />
-                    {perfil.rol === 'lider' && e.textoLider ? e.textoLider : e.texto}
+                    {perfil.rol === 'lider' && e.textoLider ? e.textoLider : perfil.rol === 'candidato' && e.textoCandidato ? e.textoCandidato : e.texto}
                     {e.a === '/revision' && porRevisar > 0 && <span className="contador">{porRevisar}</span>}
                   </NavLink>
                 ))}

@@ -11,6 +11,10 @@ const G: Guias = {
       'Registra a tu gente con “Registrar persona” o comparte tu enlace y QR para que se registren solos.',
       'En “Seguimiento” llama o escribe a cada persona y anota si confirma su apoyo.',
       'Mira tu avance frente a tu meta y tu puesto en el ranking de la semana.'] },
+    candidato: { para: 'Cómo va tu campaña, en una sola página y en palabras sencillas.', pasos: [
+      'Arriba ves cuántos simpatizantes tienes, cuánto crecieron esta semana y cuánto falta para la meta.',
+      'Más abajo: cuántos ya confirmaron, si los líderes van al día y dónde eres fuerte o débil.',
+      '“Para tener en cuenta” resume lo que tu equipo debe atender. El mapa está en “Mapa y detalle”.'] },
     digitador: { para: 'Desde aquí digitas los resultados de los E14 el día de la elección.', pasos: [
       'Entra a E14 → Digitar.', 'Elige localidad, puesto y mesa, escribe los votos y guarda.', 'Si dos digitaciones no coinciden, el administrador lo revisa.'] },
     todos: { para: 'Una mirada rápida a cómo va la campaña hoy.', pasos: [

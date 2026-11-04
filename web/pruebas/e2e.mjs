@@ -365,10 +365,19 @@ console.log('Enlace del líder y formulario público (móvil)');
 
 console.log('Candidato (móvil)');
 {
-  const { ctx, page } = await sesion('candidato', movil, 'Resumen de la campaña');
-  await paso('el tablero es su pantalla de inicio y solo ve agregados', async () => {
+  const { ctx, page } = await sesion('candidato', movil, 'Así va tu campaña');
+  await paso('"Mi campaña": una sola página simple y un menú mínimo', async () => {
     const menu = await page.getByRole('navigation', { name: 'Secciones' }).innerText();
-    assert.doesNotMatch(menu, /Personas|Registrar|Líderes/);
+    assert.doesNotMatch(menu, /Personas|Registrar|Líderes|Análisis|Metas|Eventos|E14/);
+    assert.match(menu, /Mi campaña/);
+    await page.locator('.mc-grande').waitFor();
+    assert.match(await page.locator('.mc-grande').innerText(), /\d/);
+    await page.getByRole('heading', { name: 'Donde eres más fuerte' }).waitFor();
+    await page.screenshot({ path: join(capturas, '19-candidato-mi-campana.png'), fullPage: true });
+  });
+  await paso('el mapa sigue a un toque y solo ve agregados', async () => {
+    await page.getByRole('link', { name: 'Mapa y detalle' }).first().click();
+    await page.getByRole('heading', { name: 'Resumen de la campaña' }).waitFor();
     await page.locator('.leaflet-interactive').first().waitFor();
     assert.ok(await page.locator('.leaflet-interactive').count() > 10, 'hay puestos en el mapa');
     assert.equal(await page.locator('.piramide-fila').count(), 6);
@@ -392,7 +401,7 @@ console.log('Candidato (móvil)');
   });
   await paso('no puede abrir el listado de personas', async () => {
     await page.goto(`${base}/personas`);
-    await page.getByRole('heading', { name: 'Resumen de la campaña' }).waitFor();
+    await page.getByRole('heading', { name: 'Así va tu campaña' }).waitFor();
     assert.equal(await page.getByRole('heading', { name: 'Personas' }).count(), 0);
   });
   await ctx.close();
@@ -614,9 +623,9 @@ console.log('Análisis y exportes (administrador)');
 
 console.log('E14: candidato');
 {
-  const { ctx, page } = await sesion('candidato', movil, 'Resumen de la campaña');
+  const { ctx, page } = await sesion('candidato', movil, 'Así va tu campaña');
   await paso('el candidato ve resultados, no digitación ni diferencias', async () => {
-    await page.getByRole('link', { name: 'E14' }).click();
+    await page.evaluate(() => { history.pushState({}, '', '/e14'); dispatchEvent(new PopStateEvent('popstate')); });
     await page.locator('.cifra-tarjeta', { hasText: 'de cumplimiento' }).waitFor();
     assert.equal(await page.getByRole('tablist').count(), 1, 'solo las pestañas internas de resultados');
     assert.equal(await page.getByRole('tab', { name: /Digitar|Diferencias|Elecciones/ }).count(), 0);

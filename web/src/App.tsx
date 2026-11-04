@@ -26,6 +26,7 @@ import DatosPersonales from './paginas/DatosPersonales';
 import MiCuenta from './paginas/MiCuenta';
 import CodigoDosPasos from './paginas/CodigoDosPasos';
 import Metas from './paginas/Metas';
+import MiCampana from './paginas/MiCampana';
 import Eventos from './paginas/Eventos';
 import Terminos, { AceptarTerminos } from './paginas/Terminos';
 import { TERMINOS_VERSION } from './lib/tipos';
@@ -73,7 +74,7 @@ export default function App() {
   return (
     <Marco>
       <Routes>
-        <Route path="/" element={sesion.perfil.rol === 'candidato' ? <Navigate to="/tablero" replace /> : <Inicio />} />
+        <Route path="/" element={sesion.perfil.rol === 'candidato' ? <MiCampana /> : <Inicio />} />
         <Route path="/estadisticas" element={<Solo roles={['lider']}><MisEstadisticas /></Solo>} />
         <Route path="/mi-enlace" element={<Solo roles={['lider']}><MiEnlace /></Solo>} />
         <Route path="/seguimiento" element={<Solo roles={['admin', 'coordinador', 'lider']}><Seguimiento /></Solo>} />

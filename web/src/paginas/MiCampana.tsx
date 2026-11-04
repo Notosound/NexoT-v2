@@ -1,0 +1,203 @@
+// "Mi campaña": la vista del candidato. Una sola página, en lenguaje
+// sencillo: cuánto llevamos, cómo crece, dónde estamos fuertes o débiles y
+// qué necesita atención. Sin datos de personas: solo cifras.
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowDownRight, ArrowUpRight, MapPinned, Minus } from 'lucide-react';
+import { useSesion } from '../lib/sesion';
+import { useEnVivo } from '../lib/enVivo';
+import type { Demografia, Eleccion, LocalidadE14, MetaLider, PuestoCenso, SeguimientoLider, Tendencia } from '../lib/tipos';
+import { formatoNumero, mensajeError } from '../lib/utilidades';
+import EnVivo from '../componentes/EnVivo';
+import { Linea, SERIES } from '../componentes/Graficos';
+
+interface Datos {
+  demo: Demografia[]; tendencia: Tendencia[]; metas: MetaLider[]; seguimiento: SeguimientoLider[]; censo: PuestoCenso[];
+  eleccion: Eleccion | null; e14: LocalidadE14[] | null;
+}
+const pct = (a: number, b: number) => (b > 0 ? Math.round((100 * a) / b) : 0);
+
+export default function MiCampana() {
+  const { api, sesion } = useSesion();
+  const [d, setD] = useState<Datos | null>(null);
+  const [error, setError] = useState('');
+
+  const vivo = useEnVivo(async () => {
+    try {
+      const [demo, tendencia, metas, seguimiento, censo, elecciones] = await Promise.all([
+        api.demografia(), api.tendencia(), api.metasLideres(), api.seguimientoLideres(), api.censoPuestos(), api.elecciones()]);
+      const eleccion = elecciones[0] ?? null;
+      const e14 = eleccion ? (await api.resultadosE14(eleccion.id).catch(() => null))?.localidades ?? null : null;
+      setD({ demo, tendencia, metas, seguimiento, censo, eleccion, e14 });
+    } catch (e) { setError(mensajeError(e)); }
+  }, ['registros', 'e14']);
+
+  const r = useMemo(() => (d ? calcular(d) : null), [d]);
+  const nombre = sesion!.perfil!.nombre.split(' ')[0];
+
+  return (
+    <div className="mi-campana">
+      <div className="mc-cabeza">
+        <div>
+          <p className="mc-saludo">Hola, {nombre}</p>
+          <h1>Así va tu campaña</h1>
+        </div>
+        <EnVivo {...vivo} />
+      </div>
+      {error && <div className="aviso error" role="alert">{error}</div>}
+      {!r ? <div className="tarjeta vacio">Cargando…</div> : (
+        <>
+          {/* 1. El número principal */}
+          <section className="mc-heroe tarjeta">
+            <div className="mc-heroe-num">
+              <span className="mc-grande">{formatoNumero(r.total)}</span>
+              <span className="mc-etiqueta">simpatizantes registrados</span>
+              <span className={`mc-tendencia ${r.delta > 0 ? 'sube' : r.delta < 0 ? 'baja' : ''}`}>
+                {r.delta > 0 ? <ArrowUpRight aria-hidden /> : r.delta < 0 ? <ArrowDownRight aria-hidden /> : <Minus aria-hidden />}
+                {formatoNumero(r.semana)} esta semana{r.anterior > 0 ? ` (${r.delta > 0 ? '+' : ''}${r.delta}% frente a la anterior)` : ''}
+              </span>
+            </div>
+            {r.meta > 0 && (
+              <div className="mc-meta">
+                <div className="mc-meta-texto"><strong>{r.avanceMeta}%</strong> de la meta de {formatoNumero(r.meta)}</div>
+                <div className="mc-barra"><span style={{ width: `${Math.min(100, r.avanceMeta)}%` }} /></div>
+              </div>
+            )}
+          </section>
+
+          {/* 2. Tres cifras clave */}
+          <section className="mc-tres">
+            <div className="tarjeta mc-cifra">
+              <span className="mc-cifra-num">{r.confirmadosPct}%</span>
+              <span>ya confirmó que vota por ti</span>
+              <small>{formatoNumero(r.confirmados)} personas · {r.contactadosPct}% ya fue contactado</small>
+            </div>
+            <div className="tarjeta mc-cifra">
+              <span className="mc-cifra-num">{r.lideresAlDia} <small>de {r.lideres}</small></span>
+              <span>líderes van al día con su meta</span>
+              <small>{r.lideresAtras ? `${r.lideresAtras} van muy atrás` : 'Ninguno va muy atrás'}</small>
+            </div>
+            <div className="tarjeta mc-cifra">
+              <span className="mc-cifra-num">{r.presencia} <small>de {r.localidades}</small></span>
+              <span>localidades con presencia</span>
+              <small>{r.porMil.toLocaleString('es-CO')} simpatizantes por cada 1.000 votantes</small>
+            </div>
+          </section>
+
+          {/* 3. Crecimiento */}
+          <section className="tarjeta seccion">
+            <div className="tarjeta-titulo"><h2>Cómo ha crecido</h2><small>registros por semana, últimas 12 semanas</small></div>
+            <Linea puntos={r.semanas} color={SERIES[0]} nombre="Registros" alto={170} />
+          </section>
+
+          {/* 4. Fuertes y débiles */}
+          <section className="mc-dos seccion">
+            <div className="tarjeta">
+              <h2>Donde eres más fuerte</h2>
+              <ol className="mc-lista">{r.fuertes.map((l) => <li key={l.nombre}><span>{l.nombre}</span><strong>{l.porMil.toLocaleString('es-CO')}</strong></li>)}</ol>
+              <small className="ayuda">simpatizantes por cada 1.000 votantes</small>
+            </div>
+            <div className="tarjeta">
+              <h2>Donde hay que crecer</h2>
+              <ol className="mc-lista">{r.debiles.map((l) => <li key={l.nombre}><span>{l.nombre}</span><strong>{l.porMil.toLocaleString('es-CO')}</strong></li>)}</ol>
+              <small className="ayuda">simpatizantes por cada 1.000 votantes</small>
+            </div>
+          </section>
+
+          {/* 5. Lo que necesita atención */}
+          {r.atencion.length > 0 && (
+            <section className="tarjeta seccion mc-atencion">
+              <h2>Para tener en cuenta</h2>
+              <ul>{r.atencion.map((t) => <li key={t}>{t}</li>)}</ul>
+            </section>
+          )}
+
+          {/* 6. Resultados, cuando haya E14 */}
+          {d!.eleccion && r.e14 && r.e14.votos > 0 && (
+            <section className="tarjeta seccion">
+              <div className="tarjeta-titulo"><h2>Resultados: {d!.eleccion.nombre}</h2><small>{r.e14.mesasPct}% de las mesas verificadas</small></div>
+              <div className="mc-tres">
+                <div className="mc-cifra"><span className="mc-cifra-num">{formatoNumero(r.e14.votos)}</span><span>votos en los E14 verificados</span></div>
+                <div className="mc-cifra"><span className="mc-cifra-num">{r.e14.cumplimiento}%</span><span>de lo esperado en esas mesas</span></div>
+              </div>
+            </section>
+          )}
+
+          <p className="seccion"><Link to="/tablero" className="boton"><MapPinned className="icono" aria-hidden />Ver el mapa y el detalle por localidad</Link></p>
+        </>
+      )}
+    </div>
+  );
+}
+
+function calcular(d: Datos) {
+  const total = d.demo.reduce((a, x) => a + x.personas, 0);
+  // semana actual y anterior (por días)
+  const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+  const porDia = new Map(d.tendencia.map((t) => [t.dia.slice(0, 10), t.nuevos]));
+  const sumar = (desde: number, hasta: number) => {
+    let s = 0;
+    for (let i = desde; i < hasta; i++) {
+      const f = new Date(hoy); f.setDate(f.getDate() - i);
+      s += porDia.get(`${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, '0')}-${String(f.getDate()).padStart(2, '0')}`) ?? 0;
+    }
+    return s;
+  };
+  const semana = sumar(0, 7), anterior = sumar(7, 14);
+  const delta = anterior > 0 ? Math.round((100 * (semana - anterior)) / anterior) : 0;
+  const semanas = Array.from({ length: 12 }, (_, k) => {
+    const i = 11 - k;
+    const fin = new Date(hoy); fin.setDate(fin.getDate() - i * 7);
+    return { etiqueta: fin.toLocaleDateString('es-CO', { day: 'numeric', month: 'short' }).replace('.', ''), valor: sumar(i * 7, i * 7 + 7) };
+  });
+
+  const meta = d.metas.reduce((a, m) => a + m.meta, 0);
+  const avance = d.metas.filter((m) => m.meta > 0).reduce((a, m) => a + Math.min(m.registrados, m.meta), 0);
+  const conMeta = d.metas.filter((m) => m.meta > 0);
+  const lideresAlDia = conMeta.filter((m) => m.semaforo === 'verde' || m.semaforo === 'cumplida').length;
+  const lideresAtras = conMeta.filter((m) => m.semaforo === 'rojo').length;
+  const quietos = conMeta.filter((m) => m.semaforo !== 'cumplida' && (!m.ultimo_registro || Date.now() - new Date(m.ultimo_registro).getTime() > 7 * 86_400_000)).length;
+
+  const seg = d.seguimiento.reduce((a, s) => ({ t: a.t + s.total, c: a.c + s.confirmados, k: a.k + s.contactados }), { t: 0, c: 0, k: 0 });
+
+  // por localidad: simpatizantes por cada 1.000 votantes
+  const censo = new Map<number, number>();
+  for (const p of d.censo) censo.set(p.localidad_id, (censo.get(p.localidad_id) ?? 0) + (p.censo_total ?? 0));
+  const porLoc = new Map<number, { nombre: string; n: number }>();
+  for (const x of d.demo) {
+    if (x.localidad_id == null) continue;
+    const v = porLoc.get(x.localidad_id) ?? { nombre: x.localidad ?? '', n: 0 };
+    v.n += x.personas; porLoc.set(x.localidad_id, v);
+  }
+  const locs = [...censo.entries()].filter(([, c]) => c > 0).map(([id, c]) => {
+    const v = porLoc.get(id);
+    return { nombre: v?.nombre ?? '', n: v?.n ?? 0, porMil: Math.round((10_000 * (v?.n ?? 0)) / c) / 10 };
+  }).filter((l) => l.nombre);
+  const ordenadas = [...locs].sort((a, b) => b.porMil - a.porMil);
+  const censoTotal = [...censo.values()].reduce((a, c) => a + c, 0);
+  const sinLugar = d.demo.filter((x) => x.localidad_id == null).reduce((a, x) => a + x.personas, 0);
+
+  const atencion: string[] = [];
+  if (lideresAtras) atencion.push(`${lideresAtras} ${lideresAtras === 1 ? 'líder va' : 'líderes van'} muy atrás de su meta.`);
+  if (quietos) atencion.push(`${quietos} ${quietos === 1 ? 'líder no registra' : 'líderes no registran'} a nadie hace más de una semana.`);
+  if (anterior > 0 && delta <= -20) atencion.push(`Los registros bajaron ${-delta}% frente a la semana anterior.`);
+  if (total && pct(sinLugar, total) >= 5) atencion.push(`${pct(sinLugar, total)}% de los simpatizantes todavía no tiene lugar de votación confirmado.`);
+  if (seg.t && pct(seg.k, seg.t) < 50) atencion.push(`Solo ${pct(seg.k, seg.t)}% de los simpatizantes ha sido contactado para confirmar su apoyo.`);
+
+  let e14: { votos: number; cumplimiento: number; mesasPct: number } | null = null;
+  if (d.e14) {
+    const t = d.e14.reduce((a, l) => ({ v: a.v + (l.votos_reales ?? 0), e: a.e + (l.esperados ?? 0), c: a.c + (l.confirmados ?? 0), m: a.m + l.mesas, mv: a.mv + l.mesas_verificadas }),
+      { v: 0, e: 0, c: 0, m: 0, mv: 0 });
+    e14 = { votos: t.v, cumplimiento: pct(t.c, t.e), mesasPct: pct(t.mv, t.m) };
+  }
+
+  return {
+    total, semana, anterior, delta, semanas, meta, avanceMeta: pct(avance, meta),
+    confirmados: seg.c, confirmadosPct: pct(seg.c, seg.t), contactadosPct: pct(seg.k, seg.t),
+    lideres: conMeta.length, lideresAlDia, lideresAtras,
+    presencia: locs.filter((l) => l.n > 0).length, localidades: locs.length,
+    porMil: censoTotal ? Math.round((10_000 * (total - sinLugar)) / censoTotal) / 10 : 0,
+    fuertes: ordenadas.slice(0, 3), debiles: ordenadas.slice(-3).reverse(),
+    atencion: atencion.slice(0, 4), e14,
+  };
+}
