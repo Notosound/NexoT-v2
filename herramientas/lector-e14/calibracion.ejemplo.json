@@ -1,0 +1,10 @@
+{
+  "_nota": "Posición de la casilla de votos del candidato en el E14, en fracciones de la página (0 a 1). Ajústala con --calibrar sobre un formulario real de la elección.",
+  "pagina": 1,
+  "dpi": 200,
+  "casilla": { "x": 0.62, "y": 0.41, "ancho": 0.15, "alto": 0.035 },
+  "digitos": 3,
+  "margen": 0.12,
+  "tinta_minima": 0.02,
+  "umbral": 0.85
+}

@@ -5,3 +5,5 @@ supabase/.temp/
 supabase/.branches/
 !.env.example
 !web/.env.demo
+herramientas/lector-e14/modelo.joblib
+herramientas/lector-e14/__pycache__/

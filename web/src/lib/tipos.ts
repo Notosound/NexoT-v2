@@ -97,6 +97,16 @@ export interface Evento {
 export interface Asistente { persona_id: string; nombres: string; apellidos: string; telefono: string | null; lider: string | null; nueva: boolean; en: string }
 export interface DatosAsistencia { cedula: string; nombres: string; apellidos: string; telefono: string; sexo: Sexo | ''; edad: string; acepta: boolean }
 
+// E14 con lectura automática (lector-e14)
+export interface LecturaE14 {
+  mesa_id: number; localidad: string; zona: string; codigo_puesto: string; puesto: string; mesa: number;
+  lectura: 'clara' | 'dudosa' | 'ilegible'; recorte: string | null; documento: string | null; motivo: string | null;
+  /** Solo los ve el administrador: el digitador digita "a ciegas" */
+  votos_leidos: number | null; alterno: number | null; confianza: number | null;
+  resultado: EstadoMesa | 'pendiente'; digitaciones_humanas: number; ya_digite: boolean; simpatizantes: number;
+}
+export interface FilaLecturaResultado { fila: number; estado: 'clara' | 'dudosa' | 'ilegible' | 'error'; mensaje: string | null; mesa_id: number | null; votos: number | null }
+
 export interface FactorDosPasos { id: string; nombre: string; verificado: boolean; creado: string }
 
 export interface Localidad { id: number; codigo: string; nombre: string }
@@ -285,7 +295,7 @@ export interface Eleccion { id: string; nombre: string; fecha: string; modo_digi
 export interface AvanceE14 { mesas: number; pendientes: number; una_digitacion: number; en_revision: number; verificadas: number }
 export interface MesaPendiente { mesa_id: number; localidad: string; puesto: string; mesa: number; estado: EstadoMesa }
 export interface MiDigitacion { id: number; mesa_id: number; localidad: string; puesto: string; mesa: number; votos: number; en: string; estado: EstadoMesa }
-export interface MesaEnRevision { mesa_id: number; localidad: string; puesto: string; mesa: number; digitaciones: { votos: number; por: string; en: string }[] }
+export interface MesaEnRevision { mesa_id: number; localidad: string; puesto: string; mesa: number; digitaciones: { votos: number; por: string; en: string }[]; recorte?: string | null }
 export interface TotalesE14 { esperados: number; confirmados: number; faltantes: number; adicionales: number; votos_reales: number; mesas: number; mesas_verificadas: number }
 export interface LocalidadE14 extends TotalesE14 { localidad_id: number; localidad: string }
 export interface PuestoE14 extends TotalesE14 { puesto_id: number; puesto: string; localidad_id: number; localidad: string }
@@ -427,6 +437,13 @@ export interface Api {
   cambiarRecibeInforme(recibe: boolean): Promise<void>;
   probarInforme(): Promise<string>;
   aceptarTerminos(version: string): Promise<void>;
+  // E14 con imagen
+  lecturasE14(eleccionId: string): Promise<LecturaE14[]>;
+  /** Enlaces temporales para ver los recortes (ruta → URL) */
+  urlsRecortes(rutas: string[]): Promise<Record<string, string>>;
+  /** Sube las imágenes del lector; devuelve la carpeta donde quedaron */
+  subirRecortes(eleccionId: string, archivos: File[], alProgreso?: (hechos: number) => void): Promise<string>;
+  importarLecturas(eleccionId: string, filas: Record<string, string>[], umbral: number, carpeta: string | null, confirmar: boolean): Promise<FilaLecturaResultado[]>;
   // eventos
   eventos(): Promise<Evento[]>;
   crearEvento(d: { nombre: string; fecha: string; lugar: string; localidadId: number | null; liderId: string }): Promise<string>;

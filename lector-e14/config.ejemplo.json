@@ -1,0 +1,11 @@
+{
+  "_ayuda": "Copia este archivo como config.json y ajústalo. La caja es la casilla del candidato en el E14, en fracciones de la página (0 a 1). Usa 'calibrar' para verla dibujada.",
+  "pagina": 1,
+  "caja": [0.62, 0.41, 0.80, 0.455],
+  "dpi": 200,
+  "patron_archivo": "{zona}_{codigo_puesto}_{mesa}",
+  "extensiones": [".pdf", ".png", ".jpg", ".jpeg"],
+  "url_plantilla": "",
+  "pausa_segundos": 2.0,
+  "umbral_tinta": 0.003
+}

@@ -6,7 +6,7 @@ import type {
   AvanceE14, Eleccion, CalidadLider, FilaPlantillaE14, PuestoCodigos, RegistrosMesa, ResultadoFilaE14, LiderE14, LocalidadE14, MesaE14, MesaEnRevision, MesaPendiente, MiDigitacion, PuestoE14, GrupoRevision, Importacion, Lider, Localidad, MiembroEquipo,
   PersonaFila, Puesto, Rol, Sesion, Sugerencia, OpcionVerComo, EnlaceLider,
   SeguimientoLider, DiaDFila, Testigo, CoberturaMesa, AlertaCalidad,
-  Politica, SolicitudDatos, DatoTitular, AccionSensible, Historico, PotencialPuesto, FilaHistoricoResultado, MetaLider, FechasMeta, RankingFila, Evento,
+  Politica, SolicitudDatos, DatoTitular, AccionSensible, Historico, PotencialPuesto, FilaHistoricoResultado, MetaLider, FechasMeta, RankingFila, Evento, LecturaE14, FilaLecturaResultado,
 } from './tipos';
 import { AVISO_VERSION } from './tipos';
 import { edadDesde, hoyISO } from './utilidades';
@@ -709,5 +709,44 @@ export const api: Api = {
 
   async aceptarTerminos(version) {
     ok(await sb.rpc('aceptar_terminos', { p_version: version }));
+  },
+
+  // ── E14 con imagen ─────────────────────────────────────────────────
+  async lecturasE14(eleccionId) {
+    return vista<LecturaE14>('v_e14_lecturas', { eleccion_id: eleccionId });
+  },
+  async urlsRecortes(rutas) {
+    const unicas = [...new Set(rutas.filter(Boolean))];
+    if (!unicas.length) return {};
+    const salida: Record<string, string> = {};
+    for (let i = 0; i < unicas.length; i += 100) {
+      const { data, error } = await sb.storage.from('e14-recortes').createSignedUrls(unicas.slice(i, i + 100), 3600);
+      if (error) throw error;
+      for (const d of data ?? []) if (d.signedUrl && d.path) salida[d.path] = d.signedUrl;
+    }
+    return salida;
+  },
+  async subirRecortes(eleccionId, archivos, alProgreso) {
+    const { orgId } = await contexto();
+    const carpeta = `${orgId}/${eleccionId}`;
+    let hechos = 0;
+    const cola = [...archivos];
+    const trabajador = async () => {
+      for (let f = cola.shift(); f; f = cola.shift()) {
+        const { error } = await sb.storage.from('e14-recortes').upload(`${carpeta}/${f.name}`, f, { upsert: true, contentType: f.type || 'image/png' });
+        if (error) throw new Error(`No se pudo subir ${f.name}: ${error.message}`);
+        alProgreso?.(++hechos);
+      }
+    };
+    await Promise.all([trabajador(), trabajador(), trabajador(), trabajador()]);
+    return carpeta;
+  },
+  async importarLecturas(eleccionId, filas, umbral, carpeta, confirmar) {
+    const salida: FilaLecturaResultado[] = [];
+    for (let i = 0; i < filas.length; i += 2000) {
+      salida.push(...(lista(await sb.rpc('importar_lecturas', { p_eleccion: eleccionId, p_filas: filas.slice(i, i + 2000), p_umbral: umbral,
+        p_recortes_base: carpeta, p_confirmar: confirmar })) as FilaLecturaResultado[]));
+    }
+    return salida;
   },
 };
