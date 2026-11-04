@@ -74,6 +74,10 @@ async function paso(nombre, fn) {
 async function sesion(rol, viewport, encabezado = /Hola/) {
   const ctx = await navegador.newContext({ viewport, locale: 'es-CO' });
   const page = await ctx.newPage();
+  // Menú con todas las secciones abiertas (para administrador y coordinador arrancan cerradas)
+  await page.addInitScript(() => {
+    try { if (!localStorage.getItem('menu-estado')) localStorage.setItem('menu-estado', JSON.stringify({ Simpatizantes: true, 'Movilización': true, Resultados: true, 'Organización': true, Cuenta: true })); } catch { /* */ }
+  });
   page.on('console', (m) => {
     if (m.type() !== 'error') return;
     if (/Failed to load resource/.test(m.text()) && /openstreetmap/.test(m.location()?.url ?? '')) return;
@@ -766,6 +770,40 @@ console.log('Campaña: seguimiento, Día D, testigos y alertas');
     await page.getByRole('tab', { name: 'Calidad' }).click();
     await page.getByRole('heading', { name: /Datos sospechosos/ }).waitFor();
     await page.screenshot({ path: join(capturas, '43-alertas.png'), fullPage: true });
+  });
+  await ctx.close();
+}
+
+console.log('Términos de uso y guía de cada página');
+{
+  const ctx = await navegador.newContext({ viewport: escritorio, locale: 'es-CO' });
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => erroresConsola.push(`[terminos] ${e.message}`));
+  await paso('al entrar por primera vez hay que aceptar los términos', async () => {
+    await page.goto(base + '/?terminos');
+    await page.getByLabel('Correo').fill('coord@demo.co');
+    await page.getByLabel('Contraseña').fill('x');
+    await page.getByLabel('Ver como').selectOption('coordinador');
+    await page.getByRole('button', { name: 'Entrar' }).click();
+    await page.getByRole('heading', { name: 'Antes de empezar' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Aceptar y entrar' }).isDisabled(), true);
+    await page.screenshot({ path: join(capturas, '54-terminos.png') });
+    await page.getByLabel(/Leí y acepto/).check();
+    await page.getByRole('button', { name: 'Aceptar y entrar' }).click();
+    await page.getByRole('heading', { name: /Hola/ }).waitFor();
+  });
+  await paso('guía: dice para qué sirve, se cierra y vuelve con Ayuda', async () => {
+    await page.getByText('Para qué sirve:').waitFor();
+    await page.getByRole('button', { name: 'Cómo se usa' }).click();
+    await page.locator('.guia ol li').first().waitFor();
+    await page.locator('.pie').getByText(/Ley 1581/).waitFor();
+    await page.screenshot({ path: join(capturas, '55-guia-inicio.png'), fullPage: true });
+    await page.getByRole('button', { name: 'Cerrar la guía de esta página' }).click();
+    assert.equal(await page.locator('.guia').count(), 0);
+    await page.getByRole('button', { name: 'Ayuda' }).click();
+    await page.locator('.guia ol li').first().waitFor();
+    await page.getByRole('link', { name: 'Términos de uso' }).click();
+    await page.getByRole('heading', { name: /Datos personales y confidencialidad/ }).waitFor();
   });
   await ctx.close();
 }

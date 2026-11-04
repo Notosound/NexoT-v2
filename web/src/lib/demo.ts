@@ -8,6 +8,7 @@ import type {
   Politica, SolicitudDatos, AccionSensible, FactorDosPasos, Historico, PotencialPuesto, FilaHistoricoResultado, MetaLider, RankingFila, Semaforo, Evento, Asistente,
 } from './tipos';
 import QRCode from 'qrcode';
+import { TERMINOS_VERSION } from './tipos';
 import { edadDesde, hoyISO, normalizar } from './utilidades';
 import crudo from './demo-puestos.json';
 import { codigoOficial } from './mapeoE14';
@@ -195,6 +196,10 @@ let sembradas = false;
 const accionesDemo: AccionSensible[] = [];
 const factoresDemo: FactorDosPasos[] = [];
 const recibeDemo = { valor: true };
+// En la demostración los términos se piden solo si se abre con ?terminos (para probarlos)
+const terminosDemo = new Set<string>();
+const pedirTerminos = () => { try { return sessionStorage.getItem('demo-terminos') === '1'; } catch { return false; } };
+try { if (new URLSearchParams(location.search).has('terminos')) sessionStorage.setItem('demo-terminos', '1'); } catch { /* */ }
 function sembrarEventos() {
   if (eventosDemo.length) return;
   eventosDemo.push({ id: 'ev-1', nombre: 'Reunión en Suba (demo)', fecha: new Date(Date.now() - 3 * 86_400_000).toISOString(), lugar: 'Salón comunal',
@@ -296,7 +301,8 @@ export const api: Api = {
     await espera(60);
     if (!actual) return null;
     const u = actual.usuario;
-    return { usuarioId: u.id, email: u.email, perfil: { nombre: u.nombre, rol: u.rol, organizacionId: ORG }, organizacion: 'Campaña de demostración' };
+    return { usuarioId: u.id, email: u.email, perfil: { nombre: u.nombre, rol: u.rol, organizacionId: ORG }, organizacion: 'Campaña de demostración',
+      organizacionSlug: 'demo', terminos: terminosDemo.has(u.id) || !pedirTerminos() ? TERMINOS_VERSION : null };
   },
   alCambiarSesion(cb) { oyentes.add(cb); return () => oyentes.delete(cb); },
   async iniciarSesion(_email, _clave, rolDemo: Rol = 'admin') {
@@ -1115,6 +1121,7 @@ export const api: Api = {
       soy_yo: vistaLider ? x.l.id === vistaLider : x.l.perfil_id === u.id, rn: i + 1,
     })).filter((x) => (x.rn <= 10 && x.registros > 0) || x.soy_yo).map(({ rn: _rn, ...r }) => r as RankingFila);
   },
+  async aceptarTerminos() { await espera(); terminosDemo.add(actual!.usuario.id); avisar(); },
   async recibeInforme() { await espera(40); return recibeDemo.valor; },
   async cambiarRecibeInforme(recibe) { await espera(); recibeDemo.valor = recibe; },
   async probarInforme() { await espera(300); return `Te enviamos el informe a ${yo().email} (en la demostración no sale ningún correo).`; },

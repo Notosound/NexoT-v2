@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   BarChart3, ClipboardCheck, Eye, FileSpreadsheet, Home, LineChart, LogOut, MapPinned, Moon, QrCode,
-  ChevronDown, Lock, Target, CalendarDays, UserCog, Sun, UserPlus, Users, UsersRound, Vote, Contact, PhoneCall, CalendarCheck, ShieldCheck, type LucideIcon,
+  ChevronDown, Lock, Target, CalendarDays, HelpCircle, UserCog, Sun, UserPlus, Users, UsersRound, Vote, Contact, PhoneCall, CalendarCheck, ShieldCheck, type LucideIcon,
 } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
 import { ROLES, type Rol } from '../lib/tipos';
@@ -10,6 +10,7 @@ import SelectorVerComo from './VerComo';
 import Protector from './Protector';
 import NuevaVersion from './NuevaVersion';
 import SinSenal from './SinSenal';
+import Guia, { EVENTO_AYUDA } from './Guia';
 import { pendientes } from '../lib/cola';
 
 type Enlace = { a: string; texto: string; icono: LucideIcon; roles: Rol[]; textoLider?: string };
@@ -49,9 +50,11 @@ const SECCIONES: { titulo: string; tituloLider?: string; enlaces: Enlace[] }[] =
 ];
 
 // Tema claro/oscuro: se recuerda en este navegador (si se puede)
-// Secciones cerradas del menú: se recuerdan en este navegador (si se puede)
-function cerradasIniciales(): string[] {
-  try { return JSON.parse(localStorage.getItem('menu-cerradas') ?? '[]'); } catch { return []; }
+// Secciones abiertas del menú: se recuerdan en este navegador (si se puede).
+// Para administradores y coordinadores (menú largo) arrancan cerradas salvo
+// General y la sección donde se está; para los demás, abiertas.
+function estadoMenu(): Record<string, boolean> {
+  try { return JSON.parse(localStorage.getItem('menu-estado') ?? '{}'); } catch { return {}; }
 }
 
 function temaInicial(): 'claro' | 'oscuro' {
@@ -69,10 +72,12 @@ export default function Marco({ children }: { children: ReactNode }) {
   const [porRevisar, setPorRevisar] = useState(0);
   const [tema, setTema] = useState(temaInicial);
   const [eligiendo, setEligiendo] = useState(false);
-  const [cerradas, setCerradas] = useState<string[]>(cerradasIniciales);
-  const alternar = (titulo: string) => setCerradas((c) => {
-    const n = c.includes(titulo) ? c.filter((x) => x !== titulo) : [...c, titulo];
-    try { localStorage.setItem('menu-cerradas', JSON.stringify(n)); } catch { /* */ }
+  const [estado, setEstado] = useState<Record<string, boolean>>(estadoMenu);
+  const menuLargo = perfil.rol === 'admin' || perfil.rol === 'coordinador';
+  const abiertaPorDefecto = (titulo: string) => !menuLargo || titulo === 'General';
+  const alternar = (titulo: string) => setEstado((c) => {
+    const n = { ...c, [titulo]: !(c[titulo] ?? abiertaPorDefecto(titulo)) };
+    try { localStorage.setItem('menu-estado', JSON.stringify(n)); } catch { /* */ }
     return n;
   });
   const ruta = useLocation().pathname;
@@ -103,6 +108,9 @@ export default function Marco({ children }: { children: ReactNode }) {
             <Eye className="icono" aria-hidden /><span className="rotulo">Ver como</span>
           </button>
         )}
+        <button className="boton-barra" onClick={() => window.dispatchEvent(new Event(EVENTO_AYUDA))} title="Para qué sirve esta página y cómo se usa" aria-label="Ayuda">
+          <HelpCircle className="icono" aria-hidden /><span className="rotulo">Ayuda</span>
+        </button>
         <button className="boton-barra" onClick={() => setTema(tema === 'oscuro' ? 'claro' : 'oscuro')}
           title={tema === 'oscuro' ? 'Usar tema claro' : 'Usar tema oscuro'} aria-label="Cambiar tema">
           {tema === 'oscuro' ? <Sun className="icono" aria-hidden /> : <Moon className="icono" aria-hidden />}
@@ -131,7 +139,7 @@ export default function Marco({ children }: { children: ReactNode }) {
             if (!enlaces.length) return null;
             const titulo = perfil.rol === 'lider' && sec.tituloLider ? sec.tituloLider : sec.titulo;
             const aqui = enlaces.some((e) => (e.a === '/' ? ruta === '/' : ruta.startsWith(e.a)));
-            const abierta = aqui || !cerradas.includes(sec.titulo);
+            const abierta = aqui || (estado[sec.titulo] ?? abiertaPorDefecto(sec.titulo));
             return (
               <div key={sec.titulo} className={`menu-grupo${abierta ? '' : ' cerrada'}`} role="group" aria-label={titulo}>
                 <button type="button" className="menu-titulo" aria-expanded={abierta} onClick={() => alternar(sec.titulo)}
@@ -151,7 +159,20 @@ export default function Marco({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
-        <main className="contenido" key={vista?.objetivo ?? 'propio'}><Protector clave={ruta + (vista?.objetivo ?? '')}>{children}</Protector></main>
+        <main className="contenido" key={vista?.objetivo ?? 'propio'}>
+          <Guia ruta={ruta} rol={perfil.rol} />
+          <Protector clave={ruta + (vista?.objetivo ?? '')}>{children}</Protector>
+          <footer className="pie">
+            <p><Lock className="icono" aria-hidden /> Información confidencial de {sesion!.organizacion ?? 'la campaña'}, protegida por la Ley 1581 de 2012. Uso exclusivo del equipo autorizado:
+              cada acceso, cambio y exportación queda registrado.</p>
+            <p>Las cifras y proyecciones son estimaciones con base en los registros de la campaña; los resultados oficiales son los de la Registraduría.</p>
+            <p className="pie-enlaces">
+              <NavLink to="/terminos">Términos de uso</NavLink>
+              {sesion!.organizacionSlug && <a href={`/privacidad/${sesion!.organizacionSlug}`} target="_blank" rel="noreferrer">Política de datos</a>}
+              <span>NexoT</span>
+            </p>
+          </footer>
+        </main>
       </div>
       {eligiendo && <SelectorVerComo alCerrar={() => setEligiendo(false)} />}
     </div>

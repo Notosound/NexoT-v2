@@ -17,7 +17,7 @@ import { ORDEN_EDAD, partesSexo, resumirDemografia, serieDesdeTendencia } from '
 import type {
   CalidadLider, Demografia, Eleccion, LiderE14, LocalidadE14, MesaE14, PuestoCenso, PuestoCodigos, PuestoE14, RegistrosMesa, Tendencia,
 } from '../lib/tipos';
-import { descargarExcel, fechaArchivo, type Celda } from '../lib/excel';
+import { descargarConfidencial, fechaArchivo, type Celda } from '../lib/excel';
 import { formatoNumero, mensajeError } from '../lib/utilidades';
 
 type Pestana = 'resumen' | 'jerarquia' | 'potencial' | 'calidad' | 'lideres' | 'simulacion';
@@ -70,7 +70,7 @@ export default function Analisis() {
   async function exportar(tipo: string, archivo: string, filas: Celda[][], filtros: Record<string, unknown> = {}) {
     try {
       await api.registrarExportacion(tipo, filas.length - 1, filtros);
-      await descargarExcel(`${archivo}_${fechaArchivo()}.xlsx`, [{ nombre: tipo, filas }]);
+      await descargarConfidencial(`${archivo}_${fechaArchivo()}.xlsx`, [{ nombre: tipo, filas }]);
     } catch (e) { setError(mensajeError(e)); }
   }
 

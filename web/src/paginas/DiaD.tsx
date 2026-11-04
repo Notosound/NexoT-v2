@@ -6,7 +6,7 @@ import { useSesion } from '../lib/sesion';
 import { useEnVivo } from '../lib/enVivo';
 import type { DiaDFila, Eleccion, PersonaFila } from '../lib/tipos';
 import { mensajeError } from '../lib/utilidades';
-import { descargarExcel, fechaArchivo } from '../lib/excel';
+import { descargarConfidencial, fechaArchivo } from '../lib/excel';
 import EnVivo from '../componentes/EnVivo';
 import { BarrasH, SERIES } from '../componentes/Graficos';
 import { Cifra, Plegable, pct } from '../componentes/Piezas';
@@ -178,7 +178,7 @@ function Transporte({ votaron }: { votaron: Set<string> }) {
   const exportar = async () => {
     try {
       await api.registrarExportacion('transporte_dia_d', lista.length);
-      await descargarExcel(`Transporte_Dia_D_${fechaArchivo()}.xlsx`, [{ nombre: 'Transporte', anchos: [36, 28, 14, 22, 8, 22, 10], filas: [
+      await descargarConfidencial(`Transporte_Dia_D_${fechaArchivo()}.xlsx`, [{ nombre: 'Transporte', anchos: [36, 28, 14, 22, 8, 22, 10], filas: [
         ['Puesto de votación', 'Persona', 'Celular', 'Barrio', 'Mesa', 'Líder', 'Ya votó'],
         ...grupos.flatMap(([puesto, ps]) => ps.map((p) => [puesto, `${p.nombres} ${p.apellidos}`, p.telefono, p.barrio ?? '', p.mesa, p.lider, votaron.has(p.id) ? 'Sí' : 'No'])),
       ] }]);

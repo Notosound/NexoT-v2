@@ -7,7 +7,7 @@ import { useSesion } from '../lib/sesion';
 import { useEnVivo } from '../lib/enVivo';
 import type { Asistente, Evento, Lider, Localidad } from '../lib/tipos';
 import { formatoNumero, mensajeError } from '../lib/utilidades';
-import { descargarExcel, fechaArchivo } from '../lib/excel';
+import { descargarConfidencial, fechaArchivo } from '../lib/excel';
 import EnVivo from '../componentes/EnVivo';
 import QR from '../componentes/QR';
 import { Cifra, Ventana } from '../componentes/Piezas';
@@ -164,7 +164,7 @@ function Asistentes({ e, alCerrar }: { e: Evento; alCerrar: () => void }) {
     if (!filas) return;
     try {
       await api.registrarExportacion('asistentes_evento', filas.length, { evento: e.nombre });
-      await descargarExcel(`Asistentes_${e.nombre.replace(/[^\p{L}\p{N}]+/gu, '_')}_${fechaArchivo()}.xlsx`, [{ nombre: 'Asistentes', filas: [
+      await descargarConfidencial(`Asistentes_${e.nombre.replace(/[^\p{L}\p{N}]+/gu, '_')}_${fechaArchivo()}.xlsx`, [{ nombre: 'Asistentes', filas: [
         ['Nombres', 'Apellidos', 'Celular', 'Líder', 'Nuevo', 'Llegó'],
         ...filas.map((f) => [f.nombres, f.apellidos, f.telefono, f.lider, f.nueva ? 'Sí' : 'No', new Date(f.en).toLocaleString('es-CO')]),
       ] }]);

@@ -27,6 +27,8 @@ import MiCuenta from './paginas/MiCuenta';
 import CodigoDosPasos from './paginas/CodigoDosPasos';
 import Metas from './paginas/Metas';
 import Eventos from './paginas/Eventos';
+import Terminos, { AceptarTerminos } from './paginas/Terminos';
+import { TERMINOS_VERSION } from './lib/tipos';
 import EventoPublico from './paginas/EventoPublico';
 
 // El tablero carga el mapa (Leaflet): solo se descarga cuando se abre
@@ -39,7 +41,7 @@ function Solo({ roles, children }: { roles: Rol[]; children: JSX.Element }) {
 }
 
 export default function App() {
-  const { sesion, debeCambiarClave } = useSesion();
+  const { sesion, sesionReal, vista, debeCambiarClave } = useSesion();
   const ruta = useLocation().pathname;
 
   // Formulario público del enlace de un líder: no requiere sesión
@@ -66,6 +68,7 @@ export default function App() {
   if (sesion.faltaCodigo) return <CodigoDosPasos />;
   if (debeCambiarClave) return <CambiarClave />;
   if (!sesion.perfil) return <SinAcceso />;
+  if (!vista && sesionReal?.terminos !== TERMINOS_VERSION) return <AceptarTerminos />;
 
   return (
     <Marco>
@@ -89,6 +92,7 @@ export default function App() {
         <Route path="/metas" element={<Solo roles={['admin', 'coordinador', 'candidato']}><Metas /></Solo>} />
         <Route path="/datos-personales" element={<Solo roles={['admin']}><DatosPersonales /></Solo>} />
         <Route path="/cuenta" element={<MiCuenta />} />
+        <Route path="/terminos" element={<Terminos />} />
         <Route path="/cambiar-clave" element={<CambiarClave />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

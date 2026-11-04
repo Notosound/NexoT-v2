@@ -691,3 +691,65 @@ details.plegable-simple[open] > summary { margin-bottom: 0.6rem; }
 .sin-senal.fuera { background: var(--aviso-suave); color: var(--aviso-texto); border-color: var(--aviso-borde, var(--borde)); }
 .sin-senal button { border: 1px solid currentColor; background: transparent; color: inherit; border-radius: 999px; padding: 0.15rem 0.75rem; font-weight: 600; cursor: pointer; }
 .sin-senal ul { flex-basis: 100%; margin: 0.25rem 0 0; padding-left: 1.2rem; }
+
+/* ══ Calma visual (nov 2026): menos ruido, más aire ══════════════════ */
+.tarjeta, .envoltura-tabla, .cifra-tarjeta, .accion-grande { box-shadow: none; }
+.tarjeta { border-color: var(--borde); }
+.contenido { padding-top: 1.25rem; }
+.seccion { margin-top: 1.5rem; }
+.cifras { gap: 0.75rem; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); margin-bottom: 0.25rem; }
+h2 { font-size: 1.05rem; font-weight: 650; }
+.tarjeta-titulo h2 { font-size: 1rem; }
+.tarjeta-titulo small, .tarjeta-titulo > small { font-size: 0.8rem; }
+
+/* Cifras: etiqueta arriba con ícono pequeño, número, detalle discreto */
+.cifra-tarjeta { display: grid; grid-template-columns: auto 1fr; grid-template-areas: 'ic etiqueta' 'valor valor' 'detalle detalle';
+  align-items: center; column-gap: 0.5rem; row-gap: 0.2rem; padding: 0.9rem 1rem; }
+.cifra-tarjeta::before { display: none; }
+.cifra-tarjeta .ic { grid-area: ic; width: 26px; height: 26px; border-radius: 8px; margin: 0; }
+.cifra-tarjeta .ic svg { width: 15px; height: 15px; }
+.cifra-tarjeta .etiqueta { grid-area: etiqueta; font-size: 0.82rem; line-height: 1.25; color: var(--texto-2); }
+.cifra-tarjeta .valor { grid-area: valor; font-size: 1.65rem; font-weight: 750; margin-top: 0.2rem; letter-spacing: -0.01em; }
+.cifra-tarjeta .detalle { grid-area: detalle; font-size: 0.78rem; color: var(--texto-3); line-height: 1.3; }
+a.cifra-tarjeta:hover { box-shadow: none; border-color: var(--marca); }
+.cifra-tarjeta.tono-aviso { border-color: var(--aviso-borde, var(--borde)); }
+@media (max-width: 699px) { .cifra-tarjeta .valor { font-size: 1.4rem; } .cifras { grid-template-columns: 1fr 1fr; } }
+
+/* Encabezado de página: título claro; la descripción la da la guía */
+.encabezado { margin-bottom: 1rem; align-items: center; }
+.encabezado h1 { font-size: 1.5rem; }
+.contenido:has(> .guia) .encabezado .subtitulo { display: none; }
+.en-vivo { font-size: 0.75rem; }
+
+/* Guía "Para qué sirve" */
+.guia { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.7rem 0.9rem; margin-bottom: 1rem; border-radius: 12px;
+  background: var(--marca-suave); color: var(--texto); border: 1px solid transparent; font-size: 0.9rem; }
+.guia-ic { width: 18px; height: 18px; color: var(--marca-fuerte); flex-shrink: 0; margin-top: 2px; }
+.guia-texto { flex: 1; min-width: 0; }
+.guia-texto p { margin: 0; line-height: 1.45; }
+.guia-texto ol { margin: 0.45rem 0 0.1rem; padding-left: 1.2rem; line-height: 1.5; color: var(--texto-2); }
+.guia-mas { margin-top: 0.3rem; border: 0; background: none; padding: 0; color: var(--marca-fuerte); font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 0.2rem; }
+.guia-mas svg { width: 14px; height: 14px; transition: transform 0.15s; }
+.guia-mas svg.girada { transform: rotate(180deg); }
+.guia-cerrar { border: 0; background: none; color: var(--texto-3); cursor: pointer; padding: 0.15rem; border-radius: 6px; display: grid; place-items: center; }
+.guia-cerrar:hover { color: var(--texto); background: rgb(0 0 0 / 0.05); }
+.guia-cerrar svg { width: 16px; height: 16px; }
+
+/* Pie de página legal */
+.pie { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--borde); color: var(--texto-3); font-size: 0.78rem; line-height: 1.5; }
+.pie p { margin: 0 0 0.35rem; }
+.pie .icono { width: 13px; height: 13px; vertical-align: -2px; }
+.pie-enlaces { display: flex; gap: 1rem; flex-wrap: wrap; }
+.pie-enlaces a { color: var(--texto-2); }
+
+/* Términos */
+.terminos-entrada .tarjeta { max-width: 680px; }
+.terminos-caja { max-height: 46vh; overflow-y: auto; border: 1px solid var(--borde); border-radius: 12px; padding: 0.25rem 1rem 0.75rem; background: var(--fondo); }
+.terminos h2 { font-size: 0.98rem; }
+.terminos p, .terminos li { font-size: 0.9rem; }
+
+/* Menú: un poco más compacto y tranquilo */
+.menu-titulo { font-size: 0.66rem; color: var(--texto-3); }
+.menu a { font-weight: 500; }
+.menu a.activo { box-shadow: none; background: var(--marca-suave); }

@@ -117,3 +117,12 @@ test('dos pasos: con factor verificado, una sesión sin código no recibe datos'
   assert.equal(est.find((e) => e.perfil_id === admin).activa, true);
   assert.equal(est.find((e) => e.perfil_id === lider).activa, false);
 });
+
+test('términos de uso: cada usuario acepta los suyos', async () => {
+  await base.como(coord, `select aceptar_terminos('t-1')`);
+  const [p] = await base.sistema('select terminos_version, terminos_en is not null a from perfiles where id = $1', [coord]);
+  assert.deepEqual([p.terminos_version, p.a], ['t-1', true]);
+  const [q] = await base.sistema('select terminos_version from perfiles where id = $1', [admin]);
+  assert.equal(q.terminos_version, null);
+  await assert.rejects(base.peticion(null, { metodo: 'POST' }, `select aceptar_terminos('t-1')`), /permission denied|Inicia sesión/);
+});

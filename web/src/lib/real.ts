@@ -183,18 +183,20 @@ export const api: Api = {
       cacheSesion = null;
       return { usuarioId: usuario.id, email: usuario.email ?? '', perfil: null, organizacion: null, faltaCodigo: true };
     }
-    const perfil = ok(await sb.from('perfiles').select('nombre, rol, organizacion_id, activo').eq('id', usuario.id).maybeSingle());
+    const perfil = ok(await sb.from('perfiles').select('nombre, rol, organizacion_id, activo, terminos_version').eq('id', usuario.id).maybeSingle());
     if (!perfil || !perfil.activo) {
       cacheSesion = null;
       return { usuarioId: usuario.id, email: usuario.email ?? '', perfil: null, organizacion: null };
     }
-    const org = ok(await sb.from('organizaciones').select('nombre').eq('id', perfil.organizacion_id).maybeSingle());
+    const org = ok(await sb.from('organizaciones').select('nombre, slug').eq('id', perfil.organizacion_id).maybeSingle());
     cacheSesion = { usuarioId: usuario.id, orgId: perfil.organizacion_id, rol: perfil.rol as Rol };
     return {
       usuarioId: usuario.id,
       email: usuario.email ?? '',
       perfil: { nombre: perfil.nombre, rol: perfil.rol as Rol, organizacionId: perfil.organizacion_id },
       organizacion: org?.nombre ?? null,
+      organizacionSlug: org?.slug ?? null,
+      terminos: (perfil.terminos_version as string | null) ?? null,
     };
   },
 
@@ -708,5 +710,9 @@ export const api: Api = {
   async personasTransporte() {
     const filas = await todas((a, b) => consultaPersonas('', '', { transporte: true }).range(a, b)) as unknown as CrudoPersona[];
     return filas.map(aFila);
+  },
+
+  async aceptarTerminos(version) {
+    ok(await sb.rpc('aceptar_terminos', { p_version: version }));
   },
 };

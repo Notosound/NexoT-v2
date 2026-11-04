@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useSesion } from '../lib/sesion';
 import { ESTADOS_UBICACION, SEXOS, type EstadoUbicacion, type PersonaFila } from '../lib/tipos';
 import { formatoNumero, mensajeError, nombreCompleto } from '../lib/utilidades';
-import { descargarExcel, fechaArchivo } from '../lib/excel';
+import { descargarConfidencial, fechaArchivo } from '../lib/excel';
 
 export default function Personas() {
   const { api, sesion } = useSesion();
@@ -40,7 +40,7 @@ export default function Personas() {
     try {
       const todas = await api.personasTodas({ texto, estado });
       await api.registrarExportacion('personas', todas.length, { texto, estado });
-      await descargarExcel(`Personas_${fechaArchivo()}.xlsx`, [{
+      await descargarConfidencial(`Personas_${fechaArchivo()}.xlsx`, [{
         nombre: 'Personas',
         filas: [
           ['Cédula', 'Nombres', 'Apellidos', 'Sexo', 'Edad', 'Teléfono', 'Líder', 'Localidad', 'Puesto', 'Puesto reportado', 'Mesa', 'Estado', 'Registrado'],

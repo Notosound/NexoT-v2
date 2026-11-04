@@ -38,7 +38,14 @@ export interface Sesion {
   organizacion: string | null;
   /** Inició sesión con contraseña pero le falta el código de verificación */
   faltaCodigo?: boolean;
+  /** Para enlazar la política de datos pública */
+  organizacionSlug?: string | null;
+  /** Versión de los términos de uso que aceptó (null = ninguna) */
+  terminos?: string | null;
 }
+
+// Términos de uso del equipo: si cambia el texto, cambia la versión y todos aceptan de nuevo
+export const TERMINOS_VERSION = 'terminos-2026-11';
 
 // Protección de datos (Ley 1581)
 export type TipoSolicitud = 'consulta' | 'correccion' | 'supresion' | 'revocatoria';
@@ -419,6 +426,7 @@ export interface Api {
   recibeInforme(): Promise<boolean>;
   cambiarRecibeInforme(recibe: boolean): Promise<void>;
   probarInforme(): Promise<string>;
+  aceptarTerminos(version: string): Promise<void>;
   // eventos
   eventos(): Promise<Evento[]>;
   crearEvento(d: { nombre: string; fecha: string; lugar: string; localidadId: number | null; liderId: string }): Promise<string>;
