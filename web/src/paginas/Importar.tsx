@@ -6,10 +6,8 @@ import { useSesion } from '../lib/sesion';
 import { PLANTILLA_REGISTROS, type FilaImportacion, type Importacion, type Lider } from '../lib/tipos';
 import { Ventana } from '../componentes/Piezas';
 import { formatoNumero, hoyISO, mensajeError } from '../lib/utilidades';
-import { descargarExcel } from '../lib/excel';
+import { ENCABEZADOS_LIDER, descargarPlantillaRegistros } from '../lib/plantillaRegistros';
 
-const ENCABEZADOS_ADMIN = ['Cédula', 'Nombres', 'Apellidos', 'Sexo', 'Fecha de nacimiento', 'Edad', 'Teléfono', 'Barrio', 'Localidad', 'Puesto', 'Dirección del puesto', 'Mesa', 'Cédula del líder'];
-const ENCABEZADOS_LIDER = ENCABEZADOS_ADMIN.slice(0, -1);
 const normal = (t: unknown) => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
 
 const INSTRUCCIONES_LIDER = [
@@ -17,7 +15,8 @@ const INSTRUCCIONES_LIDER = [
   [''],
   ['1. Escribe una persona por fila en la hoja "Registros", desde la fila 2. Borra la fila de ejemplo.'],
   ['2. Obligatorios: Cédula (solo números), Nombres, Sexo, Edad o Fecha de nacimiento, Teléfono (celular de 10 dígitos que empiece por 3), Localidad y Puesto.'],
-  ['3. Localidad y Puesto: cópialos tal cual de la hoja "Puestos oficiales". Si el puesto de la persona no está, escríbelo como le aparece en la Registraduría y pon la Dirección del puesto.'],
+  ['3. Localidad y Puesto se eligen de listas: primero la Localidad y luego, en Puesto, salen solo los puestos oficiales de esa localidad (igual que en el registro).'],
+  ['   Si el puesto de la persona no aparece, escríbelo como le aparece en la Registraduría, acepta el aviso de Excel y pon la Dirección del puesto: queda para revisión.'],
   ['4. Sexo: Femenino, Masculino, Otro o No informa. Edad: fecha de nacimiento (dd/mm/aaaa) o solo la edad. Deben ser mayores de 18.'],
   [''],
   ['No cambies los títulos de las columnas, no agregues columnas y no borres la hoja "Control": así el sistema reconoce la plantilla oficial.'],
@@ -32,7 +31,7 @@ const INSTRUCCIONES_REGISTROS = [
   ['Sexo: Femenino, Masculino, Otro o No informa (también sirven F / M / Mujer / Hombre).'],
   ['Edad: escribe la fecha de nacimiento (dd/mm/aaaa) o solo la edad en años. Deben ser mayores de 18.'],
   ['Teléfono: 7 a 10 dígitos; el +57 se quita solo.'],
-  ['Lugar de votación: Localidad, Puesto y Mesa como aparecen en la hoja "Puestos oficiales".'],
+  ['Lugar de votación: elige la Localidad de la lista; la columna Puesto muestra solo los puestos oficiales de esa localidad. La Mesa es un número.'],
   ['  Si el puesto aparece con otro nombre, escríbelo igual y pon la Dirección del puesto: el sistema intentará ubicarlo y, si no puede, queda para revisión.'],
   ['Cédula del líder: si cada fila es de un líder distinto. Si toda la lista es de un solo líder, déjala vacía y elígelo al importar.'],
   [''],
@@ -41,10 +40,6 @@ const INSTRUCCIONES_REGISTROS = [
   ['No borres la hoja "Control": así el sistema reconoce la plantilla oficial.'],
 ];
 
-const HOJA_CONTROL = {
-  nombre: 'Control', anchos: [90],
-  filas: [[PLANTILLA_REGISTROS], ['Plantilla oficial de registros de NexoT. No borres ni cambies esta hoja.']],
-};
 
 type Paso = 'archivo' | 'validando' | 'reporte' | 'confirmando' | 'listo';
 type Pestana = 'con_errores' | 'duplicada' | 'advertencias' | 'valida';
@@ -92,21 +87,10 @@ export default function Importar() {
     setPreparando(true); setError('');
     try {
       const puestos = await api.puestosConCodigos();
-      const ejemplo = ['1020304050', 'Ejemplo', 'Borrar Esta Fila', 'Femenino', '21/05/1990', '', '3001234567', 'Cedritos', 'Usaquén', puestos.find((p) => p.localidad === 'Usaquén')?.nombre ?? '', '', 3, ''];
-      await descargarExcel(esLider ? 'Plantilla_mi_lista_NexoT.xlsx' : 'Plantilla_registros_NexoT.xlsx', [
-        {
-          nombre: 'Registros',
-          filas: esLider ? [ENCABEZADOS_LIDER, ejemplo.slice(0, -1)] : [ENCABEZADOS_ADMIN, ejemplo],
-          anchos: [14, 18, 20, 11, 18, 7, 13, 16, 18, 36, 26, 7, 16],
-        },
-        { nombre: 'Instrucciones', filas: esLider ? INSTRUCCIONES_LIDER : INSTRUCCIONES_REGISTROS, anchos: [120] },
-        {
-          nombre: 'Puestos oficiales',
-          filas: [['Localidad', 'Puesto', 'Dirección', 'Mesas'], ...puestos.map((p) => [p.localidad, p.nombre, p.direccion ?? '', p.mesas_total])],
-          anchos: [20, 44, 44, 8],
-        },
-        HOJA_CONTROL,
-      ]);
+      await descargarPlantillaRegistros({
+        archivo: esLider ? 'Plantilla_mi_lista_NexoT.xlsx' : 'Plantilla_registros_NexoT.xlsx',
+        esLider, puestos, instrucciones: esLider ? INSTRUCCIONES_LIDER : INSTRUCCIONES_REGISTROS,
+      });
     } catch (e) { setError(mensajeError(e)); } finally { setPreparando(false); }
   }
 

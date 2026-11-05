@@ -217,7 +217,7 @@ console.log('Líder (móvil)');
     await page.getByRole('link', { name: 'Importar mi lista' }).click();
     await page.getByRole('heading', { name: 'Importar mi lista' }).waitFor();
     const { libro } = await leerDescarga(page, () => page.getByRole('button', { name: 'Descargar la plantilla' }).click());
-    assert.deepEqual(libro.worksheets.map((h) => h.name), ['Registros', 'Instrucciones', 'Puestos oficiales', 'Control']);
+    assert.deepEqual(libro.worksheets.map((h) => h.name), ['Registros', 'Instrucciones', 'Puestos oficiales', 'Control', 'Listas']);
     const hoja = libro.getWorksheet('Registros');
     assert.equal(hoja.getRow(1).values.slice(1).includes('Cédula del líder'), false, 'el líder no asigna a otros');
     // Un Excel cualquiera no sirve
@@ -735,7 +735,7 @@ console.log('Análisis y exportes (administrador)');
   await paso('plantilla de registros con instrucciones y puestos oficiales', async () => {
     await page.getByRole('link', { name: 'Importar Excel' }).click();
     const { libro } = await leerDescarga(page, () => page.getByRole('button', { name: 'Descargar plantilla de registros' }).click());
-    assert.deepEqual(libro.worksheets.map((h) => h.name), ['Registros', 'Instrucciones', 'Puestos oficiales', 'Control']);
+    assert.deepEqual(libro.worksheets.map((h) => h.name), ['Registros', 'Instrucciones', 'Puestos oficiales', 'Control', 'Listas']);
     assert.equal(libro.getWorksheet('Puestos oficiales').rowCount, 1084);
   });
   await paso('exportar personas a Excel', async () => {
