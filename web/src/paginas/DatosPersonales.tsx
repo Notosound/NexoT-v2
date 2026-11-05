@@ -1,7 +1,7 @@
 // Datos personales (solo admin): solicitudes de los titulares, registro de
 // acciones sensibles y datos del responsable para la política pública.
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Copy, ExternalLink, FileDown, Eye, ShieldCheck, Trash2, UserCog, Inbox } from 'lucide-react';
+import { FileSpreadsheet, Copy, ExternalLink, FileDown, Eye, ShieldCheck, Trash2, UserCog, Inbox } from 'lucide-react';
 import { useSesion } from '../lib/sesion';
 import {
   TIPOS_SOLICITUD, type AccionSensible, type DatoTitular, type Politica, type SolicitudDatos,
@@ -207,11 +207,13 @@ function Atender({ s, alCerrar, alTerminar }: { s: SolicitudDatos; alCerrar: () 
 }
 
 const ICONO_ACCION = { EXPORT: FileDown, VER_COMO: Eye, SUPRESION: Trash2, UPDATE: UserCog };
+// Las importaciones se registran como UPDATE de la tabla importaciones (al confirmar)
 function describir(a: AccionSensible) {
   const d = a.detalle ?? {};
   if (a.accion === 'EXPORT') return `Exportó ${d.tipo ?? 'datos'} (${d.filas ?? '?'} filas)`;
   if (a.accion === 'VER_COMO') return `Entró a "Ver como" (${String(d.objetivo ?? '').replace(/^rol:/, 'rol ').replace(/^lider:.*/, 'un líder')})`;
   if (a.accion === 'SUPRESION') return `Borró los datos de un titular (radicado ${d.radicado}, ${d.personas} ${d.personas === 1 ? 'registro' : 'registros'})`;
+  if (a.tabla === 'importaciones') return `Importó un Excel: ${d.filas_importadas ?? '?'} personas ("${d.archivo ?? ''}")${d.aviso_aceptado_en ? ', con el aviso legal aceptado' : ''}`;
   if (d.verificacion_dos_pasos) return 'Quitó la verificación en dos pasos a un usuario';
   return 'Cambió el rol o el acceso de un usuario';
 }
@@ -229,7 +231,7 @@ function Acciones() {
       {filas == null ? <p className="vacio">Cargando…</p> : filas.length === 0 ? <p className="vacio">Todavía no hay acciones sensibles.</p> : (
         <ul className="hallazgos">
           {filas.map((a) => {
-            const Icono = ICONO_ACCION[a.accion] ?? UserCog;
+            const Icono = a.tabla === 'importaciones' ? FileSpreadsheet : ICONO_ACCION[a.accion] ?? UserCog;
             return (
               <li key={a.id}>
                 <Icono aria-hidden />

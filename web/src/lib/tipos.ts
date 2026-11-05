@@ -25,6 +25,10 @@ export const ESTADOS_UBICACION: Record<EstadoUbicacion, string> = {
 };
 
 // Texto del aviso que acepta cada persona. Si cambia el texto, cambia la versión.
+/** Versión del aviso legal que se acepta antes de importar una lista */
+export const AVISO_IMPORTAR_VERSION = 'importar-2026-11';
+/** Marca de la plantilla oficial de registros (hoja Control) */
+export const PLANTILLA_REGISTROS = 'NEXOT-PLANTILLA-REGISTROS-V1';
 export const AVISO_VERSION = 'aviso-2026-10';
 export const AVISO_TEXTO =
   'La persona autoriza el tratamiento de sus datos personales, incluido el dato sensible de su preferencia política, ' +
@@ -341,7 +345,7 @@ export interface Api {
   porRevisar(): Promise<GrupoRevision[]>;
   resolverUbicacion(personaId: string, puestoId: number): Promise<number>;
   // importación
-  crearImportacion(d: { archivo: string; liderId: string | null; fechaDatos: string; consentimiento: boolean }): Promise<string>;
+  crearImportacion(d: { archivo: string; liderId: string | null; fechaDatos: string; consentimiento: boolean; plantilla: string | null; avisoAceptadoEn: string | null }): Promise<string>;
   cargarFilas(importacionId: string, filas: { fila: number; datos: Record<string, string> }[], progreso?: (n: number) => void): Promise<void>;
   validarImportacion(id: string): Promise<Importacion>;
   filasImportacion(id: string): Promise<FilaImportacion[]>;

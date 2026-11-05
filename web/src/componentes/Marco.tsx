@@ -28,7 +28,7 @@ const SECCIONES: { titulo: string; tituloLider?: string; enlaces: Enlace[] }[] =
     { a: '/registrar', texto: 'Registrar persona', icono: UserPlus, roles: ['admin', 'coordinador', 'lider'] },
     { a: '/personas', texto: 'Personas', textoLider: 'Mis registros', icono: Contact, roles: ['admin', 'coordinador', 'lider'] },
     { a: '/mi-enlace', texto: 'Mi enlace y QR', icono: QrCode, roles: ['lider'] },
-    { a: '/importar', texto: 'Importar Excel', icono: FileSpreadsheet, roles: ['admin'] },
+    { a: '/importar', texto: 'Importar Excel', textoLider: 'Importar mi lista', icono: FileSpreadsheet, roles: ['admin', 'lider'] },
     { a: '/revision', texto: 'Puestos por revisar', icono: ClipboardCheck, roles: ['admin'] },
   ] },
   { titulo: 'Movilización', enlaces: [

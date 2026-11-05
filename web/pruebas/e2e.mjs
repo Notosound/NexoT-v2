@@ -110,7 +110,7 @@ console.log('Líder (móvil)');
   await paso('el menú del líder no muestra secciones de administración', async () => {
     const menu = await page.getByRole('navigation', { name: 'Secciones' }).innerText();
     assert.match(menu, /Mis registros/);
-    assert.doesNotMatch(menu, /Equipo|Importar|revisar/);
+    assert.doesNotMatch(menu, /Equipo|Importar Excel|revisar/);
   });
 
   await page.getByRole('link', { name: 'Registrar persona' }).first().click();
@@ -213,8 +213,48 @@ console.log('Líder (móvil)');
     await page.getByText('El puesto quedó para revisión del administrador.').waitFor();
   });
 
+  await paso('importar mi lista: solo plantilla oficial, con aviso legal y todo a su nombre', async () => {
+    await page.getByRole('link', { name: 'Importar mi lista' }).click();
+    await page.getByRole('heading', { name: 'Importar mi lista' }).waitFor();
+    const { libro } = await leerDescarga(page, () => page.getByRole('button', { name: 'Descargar la plantilla' }).click());
+    assert.deepEqual(libro.worksheets.map((h) => h.name), ['Registros', 'Instrucciones', 'Puestos oficiales', 'Control']);
+    const hoja = libro.getWorksheet('Registros');
+    assert.equal(hoja.getRow(1).values.slice(1).includes('Cédula del líder'), false, 'el líder no asigna a otros');
+    // Un Excel cualquiera no sirve
+    await page.getByRole('button', { name: 'Elegir el archivo' }).click();
+    await page.getByRole('dialog', { name: /aviso legal/ }).waitFor();
+    assert.ok(await page.getByRole('button', { name: 'Aceptar y elegir el archivo' }).isDisabled(), 'sin aceptar no sigue');
+    await page.getByLabel(/Leí el aviso y declaro/).check();
+    let [selector] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: 'Aceptar y elegir el archivo' }).click()]);
+    await selector.setFiles(excel);
+    await page.getByText(/no es la plantilla oficial/).waitFor();
+    // La plantilla con títulos cambiados tampoco
+    hoja.spliceRows(2, 1);
+    hoja.getRow(1).getCell(2).value = 'Nombre completo';
+    const mala = join(capturas, 'mi-lista-mala.xlsx');
+    await libro.xlsx.writeFile(mala);
+    [selector] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: 'Elegir el archivo' }).click()]);
+    await selector.setFiles(mala);
+    await page.getByText(/títulos de las columnas de la plantilla fueron cambiados/).waitFor();
+    // La plantilla bien llena
+    hoja.getRow(1).getCell(2).value = 'Nombres';
+    hoja.addRow(['52111222', 'Lucía', 'Gómez', 'Femenino', '', 44, '3005556677', 'Usaquén', 'Usaquén', 'SERVITA', '', 2]);
+    hoja.addRow(['52111223', 'Sin', 'Puesto', 'Masculino', '', 50, '3005556678', '', '', '', '', '']);
+    const buena = join(capturas, 'mi-lista.xlsx');
+    await libro.xlsx.writeFile(buena);
+    [selector] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: 'Elegir el archivo' }).click()]);
+    await selector.setFiles(buena);
+    await page.getByText('Todas estas personas quedarán registradas a tu nombre.').waitFor();
+    assert.equal(await page.getByLabel(/Líder al que se asignan/).count(), 0);
+    await page.screenshot({ path: join(capturas, '07-lider-importar.png'), fullPage: true });
+    await page.getByRole('button', { name: /^Revisar 2 filas$/ }).click();
+    await page.getByText('falta el puesto de votación (columna Puesto)').waitFor();
+    await page.getByRole('button', { name: 'Importar 1 personas' }).click();
+    await page.getByText('1 personas importadas.').waitFor();
+  });
+
   await paso('mis registrados: búsqueda por cédula', async () => {
-    await page.getByRole('link', { name: 'Mis registros' }).click();
+    await page.getByRole('link', { name: 'Mis registros', exact: true }).click();
     await page.getByLabel('Buscar').fill('80123456');
     await page.getByText('María Fernanda Prueba Demo').waitFor();
     await page.screenshot({ path: join(capturas, '06-mis-registrados.png'), fullPage: true });
@@ -304,7 +344,7 @@ console.log('Administrador (escritorio)');
     const menu = await page.getByRole('navigation', { name: 'Secciones' }).innerText();
     assert.match(menu, /Mis registros/);
     assert.match(menu, /Mi enlace y QR/);
-    assert.doesNotMatch(menu, /Equipo|Importar/);
+    assert.doesNotMatch(menu, /Equipo|Importar Excel/);
     await page.screenshot({ path: join(capturas, '16-ver-como-lider.png'), fullPage: true });
     // Intentar registrar: la vista no deja escribir
     await page.getByRole('link', { name: 'Registrar persona' }).first().click();
@@ -695,7 +735,7 @@ console.log('Análisis y exportes (administrador)');
   await paso('plantilla de registros con instrucciones y puestos oficiales', async () => {
     await page.getByRole('link', { name: 'Importar Excel' }).click();
     const { libro } = await leerDescarga(page, () => page.getByRole('button', { name: 'Descargar plantilla de registros' }).click());
-    assert.deepEqual(libro.worksheets.map((h) => h.name), ['Registros', 'Instrucciones', 'Puestos oficiales']);
+    assert.deepEqual(libro.worksheets.map((h) => h.name), ['Registros', 'Instrucciones', 'Puestos oficiales', 'Control']);
     assert.equal(libro.getWorksheet('Puestos oficiales').rowCount, 1084);
   });
   await paso('exportar personas a Excel', async () => {

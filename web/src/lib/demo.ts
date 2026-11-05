@@ -323,7 +323,7 @@ function aFila(p: PersonaDemo): PersonaFila {
 }
 const exportaciones: { tipo: string; filas: number; en?: string; usuario?: string }[] = [];
 
-const importaciones = new Map<string, { imp: Importacion; filas: FilaImportacion[]; liderId: string | null }>();
+const importaciones = new Map<string, { imp: Importacion; filas: FilaImportacion[]; liderId: string | null; esLider?: boolean }>();
 
 export const api: Api = {
   modo: 'demo',
@@ -480,7 +480,7 @@ export const api: Api = {
     const id = `imp-${importaciones.size + 1}`;
     importaciones.set(id, {
       imp: { id, estado: 'cargando', total_filas: 0, filas_validas: 0, filas_con_errores: 0, filas_duplicadas: 0, filas_importadas: 0 },
-      filas: [], liderId: d.liderId,
+      filas: [], liderId: yo().rol === 'lider' ? (lideres.find((l) => l.perfil_id === yo().id)?.id ?? d.liderId) : d.liderId, esLider: yo().rol === 'lider',
     });
     return id;
   },
@@ -502,6 +502,7 @@ export const api: Api = {
       if (!/^\d{3,10}$/.test(ced)) f.errores.push(`cédula inválida: "${f.datos.cedula ?? ''}"`);
       if (!f.datos.nombres) f.errores.push('falta el nombre');
       if (!i.liderId && !f.datos.lider_cedula) f.errores.push('sin líder asignado');
+      if (i.esLider && !f.datos.puesto) f.errores.push('falta el puesto de votación (columna Puesto)');
       const loc = LOCALIDADES.find((l) => normalizar(l.nombre) === normalizar(f.datos.localidad ?? ''));
       if (f.datos.localidad && !loc) f.advertencias.push(`localidad no encontrada: "${f.datos.localidad}"`);
       if (loc && f.datos.puesto && !sugerir(loc.id, f.datos.puesto, '')?.confianza) f.advertencias.push(`puesto por revisar: "${f.datos.puesto}"`);

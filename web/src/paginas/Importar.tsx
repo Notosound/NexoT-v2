@@ -1,10 +1,29 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ShieldCheck, Upload } from 'lucide-react';
 import { CAMPOS, filaACanonica, filaVacia, mapearEncabezados } from '@compartido/importacion/mapeo.mjs';
 import { useSesion } from '../lib/sesion';
-import type { FilaImportacion, Importacion, Lider } from '../lib/tipos';
+import { PLANTILLA_REGISTROS, type FilaImportacion, type Importacion, type Lider } from '../lib/tipos';
+import { Ventana } from '../componentes/Piezas';
 import { formatoNumero, hoyISO, mensajeError } from '../lib/utilidades';
 import { descargarExcel } from '../lib/excel';
+
+const ENCABEZADOS_ADMIN = ['Cédula', 'Nombres', 'Apellidos', 'Sexo', 'Fecha de nacimiento', 'Edad', 'Teléfono', 'Barrio', 'Localidad', 'Puesto', 'Dirección del puesto', 'Mesa', 'Cédula del líder'];
+const ENCABEZADOS_LIDER = ENCABEZADOS_ADMIN.slice(0, -1);
+const normal = (t: unknown) => String(t ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+
+const INSTRUCCIONES_LIDER = [
+  ['Cómo llenar tu plantilla'],
+  [''],
+  ['1. Escribe una persona por fila en la hoja "Registros", desde la fila 2. Borra la fila de ejemplo.'],
+  ['2. Obligatorios: Cédula (solo números), Nombres, Sexo, Edad o Fecha de nacimiento, Teléfono (celular de 10 dígitos que empiece por 3), Localidad y Puesto.'],
+  ['3. Localidad y Puesto: cópialos tal cual de la hoja "Puestos oficiales". Si el puesto de la persona no está, escríbelo como le aparece en la Registraduría y pon la Dirección del puesto.'],
+  ['4. Sexo: Femenino, Masculino, Otro o No informa. Edad: fecha de nacimiento (dd/mm/aaaa) o solo la edad. Deben ser mayores de 18.'],
+  [''],
+  ['No cambies los títulos de las columnas, no agregues columnas y no borres la hoja "Control": así el sistema reconoce la plantilla oficial.'],
+  ['Todas las personas quedan registradas a tu nombre. Solo sube personas que te autorizaron a usar sus datos.'],
+  ['Al subir el archivo verás un reporte fila por fila. Nada se guarda hasta que confirmes.'],
+];
 
 const INSTRUCCIONES_REGISTROS = [
   ['Cómo llenar la plantilla de registros'],
@@ -19,7 +38,13 @@ const INSTRUCCIONES_REGISTROS = [
   [''],
   ['Al subir el archivo verás un reporte fila por fila. Nada se guarda hasta que confirmes.'],
   ['Las cédulas repetidas (en el archivo o ya registradas) no entran dos veces.'],
+  ['No borres la hoja "Control": así el sistema reconoce la plantilla oficial.'],
 ];
+
+const HOJA_CONTROL = {
+  nombre: 'Control', anchos: [90],
+  filas: [[PLANTILLA_REGISTROS], ['Plantilla oficial de registros de NexoT. No borres ni cambies esta hoja.']],
+};
 
 type Paso = 'archivo' | 'validando' | 'reporte' | 'confirmando' | 'listo';
 type Pestana = 'con_errores' | 'duplicada' | 'advertencias' | 'valida';
@@ -32,6 +57,7 @@ interface Leido {
   sinReconocer: string[];
   repetidos: string[];
   filas: { fila: number; datos: Record<string, string> }[];
+  plantilla: string | null;
 }
 
 const NOMBRE_CAMPO: Record<string, string> = {
@@ -42,7 +68,11 @@ const NOMBRE_CAMPO: Record<string, string> = {
 };
 
 export default function Importar() {
-  const { api } = useSesion();
+  const { api, sesion } = useSesion();
+  const esLider = sesion!.perfil!.rol === 'lider';
+  const [avisoEn, setAvisoEn] = useState<string | null>(null);
+  const [avisoAbierto, setAvisoAbierto] = useState(false);
+  const archivoRef = useRef<HTMLInputElement>(null);
   const [paso, setPaso] = useState<Paso>('archivo');
   const [leido, setLeido] = useState<Leido | null>(null);
   const [lideres, setLideres] = useState<Lider[]>([]);
@@ -62,21 +92,20 @@ export default function Importar() {
     setPreparando(true); setError('');
     try {
       const puestos = await api.puestosConCodigos();
-      await descargarExcel('Plantilla_registros_NexoT.xlsx', [
+      const ejemplo = ['1020304050', 'Ejemplo', 'Borrar Esta Fila', 'Femenino', '21/05/1990', '', '3001234567', 'Cedritos', 'Usaquén', puestos.find((p) => p.localidad === 'Usaquén')?.nombre ?? '', '', 3, ''];
+      await descargarExcel(esLider ? 'Plantilla_mi_lista_NexoT.xlsx' : 'Plantilla_registros_NexoT.xlsx', [
         {
           nombre: 'Registros',
-          filas: [
-            ['Cédula', 'Nombres', 'Apellidos', 'Sexo', 'Fecha de nacimiento', 'Edad', 'Teléfono', 'Barrio', 'Localidad', 'Puesto', 'Dirección del puesto', 'Mesa', 'Cédula del líder'],
-            ['1020304050', 'Ejemplo', 'Borrar Esta Fila', 'Femenino', '21/05/1990', '', '3001234567', 'Cedritos', 'Usaquén', puestos.find((p) => p.localidad === 'Usaquén')?.nombre ?? '', '', 3, ''],
-          ],
+          filas: esLider ? [ENCABEZADOS_LIDER, ejemplo.slice(0, -1)] : [ENCABEZADOS_ADMIN, ejemplo],
           anchos: [14, 18, 20, 11, 18, 7, 13, 16, 18, 36, 26, 7, 16],
         },
-        { nombre: 'Instrucciones', filas: INSTRUCCIONES_REGISTROS, anchos: [120] },
+        { nombre: 'Instrucciones', filas: esLider ? INSTRUCCIONES_LIDER : INSTRUCCIONES_REGISTROS, anchos: [120] },
         {
           nombre: 'Puestos oficiales',
           filas: [['Localidad', 'Puesto', 'Dirección', 'Mesas'], ...puestos.map((p) => [p.localidad, p.nombre, p.direccion ?? '', p.mesas_total])],
           anchos: [20, 44, 44, 8],
         },
+        HOJA_CONTROL,
       ]);
     } catch (e) { setError(mensajeError(e)); } finally { setPreparando(false); }
   }
@@ -84,18 +113,37 @@ export default function Importar() {
   async function leer(archivo: File) {
     setError(''); setLeido(null);
     try {
-      const { default: leerExcel } = await import('read-excel-file');
-      const hoja = await leerExcel(archivo);
+      const { default: leerExcel, readSheetNames } = await import('read-excel-file');
+      // ¿Es la plantilla oficial? (hoja Control con la marca)
+      let plantilla: string | null = null;
+      const hojas = await readSheetNames(archivo);
+      if (hojas.includes('Control')) {
+        const control = await leerExcel(archivo, { sheet: 'Control' });
+        if (String(control[0]?.[0] ?? '').trim() === PLANTILLA_REGISTROS) plantilla = PLANTILLA_REGISTROS;
+      }
+      if (esLider && !plantilla) {
+        throw new Error('NO_PLANTILLA');
+      }
+      const hoja = await leerExcel(archivo, hojas.includes('Registros') ? { sheet: 'Registros' } : undefined);
       const inicio = hoja.findIndex((f) => f.filter((c) => c != null && String(c).trim()).length >= 2);
       if (inicio < 0) throw new Error('El archivo está vacío.');
       const encabezados = hoja[inicio].map((c) => (c == null ? '' : String(c)));
+      if (esLider) {
+        const esperados = ENCABEZADOS_LIDER.map(normal);
+        const reales = encabezados.map(normal).filter(Boolean);
+        if (inicio !== 0 || reales.length !== esperados.length || reales.some((h, i) => h !== esperados[i])) throw new Error('ENCABEZADOS');
+      }
       const m = mapearEncabezados(encabezados);
       const filasDatos = hoja.slice(inicio + 1)
         .map((celdas, i) => ({ fila: inicio + i + 2, datos: filaACanonica(celdas, m.mapeo) as Record<string, string> }))
         .filter((f) => !filaVacia(f.datos));
-      setLeido({ nombre: archivo.name, encabezados, ...m, filas: filasDatos });
+      if (esLider && filasDatos.length > 3000) throw new Error('Máximo 3.000 personas por archivo: divide la lista en varios archivos');
+      setLeido({ nombre: archivo.name, encabezados, ...m, filas: filasDatos, plantilla });
     } catch (e) {
-      setError(`No se pudo leer el archivo: ${mensajeError(e)}. Debe ser un Excel (.xlsx).`);
+      const m = e instanceof Error ? e.message : '';
+      if (m === 'NO_PLANTILLA') setError('Este archivo no es la plantilla oficial. Descarga la plantilla, copia tus datos en la hoja “Registros” y súbela de nuevo.');
+      else if (m === 'ENCABEZADOS') setError('Los títulos de las columnas de la plantilla fueron cambiados. Descarga la plantilla de nuevo y copia tus datos sin cambiar la primera fila.');
+      else setError(`No se pudo leer el archivo: ${mensajeError(e)}. Debe ser un Excel (.xlsx).`);
     }
   }
 
@@ -105,7 +153,10 @@ export default function Importar() {
     if (!leido) return;
     setError(''); setPaso('validando'); setProgreso(0);
     try {
-      const id = await api.crearImportacion({ archivo: leido.nombre, liderId: liderId || null, fechaDatos, consentimiento });
+      const id = await api.crearImportacion({
+        archivo: leido.nombre, liderId: esLider ? lideres[0]?.id ?? null : liderId || null, fechaDatos,
+        consentimiento: esLider || consentimiento, plantilla: leido.plantilla, avisoAceptadoEn: avisoEn,
+      });
       await api.cargarFilas(id, leido.filas, setProgreso);
       const r = await api.validarImportacion(id);
       const f = await api.filasImportacion(id);
@@ -141,58 +192,77 @@ export default function Importar() {
 
   return (
     <>
-      <div className="encabezado"><div><h1>Importar Excel</h1><p>Carga listas de personas en tres pasos: leer, revisar y confirmar.</p></div></div>
+      <div className="encabezado"><div>
+        <h1>{esLider ? 'Importar mi lista' : 'Importar Excel'}</h1>
+        <p>{esLider ? 'Sube a tu gente desde un Excel con la plantilla oficial: descargar, llenar, subir y confirmar.' : 'Carga listas de personas en tres pasos: leer, revisar y confirmar.'}</p>
+      </div></div>
       {error && <div className="aviso error" role="alert" style={{ marginBottom: '1rem' }}>{error}</div>}
 
       {paso === 'archivo' && (
         <div className="tarjeta" style={{ marginBottom: '1rem' }}>
-          <h2>Plantilla</h2>
-          <p className="ayuda">Trae las columnas que el sistema reconoce, instrucciones y el listado oficial de puestos. También puedes subir tus propios Excel: las columnas se reconocen por su nombre.</p>
-          <button className="boton" disabled={preparando} onClick={plantillaRegistros}>{preparando ? 'Preparando…' : 'Descargar plantilla de registros'}</button>
+          <h2>1. Descarga la plantilla oficial</h2>
+          <p className="ayuda">{esLider
+            ? 'Solo se aceptan listas en la plantilla oficial: así no hay errores de columnas ni de puestos. Trae instrucciones y el listado oficial de puestos para copiar.'
+            : 'Trae las columnas que el sistema reconoce, instrucciones y el listado oficial de puestos. También puedes subir tus propios Excel: las columnas se reconocen por su nombre.'}</p>
+          <button className="boton" disabled={preparando} onClick={plantillaRegistros}>{preparando ? 'Preparando…' : esLider ? 'Descargar la plantilla' : 'Descargar plantilla de registros'}</button>
         </div>
       )}
 
       {paso === 'archivo' && (
         <div className="tarjeta formulario">
-          <label className="campo"><span>Archivo de Excel (.xlsx)</span>
-            <input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          <h2 style={{ margin: 0 }}>2. Sube el archivo lleno</h2>
+          <div className="campo">
+            <span>Archivo de Excel (.xlsx)</span>
+            <input ref={archivoRef} type="file" hidden aria-label="Archivo de Excel (.xlsx)" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) leer(f); }} />
-            <small>Se lee la primera hoja. La primera fila con datos se toma como encabezados.</small>
-          </label>
+            <div className="acciones">
+              <button type="button" className="boton" onClick={() => (avisoEn ? archivoRef.current?.click() : setAvisoAbierto(true))}>
+                <Upload className="icono" aria-hidden />{leido ? 'Elegir otro archivo' : 'Elegir el archivo'}
+              </button>
+              {avisoEn && <span className="ayuda"><ShieldCheck className="icono" aria-hidden /> Aviso legal aceptado</span>}
+            </div>
+            <small>{esLider ? 'Debe ser la plantilla oficial, sin cambiar los títulos de las columnas.' : 'Se lee la hoja “Registros” (o la primera). La primera fila con datos se toma como encabezados.'}</small>
+          </div>
 
           {leido && (
             <>
               <div className={`aviso ${leido.faltan.length ? 'error' : 'ok'}`}>
                 <p><strong>{leido.nombre}</strong>: {formatoNumero(leido.filas.length)} filas con datos.</p>
-                <p>Columnas reconocidas: {Object.entries(leido.mapeo).map(([i, c]) => `${leido.encabezados[Number(i)]} → ${NOMBRE_CAMPO[c] ?? c}`).join(', ')}</p>
+                {esLider ? <p>Plantilla oficial reconocida ✓</p> : <p>Columnas reconocidas: {Object.entries(leido.mapeo).map(([i, c]) => `${leido.encabezados[Number(i)]} → ${NOMBRE_CAMPO[c] ?? c}`).join(', ')}</p>}
                 {leido.faltan.length > 0 && <p>Faltan columnas obligatorias: <strong>{leido.faltan.map((c) => NOMBRE_CAMPO[c]).join(', ')}</strong>.</p>}
                 {leido.sinReconocer.length > 0 && <p>No reconocidas (se ignoran): {leido.sinReconocer.join(', ')}.</p>}
                 {leido.repetidos.length > 0 && <p>Repetidas: {leido.repetidos.join('; ')}.</p>}
               </div>
               {!leido.faltan.length && (
                 <>
-                  <details>
+                  {!esLider && <details>
                     <summary className="ayuda">¿Qué nombres de columna se reconocen?</summary>
                     <ul className="ayuda">
                       {Object.entries(CAMPOS).map(([c, d]) => <li key={c}><strong>{NOMBRE_CAMPO[c] ?? c}</strong>: {(d as { alias: string[] }).alias.join(', ')}</li>)}
                     </ul>
-                  </details>
+                  </details>}
+                  {esLider ? <p className="ayuda" style={{ margin: 0 }}>Todas estas personas quedarán registradas a tu nombre.</p> : (
                   <label className="campo"><span>Líder al que se asignan {tieneLiderPorFila && <span className="opcional">(si la fila no trae cédula del líder)</span>}</span>
                     <select value={liderId} onChange={(e) => setLiderId(e.target.value)}>
                       <option value="">{tieneLiderPorFila ? 'Ninguno' : 'Elige…'}</option>
                       {lideres.map((l) => <option key={l.id} value={l.id}>{l.nombre}</option>)}
                     </select>
                   </label>
+                  )}
                   <label className="campo"><span>Fecha en que se recogieron los datos</span>
                     <input type="date" value={fechaDatos} max={hoyISO()} onChange={(e) => setFechaDatos(e.target.value)} style={{ maxWidth: 220 }} />
                     <small>Sirve para calcular bien la edad cuando la lista solo trae “edad”.</small>
                   </label>
-                  <label className="casilla">
-                    <input type="checkbox" checked={consentimiento} onChange={(e) => setConsentimiento(e.target.checked)} />
-                    <span>Las personas de esta lista aceptaron el aviso de tratamiento de datos.</span>
-                  </label>
-                  {!consentimiento && <div className="aviso atencion">Si no marcas esta casilla, las personas quedan registradas <strong>sin consentimiento</strong> y habrá que pedírselo después.</div>}
-                  <button className="boton primario" disabled={!tieneLiderPorFila && !liderId} onClick={validar}>
+                  {!esLider && (
+                    <>
+                      <label className="casilla">
+                        <input type="checkbox" checked={consentimiento} onChange={(e) => setConsentimiento(e.target.checked)} />
+                        <span>Las personas de esta lista aceptaron el aviso de tratamiento de datos.</span>
+                      </label>
+                      {!consentimiento && <div className="aviso atencion">Si no marcas esta casilla, las personas quedan registradas <strong>sin consentimiento</strong> y habrá que pedírselo después.</div>}
+                    </>
+                  )}
+                  <button className="boton primario" disabled={!esLider && !tieneLiderPorFila && !liderId} onClick={validar}>
                     Revisar {formatoNumero(leido.filas.length)} filas
                   </button>
                   <p className="ayuda">Revisar no guarda personas: solo verifica y te muestra el resultado.</p>
@@ -267,12 +337,49 @@ export default function Importar() {
         <div className="tarjeta">
           <div className="aviso ok" style={{ marginBottom: '1rem' }}><p><strong>{formatoNumero(imp.r.filas_importadas)} personas importadas.</strong> Cada una queda con el archivo y la fila de donde vino.</p></div>
           <div className="acciones">
-            <Link to="/revision" className="boton primario">Revisar puestos</Link>
-            <Link to="/personas" className="boton">Ver personas</Link>
+            {!esLider && <Link to="/revision" className="boton primario">Revisar puestos</Link>}
+            <Link to="/personas" className={esLider ? 'boton primario' : 'boton'}>{esLider ? 'Ver mis registros' : 'Ver personas'}</Link>
             <button className="boton" onClick={() => { setImp(null); setFilas([]); setLeido(null); setPaso('archivo'); }}>Importar otro archivo</button>
           </div>
         </div>
       )}
+      {avisoAbierto && (
+        <AvisoImportar alCerrar={() => setAvisoAbierto(false)} alAceptar={() => {
+          archivoRef.current?.click(); // en el mismo toque: el navegador solo abre el selector así
+          setAvisoEn(new Date().toISOString()); setAvisoAbierto(false);
+        }} />
+      )}
     </>
+  );
+}
+
+/** Aviso legal que se acepta antes de subir una lista (Ley 1581 de 2012) */
+function AvisoImportar({ alCerrar, alAceptar }: { alCerrar: () => void; alAceptar: () => void }) {
+  const { sesion } = useSesion();
+  const [acepto, setAcepto] = useState(false);
+  return (
+    <Ventana titulo="Antes de subir tu lista: aviso legal" icono={ShieldCheck} alCerrar={alCerrar}>
+      <div className="aviso-legal-importar">
+        <p>Vas a cargar datos personales de terceros en la base de <strong>{sesion!.organizacion ?? 'la campaña'}</strong>.
+          Por la Ley 1581 de 2012 (protección de datos personales) y sus decretos reglamentarios, al continuar <strong>declaras que</strong>:</p>
+        <ol>
+          <li>Cada persona de la lista te dio su <strong>autorización previa, expresa e informada</strong> para que la campaña trate sus datos,
+            incluido un <strong>dato sensible</strong>: su preferencia política. Sabe que es voluntario y que puede consultar, corregir o pedir que se borren sus datos.</li>
+          <li>Los datos los obtuviste <strong>directamente de cada persona</strong>. No vienen de bases compradas, de entidades públicas, de empresas ni de otras campañas.</li>
+          <li>La información es <strong>real y actual</strong>, y todas las personas son mayores de edad.</li>
+          <li>Si la persona o la Superintendencia de Industria y Comercio lo piden, la campaña podrá <strong>demostrar esa autorización</strong>.</li>
+        </ol>
+        <p className="ayuda">Usar datos sin autorización puede acarrear sanciones de la SIC (multas de hasta 2.000 salarios mínimos) y responsabilidad personal.
+          Esta carga queda registrada con tu nombre, la fecha y la hora.</p>
+        <label className="casilla">
+          <input type="checkbox" checked={acepto} onChange={(e) => setAcepto(e.target.checked)} />
+          <span>Leí el aviso y declaro que lo anterior es cierto para todas las personas de la lista.</span>
+        </label>
+      </div>
+      <div className="acciones">
+        <button className="boton primario" disabled={!acepto} onClick={alAceptar}>Aceptar y elegir el archivo</button>
+        <button className="boton" onClick={alCerrar}>Cancelar</button>
+      </div>
+    </Ventana>
   );
 }

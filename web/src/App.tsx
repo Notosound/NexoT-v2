@@ -84,7 +84,7 @@ export default function App() {
         <Route path="/registrar" element={<Solo roles={['admin', 'coordinador', 'lider']}><Registrar /></Solo>} />
         <Route path="/personas" element={<Solo roles={['admin', 'coordinador', 'lider']}><Personas /></Solo>} />
         <Route path="/revision" element={<Solo roles={['admin']}><Revision /></Solo>} />
-        <Route path="/importar" element={<Solo roles={['admin']}><Importar /></Solo>} />
+        <Route path="/importar" element={<Solo roles={['admin', 'lider']}><Importar /></Solo>} />
         <Route path="/lideres" element={<Solo roles={['admin', 'coordinador']}><Lideres /></Solo>} />
         <Route path="/equipo" element={<Solo roles={['admin']}><Equipo /></Solo>} />
         <Route path="/analisis" element={<Solo roles={['admin', 'coordinador', 'candidato']}><Analisis /></Solo>} />

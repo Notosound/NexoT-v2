@@ -53,10 +53,16 @@ const G: Guias = {
     'Si alguien lo comparte donde no debe, genera uno nuevo y el anterior deja de servir.'] },
   '/estadisticas': { para: 'Cómo es tu gente: edades, sexo y dónde votan, y cuánto te falta para tu meta.', pasos: [
     'Revisa tu avance frente a la meta.', 'Mira en qué puestos tienes más personas.', 'Completa el lugar de votación de quienes no lo tienen.'] },
-  '/importar': { para: 'Subir muchas personas de una vez desde un Excel.', pasos: [
-    'Descarga la plantilla y llénala (o usa tu propio Excel con títulos parecidos).',
-    'Súbelo: la plataforma revisa cada fila y te dice cuáles tienen problemas antes de guardar.',
-    'Confirma y solo se guardan las filas correctas.'] },
+  '/importar': {
+    lider: { para: 'Subir a tu gente de una vez desde un Excel, sin registrarla una por una.', pasos: [
+      'Descarga la plantilla oficial y llénala sin cambiar los títulos: solo se acepta esa plantilla.',
+      'Al subirla, lee y acepta el aviso legal: declaras que cada persona te autorizó a usar sus datos.',
+      'Revisa el reporte fila por fila y confirma: las personas quedan a tu nombre.'] },
+    todos: { para: 'Subir muchas personas de una vez desde un Excel.', pasos: [
+      'Descarga la plantilla y llénala (o usa tu propio Excel con títulos parecidos).',
+      'Súbelo (antes se acepta el aviso legal): la plataforma revisa cada fila y te dice cuáles tienen problemas antes de guardar.',
+      'Confirma y solo se guardan las filas correctas.'] },
+  },
   '/revision': { para: 'Corregir el lugar de votación de las personas que escribieron un puesto que no está en la lista oficial.', pasos: [
     'La plataforma agrupa a quienes escribieron lo mismo.',
     'Elige el puesto oficial correcto y se corrige para todo el grupo de una vez.',

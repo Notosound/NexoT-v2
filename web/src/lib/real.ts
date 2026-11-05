@@ -8,7 +8,7 @@ import type {
   SeguimientoLider, DiaDFila, Testigo, CoberturaMesa, AlertaCalidad,
   Politica, SolicitudDatos, DatoTitular, AccionSensible, Historico, PotencialPuesto, FilaHistoricoResultado, MetaLider, FechasMeta, RankingFila, Evento, LecturaE14, ResultadoLectura, EstadoMesa,
 } from './tipos';
-import { AVISO_VERSION } from './tipos';
+import { AVISO_IMPORTAR_VERSION, AVISO_VERSION } from './tipos';
 import { edadDesde, hoyISO } from './utilidades';
 
 const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
@@ -345,6 +345,9 @@ export const api: Api = {
       lider_id_defecto: d.liderId,
       fecha_datos: d.fechaDatos,
       consentimiento_version: d.consentimiento ? AVISO_VERSION : null,
+      plantilla: d.plantilla,
+      aviso_version: d.avisoAceptadoEn ? AVISO_IMPORTAR_VERSION : null,
+      aviso_aceptado_en: d.avisoAceptadoEn,
     }).select('id').single());
     return r.id as string;
   },
